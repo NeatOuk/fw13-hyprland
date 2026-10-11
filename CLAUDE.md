@@ -55,7 +55,7 @@ dotfiles/                  chezmoi source (.chezmoiroot = dotfiles)
                            setup (My Framework page (id fw13, `fw-settings fw13`) backend: chezmoi.toml [data.chromium|restic|ollama] rewritten 0600 under a lock + `chezmoi apply
                            --exclude=scripts <targets>`; files removed only when unchanged from what chezmoi wrote; restic via env= only, timer
                            state in store `restic_timer_off` honoured by run_onchange_after_restic-enable; shell via AccountsService SetShell),
-                           defaultapps (each Hyprland login + chezmoi run_onchange: GNOME apps and other-desktop-only entries hidden via
+                           defaultapps (each Hyprland login + chezmoi run_onchange: GNOME apps (except SHOW_IDS: GNOME Software, user decision) and other-desktop-only entries hidden via
                            NoDisplay copies in ~/.local/share/fw13/hyprland/applications (our own fw-calc/fw-emoji entries there carry no marker and are left alone), on XDG_DATA_DIRS for Hyprland only (uwsm/env-hyprland;
                            fuzzel ignores NotShowIn/OnlyShowIn); defaults in ~/.config/hyprland-mimeapps.list: Thunar, Chromium, GNOME viewers;
                            types the user set in mimeapps.list are left out)

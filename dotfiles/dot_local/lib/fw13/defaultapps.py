@@ -32,6 +32,7 @@ USER_MIMEAPPS = os.path.join(CONFIG, "mimeapps.list")
 # Hidden in Hyprland: every org.gnome.* app, plus GNOME Workstation helpers that only make sense in GNOME.
 HIDE_PREFIXES = ("org.gnome.",)
 HIDE_IDS = {"org.freedesktop.MalcontentControl.desktop", "rygel-preferences.desktop"}
+SHOW_IDS = {"org.gnome.Software.desktop"}  # GNOME apps kept in the launcher (user decision: the app store)
 
 # (desktop id, MIME types or None = the app's own MimeType= list). Earlier entries win a type.
 WEB = ["x-scheme-handler/http", "x-scheme-handler/https", "x-scheme-handler/about", "x-scheme-handler/unknown",
@@ -120,7 +121,7 @@ def should_hide(desktop_id, text):
         return True
     if "Hyprland" in desktops(entry_value(text, "NotShowIn")):
         return True
-    return desktop_id.startswith(HIDE_PREFIXES) or desktop_id in HIDE_IDS
+    return desktop_id not in SHOW_IDS and (desktop_id.startswith(HIDE_PREFIXES) or desktop_id in HIDE_IDS)
 
 
 def system_ids():
