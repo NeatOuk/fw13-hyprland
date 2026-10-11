@@ -11,6 +11,7 @@ PAGES = [
     ("appearance", "", "Appearance", "appearance"),
     ("input",      "", "Input",      "input"),
     ("jarvis",     "", "Jarvis",     "jarvis"),
+    ("agent",      "\uf120", "Coding agent", "agent"),
     ("security",   "", "Security",   "security"),
     ("system",     "", "System",     "system"),
     ("apps",       "\uf009", "Apps",       "apps"),

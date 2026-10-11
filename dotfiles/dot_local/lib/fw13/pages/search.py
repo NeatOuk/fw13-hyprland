@@ -70,7 +70,8 @@ def find(page, section, text):
 
 CASES = [("hibernate", "power"), ("night light", "display"), ("noise", "sound"), ("vpn", "network"),
          ("ssh", "security"), ("warn at", "power"), ("weather", "system"), ("colour from", "appearance"),
-         ("jarvis memory", "jarvis"), ("wifi", "network"), ("shortcuts", None), ("uninstall", "apps")]
+         ("jarvis memory", "jarvis"), ("wifi", "network"), ("shortcuts", None), ("uninstall", "apps"),
+         ("coding agent", "agent"), ("pi", "agent"), ("ollama server", "agent")]
 
 
 def test():
