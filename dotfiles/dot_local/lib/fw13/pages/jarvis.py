@@ -102,6 +102,9 @@ class JarvisPage(Page):
         return False
 
     def pull(self, name):
+        if not shutil.which("ollama"):
+            self.status.set_text("Ollama isn't installed: re-run install.sh --with=ai")
+            return
         if not ollama.valid(name):
             self.status.set_text("Type a model name such as qwen3:8b")
             return
