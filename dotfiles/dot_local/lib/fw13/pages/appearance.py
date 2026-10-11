@@ -398,8 +398,16 @@ class AppearancePage(HyprPage):
         self.slider("Gaps outside", "general.gaps_out", 0, 30, 1, hint="between windows and the screen edge")
         self.slider("Border size", "general.border_size", 0, 6, 1)
         self.heading("Workspaces")
-        ws = combo([(str(i), str(i)) for i in range(1, 10)], str(store.get("workspaces_shown") or 5), self.set_workspaces)
-        self.row("Shown on the bar", ws, hint="Per screen; higher ones (up to SUPER+9) appear only while in use")
+        ws = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 9, 1)
+        ws.set_value(int(store.get("workspaces_shown") or 5))  # default 5
+        ws.set_digits(0)
+        ws.set_value_pos(Gtk.PositionType.RIGHT)
+        ws.set_size_request(220, -1)
+        for i in range(1, 10):
+            ws.add_mark(i, Gtk.PositionType.BOTTOM, None)
+        ws.connect("value-changed", self.on_workspaces)
+        self.row("Shown on the bar", ws, hint="Per screen, 1–9 (default 5); higher ones (up to SUPER+9) appear only "
+                                              "while in use")
         if self.confirm:
             box = Gtk.Box(spacing=8)
             box.pack_start(button("Cancel", lambda: self.ask_reset(False)), False, False, 0)
@@ -413,6 +421,13 @@ class AppearancePage(HyprPage):
                      hint="Tokyo Night, JetBrains Mono and every Appearance and Input change (touchpad, keyboard too); "
                           "the wallpaper is kept")
         self.show_all()
+
+    def on_workspaces(self, scale):
+        """Apply once the slider settles (each apply re-binds every screen's workspaces)."""
+        if getattr(self, "ws_timer", None):
+            GLib.source_remove(self.ws_timer)
+        self.ws_timer = GLib.timeout_add(300, lambda: (setattr(self, "ws_timer", None),
+                                                       self.set_workspaces(int(round(scale.get_value()))), False)[2])
 
     def set_workspaces(self, n):
         store.set("workspaces_shown", int(n))
