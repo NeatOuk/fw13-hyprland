@@ -10,6 +10,8 @@ OpenCode — they go through `fw-jarvis` like before.
 
   fw-jarvis-panel            open (a second call closes it); Esc closes and stops a running answer
   fw-jarvis-panel --ask "…"  open with that question and answer it at once (crash notification → Diagnose)
+  fw-jarvis-panel --image PATH [--ask "…"]   ask about a screenshot (fw-jarvis shot, SUPER+ALT+A)
+  fw-jarvis-panel --text-from-selection      ask about the selected text (fw-jarvis selection, SUPER+CTRL+A)
   fw-jarvis-panel test       self-check of the card parsing
 GTK3 + gtk-layer-shell, like fw-warp-panel. Colours from fw13.ui_theme.
 """
@@ -45,6 +47,7 @@ TOP_MARGIN = 60    # below the bar's exclusive zone
 BOTTOM_GAP = 20    # space left under the panel
 MIN_ANSWER = 80    # the answer keeps at least this much, even when a card fills the rest
 OUTPUT_MAX = 160   # a Run card's command output scrolls past this
+SELECTION_MAX = 20000
 
 # What the inline agent may do without asking (one-shot mode can't ask): read anywhere (--add-dir /) except the
 # secret files below, search, and read-only commands, including a few read-only ones as root through passwordless
@@ -249,8 +252,33 @@ def parse_actions(text):
     return out
 
 
+def selected_text():
+    """The primary selection (what is highlighted), else the clipboard; '' when neither holds text."""
+    for extra in (["--primary"], []):
+        try:
+            r = subprocess.run(["wl-paste", *extra, "--no-newline", "--type", "text"], capture_output=True,
+                               text=True, errors="replace", timeout=3)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout[:SELECTION_MAX]
+    return ""
+
+
+def context_for(image=None, selection=None):
+    """(text added to the first question, line shown in the panel, entry placeholder), or None."""
+    if image:
+        return (f"The owner attached a screenshot: {image} — look at it with Read.",
+                f"\uf0c6  Screenshot attached", "Ask about the screenshot…")
+    if selection:
+        shown = " ".join(selection.strip().splitlines()[:2])[:120]
+        return (f"The owner selected this text:\n```\n{selection}\n```",
+                f"Selected: {shown}", "Ask about the selected text (explain, fix, translate to Khmer/English…)")
+    return None
+
+
 class Panel(Gtk.Window):
-    def __init__(self):
+    def __init__(self, context=None):
         super().__init__()
         self.get_style_context().add_class("panel")
         room_w, self.max_h = screen_room()
@@ -291,6 +319,14 @@ class Panel(Gtk.Window):
         self.entry = Gtk.Entry(placeholder_text="Ask anything about this computer…")
         self.entry.connect("activate", lambda _e: self.ask())
         box.pack_start(self.entry, False, False, 0)
+        self.context = context  # a screenshot or selected text, sent with the first question
+        self.context_line = label(context[1] if context else "", "dim", xalign=0)
+        self.context_line.set_ellipsize(Pango.EllipsizeMode.END)
+        self.context_line.set_no_show_all(True)
+        self.context_line.set_visible(bool(context))
+        box.pack_start(self.context_line, False, False, 0)
+        if context:
+            self.entry.set_placeholder_text(context[2])
 
         self.scroll = Gtk.ScrolledWindow()
         self.scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -396,6 +432,8 @@ class Panel(Gtk.Window):
         self.clear_card()
         self.clear_chips()
         state = "" if follow_up else self.system_note()
+        if self.context and not follow_up:
+            prompt = f"{self.context[0]}\n\nQuestion: {prompt}"
         if target == "claude":
             note = f"{INLINE_NOTE}\n\n{state}" if state else INLINE_NOTE
             cmd = ["claude", "-p", prompt, "--output-format", "stream-json", "--include-partial-messages",
@@ -682,7 +720,8 @@ class Panel(Gtk.Window):
         self.stop()
         self.entry.set_text("")
         self.entry.set_sensitive(True)
-        self.answer, self.session = "", None
+        self.answer, self.session, self.context = "", None, None
+        self.context_line.hide()
         self.clear_card()
         self.clear_chips()
         self.entry.set_placeholder_text("Ask anything about this computer…")
@@ -735,9 +774,23 @@ def main():
     args = sys.argv[1:]
     if args == ["test"]:
         return selftest()
-    ask_now = args[1] if len(args) >= 2 and args[0] == "--ask" else None
-    if ask_now:
-        close_running()  # a diagnosis replaces an open panel instead of toggling it shut
+    opts = {}
+    while args:
+        a = args.pop(0)
+        if a in ("--ask", "--image") and args:
+            opts[a] = args.pop(0)
+        elif a == "--text-from-selection":
+            opts[a] = selected_text()  # before the panel opens: nothing has moved the selection yet
+        else:
+            print(f"fw-jarvis-panel: unknown argument {a}", file=sys.stderr)
+            return 2
+    ask_now = opts.get("--ask")
+    image = opts.get("--image")
+    if image and not os.path.isfile(image):
+        print(f"fw-jarvis-panel: no such image {image}", file=sys.stderr)
+        return 2
+    if opts:
+        close_running()  # a question or attachment replaces an open panel instead of toggling it shut
     elif close_running():
         return 0
     subprocess.run(["pkill", "-x", "fuzzel"])  # close any open bar menu
@@ -746,7 +799,7 @@ def main():
     with open(PIDFILE, "w") as f:
         f.write(str(os.getpid()))
     ui_theme.install()
-    panel = Panel()
+    panel = Panel(context_for(image, opts.get("--text-from-selection")))
     panel.connect("destroy", lambda *_: panel.quit())
     try:
         from gi.repository import GLibUnix
@@ -755,6 +808,8 @@ def main():
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, panel.quit)
     panel.show_all()
     panel.entry.grab_focus()
+    if opts.get("--text-from-selection") == "":
+        panel.set_status("Nothing selected: select some text first, or ask anything", "bad")
     if ask_now:  # fw-jarvis-panel --ask "…" (crash Diagnose): fill the box and start right away
         panel.entry.set_text(ask_now)
         GLib.idle_add(lambda: (panel.ask(), False)[1])
