@@ -1,0 +1,4 @@
+# Optional group `remote` (install.sh GROUP_*). Vendor official (Devolutions' RPM repo on Cloudsmith,
+# repos/devolutions-rdm.repo, user decision): remote connections manager (RDP, VNC, SSH…), ~1.2 GB with its bundled
+# .NET runtime; runs under Xwayland. Its saved passwords use gnome-keyring (30-apps.txt, core)
+RemoteDesktopManager

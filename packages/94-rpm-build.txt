@@ -1,0 +1,5 @@
+# Build tools for the RPMs install.sh builds itself (Citadel's own .spec files, Telegram, Ghostty): installed when
+# group firewall, messaging or ghostty is selected
+rpm-build
+make
+systemd-rpm-macros

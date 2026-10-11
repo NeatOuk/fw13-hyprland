@@ -10,6 +10,9 @@
 #                   Timeshift, shell change, Flathub; applies dotfiles from the local checkout
 #   --system-only   only the sudo part (packages, repos, system files)
 #   --user-only     only the per-user part (dotfiles, mise, shell)
+#   --minimal       core desktop only, no optional groups (see GROUP_INFO below)
+#   --with=a,b      add optional groups;  --without=a,b  leave them out (the choice is saved, re-runs keep it)
+#   --print-plan    print the groups, package lists and steps this run would do, then exit (changes nothing)
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/NeatOuk/fw13-hyprland}"
@@ -36,14 +39,36 @@ SCRCPY_VERSION="${SCRCPY_VERSION:-v5.0.1}"
 SCRCPY_SHA256="${SCRCPY_SHA256:-9f969d30cc574816077edecda65719c1c70b0aee1df1ba5fa00779ac07b8fd6e}"
 STATE_DIR="$HOME/.local/state/fw13-hypr"
 
-YES=0 CI=0 DO_SYSTEM=1 DO_USER=1
+# Optional groups: everything else is core (what the desktop itself needs). A group owns its packages/*.txt files and
+# the repo, build, download and service steps that test `on <group>` below. An unselected group is skipped, never
+# removed (rule 3a). Order = prompt order. GROUP_INFO[g] = "<packages/*.txt files>|<one-line description>".
+OPT_GROUPS=(games ai android remote warp firewall messaging ghostty localsend)
+declare -A GROUP_INFO=(
+  [games]="40-gaming.txt|Steam, Lutris, gamescope, MangoHud, GameMode"
+  [ai]="71-ai.txt|Ollama: local models for OpenCode and Jarvis (ollama.service)"
+  [android]="72-android.txt|adb/fastboot + scrcpy phone mirroring (official release)"
+  [remote]="31-remote.txt|Remote Desktop Manager (Devolutions repo, ~1.2 GB)"
+  [warp]="97-warp.txt|Cloudflare WARP + the bar's cloud icon (Cloudflare repo, warp-svc)"
+  [firewall]="94-rpm-build.txt 95-citadel.txt|Citadel outbound firewall, built from source"
+  [messaging]="94-rpm-build.txt|Telegram Desktop, official telegram.org build as an RPM"
+  [ghostty]="94-rpm-build.txt 98-ghostty.txt|Ghostty terminal, built from the official release (kitty stays)"
+  [localsend]="|LocalSend file sharing (Flathub, send only)"
+)
+# The saved choice: one group per line. Absent = every group (today's full install).
+GROUPS_FILE="$HOME/.config/fw13/install-groups"
+
+YES=0 CI=0 DO_SYSTEM=1 DO_USER=1 PLAN=0 MINIMAL=0 WITH="" WITHOUT=""
 for a in "$@"; do
   case "$a" in
     --yes) YES=1 ;;
     --ci) CI=1; YES=1 ;;
     --system-only) DO_USER=0 ;;
     --user-only) DO_SYSTEM=0 ;;
-    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    --minimal) MINIMAL=1 ;;
+    --with=*) WITH="$WITH,${a#*=}" ;;
+    --without=*) WITHOUT="$WITHOUT,${a#*=}" ;;
+    --print-plan) PLAN=1 ;;
+    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
     *) echo "unknown flag: $a"; exit 2 ;;
   esac
 done
@@ -61,6 +86,98 @@ pkgs() {
     | if [[ -s $SKIP_FILE ]]; then grep -vxF -f "$SKIP_FILE" || true; else cat; fi
 }
 SUDO=sudo; [[ $EUID -eq 0 ]] && SUDO=""
+
+# --- Optional groups -----------------------------------------------------------
+SELECTED=()
+on() { [[ " ${SELECTED[*]} " == *" $1 "* ]]; }
+# valid_groups "a,b c": every name is a group (lower case)
+valid_groups() { local - g; set -f; for g in ${1//,/ }; do [[ -n ${GROUP_INFO[${g,,}]+x} ]] || return 1; done; }
+group_words() { local - g; set -f; for g in ${1//,/ }; do echo "${g,,}"; done; }
+# Base = the saved choice (else all); --ci = all; --minimal = none; then --with/--without. Asked once interactively
+# (no --yes/--ci/--print-plan, no group flags, system phase), Enter keeping the base. save_groups stores it.
+CHOSEN=()
+choose_groups() {
+  local base=() add=() drop=() g ans
+  if [[ $CI == 0 && -r $GROUPS_FILE ]]; then mapfile -t base < <(grep -v '^\s*\(#\|$\)' "$GROUPS_FILE" || true)
+  else base=("${OPT_GROUPS[@]}"); fi
+  [[ $MINIMAL == 1 ]] && base=()
+  valid_groups "$WITH$WITHOUT" || die "unknown group in --with/--without (groups: ${OPT_GROUPS[*]})"
+  mapfile -t add < <(group_words "$WITH")
+  mapfile -t drop < <(group_words "$WITHOUT")
+  if [[ $YES == 0 && $PLAN == 0 && $DO_SYSTEM == 1 && $MINIMAL == 0 && -z $WITH$WITHOUT ]]; then
+    SELECTED=("${base[@]}")
+    echo; echo "Optional groups (the core desktop is always installed):"
+    for g in "${OPT_GROUPS[@]}"; do printf '  %-10s %-4s %s\n' "$g" "$(on "$g" && echo '[x]' || echo '[ ]')" "${GROUP_INFO[$g]#*|}"; done
+    while :; do
+      read -rp "Enter = as marked; or list the groups to install (e.g. \"games ai\"), \"all\" or \"none\": " ans
+      case "${ans,,}" in
+        "") break ;;
+        all) base=("${OPT_GROUPS[@]}"); break ;;
+        none) base=(); break ;;
+        *) valid_groups "$ans" && { mapfile -t base < <(group_words "$ans"); break; }
+           warn "unknown group in: $ans (groups: ${OPT_GROUPS[*]})" ;;
+      esac
+    done
+  fi
+  SELECTED=()
+  for g in "${OPT_GROUPS[@]}"; do   # keeps GROUPS order, drops duplicates
+    [[ " ${base[*]} ${add[*]} " == *" $g "* && " ${drop[*]} " != *" $g "* ]] && SELECTED+=("$g")
+  done
+  CHOSEN=("${SELECTED[@]}")
+  [[ $GHOSTTY == 0 ]] && mapfile -t SELECTED < <(printf '%s\n' "${SELECTED[@]}" | grep -vx ghostty)   # GHOSTTY=0: this run only
+  return 0
+}
+save_groups() {
+  mkdir -p "${GROUPS_FILE%/*}"
+  { echo "# fw13-hypr optional groups, one per line (install.sh --with/--without/--minimal rewrite this)"
+    if (( ${#CHOSEN[@]} )); then printf '%s\n' "${CHOSEN[@]}"; fi; } > "$GROUPS_FILE"
+}
+# The package lists for one dnf transaction: core + the selected groups' files (each once). 40-gaming (own transaction)
+# and 50-codecs (--allowerasing) are installed separately.
+package_lists() {
+  local f out=(00-core.txt 10-desktop.txt 20-input-fonts.txt 30-apps.txt 60-framework.txt 70-dev.txt 80-shells.txt 90-backup.txt 96-theme.txt) g
+  use_greetd && out+=(15-login.txt)
+  has_ppd || out+=(61-power.txt)
+  for g in "${SELECTED[@]}"; do
+    for f in ${GROUP_INFO[$g]%%|*}; do [[ $f == 40-gaming.txt || " ${out[*]} " == *" $f "* ]] || out+=("$f"); done
+  done
+  printf '%s\n' "${out[@]}"
+}
+# repos/*.repo files for this run: the vendor repos of unselected (or removed) groups are left out
+repo_files() {
+  local r
+  for r in repos/*.repo; do
+    r=${r#repos/}
+    case $r in
+      devolutions-rdm.repo) on remote || continue ;;
+      cloudflare-warp.repo) on warp && ! skipped cloudflare-warp || continue ;;
+    esac
+    echo "$r"
+  done
+}
+# --print-plan: what this run would install and do, without doing any of it
+print_plan() {
+  local lists g
+  mapfile -t lists < <(package_lists)
+  echo "optional groups: ${SELECTED[*]:-none (core only)}"
+  echo "not selected:    $(for g in "${OPT_GROUPS[@]}"; do on "$g" || printf '%s ' "$g"; done)"
+  [[ -s $SKIP_FILE ]] && echo "skipped (removed by you): $(grep -v '^\s*$' "$SKIP_FILE" | paste -sd' ')"
+  echo "repos: $(repo_files | paste -sd' ')"
+  echo "lists: ${lists[*]}"
+  echo "packages: $(cd packages && pkgs "${lists[@]}" | paste -sd' ')"
+  on games && echo "packages (gaming): $(cd packages && pkgs 40-gaming.txt | paste -sd' ')"
+  echo "packages (codecs, --allowerasing): $(cd packages && pkgs 50-codecs.txt | paste -sd' ')"
+  echo "steps:"
+  on firewall && ! skipped citadel && echo "  build citadel + citadel-helper RPMs; user: enable citadel.service, citadel enforce on"
+  on messaging && ! skipped telegram-desktop-official && echo "  build telegram-desktop-official RPM"
+  on ghostty && ! skipped ghostty-official && echo "  build ghostty-official $GHOSTTY_VERSION RPM"
+  echo "  framework_tool $FWTOOL_VERSION download (if not current)"
+  on android && echo "  scrcpy $SCRCPY_VERSION download into /opt/scrcpy (if not current)"
+  on ai && echo "  enable ollama.service"
+  on warp && ! skipped cloudflare-warp && echo "  enable warp-svc.service"
+  on localsend && ! skipped org.localsend.localsend_app && echo "  flatpak install --user LocalSend"
+  echo "saved choice: $GROUPS_FILE ($([[ -r $GROUPS_FILE ]] && echo "$(grep -vc '^\s*\(#\|$\)' "$GROUPS_FILE" || true) groups" || echo "absent = all"))"
+}
 
 # --- Preflight ---------------------------------------------------------------
 [[ -r /etc/os-release ]] && . /etc/os-release
@@ -90,16 +207,21 @@ has_ppd() { rpm -q power-profiles-daemon >/dev/null 2>&1; }
 bare_install() { ! rpm -q --quiet gnome-shell && ! rpm -q --quiet plasma-workspace; }
 recommend_gnome() { warn "No GNOME or KDE found: install GNOME first for file mounting, printing and viewers: sudo dnf group install workstation-product-environment"; }
 
+choose_groups
+[[ $PLAN == 1 ]] && { print_plan; exit 0; }
+
 cat <<EOF
 
 fw13-hypr installer — Fedora ${FEDORA} (${VARIANT_ID:-${VARIANT:-unknown edition}})
-  Adds repos:   RPM Fusion free+nonfree, COPR ${HYPR_COPR:-<none>}, Microsoft (VS Code), mise, Devolutions (RDM)
+  Optional:     ${SELECTED[*]:-none (core only)}  (choose with --minimal / --with= / --without=)
+  Adds repos:   RPM Fusion free+nonfree, COPR ${HYPR_COPR:-<none>}, Microsoft (VS Code), mise$(on remote && echo ", Devolutions (RDM)")$(on warp && ! skipped cloudflare-warp && echo ", Cloudflare (WARP)")
   Login screen: $(if ! use_greetd; then echo "keep existing $(current_dm) — adds a 'Hyprland (uwsm)' session (KEEP_DM=1)"; elif has_dm && [[ $(current_dm) != greetd ]]; then echo "greetd + tuigreet text login; disables $(current_dm) (not removed; KEEP_DM=1 keeps it)"; else echo "greetd + tuigreet text login"; fi)
   Power:        $(has_ppd && echo "keep power-profiles-daemon" || echo "install tuned + tuned-ppd")
   Removes:      nothing (ffmpeg-free is swapped for RPM Fusion ffmpeg)
 EOF
 bare_install && recommend_gnome
 ask "Continue?" || exit 0
+save_groups
 
 mkdir -p "$STATE_DIR"
 
@@ -194,23 +316,18 @@ system_phase() {
   $SUDO dnf config-manager setopt fedora-cisco-openh264.enabled=1 || true
   [[ -n "$HYPR_COPR" ]] && $SUDO dnf -y copr enable "$HYPR_COPR"
   local r
-  for r in repos/*.repo; do
-    [[ $r == repos/cloudflare-warp.repo ]] && skipped cloudflare-warp && continue
-    $SUDO install -m 0644 "$r" /etc/yum.repos.d/
-  done
+  for r in $(repo_files); do $SUDO install -m 0644 "repos/$r" /etc/yum.repos.d/; done
 
   say "Packages (weak dependencies off — only what's listed)"
-  local lists=(00-core.txt 10-desktop.txt 20-input-fonts.txt 30-apps.txt 60-framework.txt 70-dev.txt 80-shells.txt 90-backup.txt 95-citadel.txt 96-theme.txt 97-warp.txt)
-  use_greetd && lists+=(15-login.txt)
-  has_ppd || lists+=(61-power.txt)
-  [[ $GHOSTTY == 0 ]] || skipped ghostty-official || lists+=(98-ghostty.txt)
   [[ -s $SKIP_FILE ]] && echo "skipped (removed by you): $(grep -v '^\s*$' "$SKIP_FILE" | paste -sd' ')"
-  local main gaming codecs
+  echo "optional groups: ${SELECTED[*]:-none (core only)}"
+  local lists main gaming=() codecs
+  mapfile -t lists < <(package_lists)
   mapfile -t main   < <(cd packages && pkgs "${lists[@]}")
-  mapfile -t gaming < <(cd packages && pkgs 40-gaming.txt)
+  on games && mapfile -t gaming < <(cd packages && pkgs 40-gaming.txt)
   mapfile -t codecs < <(cd packages && pkgs 50-codecs.txt)
   $DNF install "${main[@]}"
-  $DNF install "${gaming[@]}"
+  (( ${#gaming[@]} )) && $DNF install "${gaming[@]}"
   $DNF install --allowerasing "${codecs[@]}"
   # matugen (wallpaper → Material You colours): fw13.theme needs 4.x (--prefer, -t scheme-*, colors[role][mode]).
   # Fedora 44 ships 3.1.0, which rejects those flags, so the version is pinned: a COPR without matugen 4
@@ -221,7 +338,8 @@ system_phase() {
     warn "HYPR_COPR is empty: no matugen 4 (Fedora's 3.1.0 is too old), so the theme stays Tokyo Night"
   fi
 
-  if skipped citadel; then echo "Citadel: skipped (removed by you)"; else
+  if ! on firewall; then :
+  elif skipped citadel; then echo "Citadel: skipped (removed by you)"; else
     say "Citadel (outbound firewall) + citadel-helper — built from source as RPMs"
     local rpms=()
     mapfile -t rpms < <(build_citadel_rpm citadel-app "$CITADEL_APP_REPO" "$CITADEL_APP_REF" linux/packaging/rpm/citadel.spec
@@ -230,15 +348,17 @@ system_phase() {
     $DNF install "${rpms[@]}"   # same version: no-op; newer build: upgrade
   fi
 
-  if skipped telegram-desktop-official; then echo "Telegram: skipped (removed by you)"; else
+  if ! on messaging; then :
+  elif skipped telegram-desktop-official; then echo "Telegram: skipped (removed by you)"; else
     say "Telegram Desktop — official telegram.org build, packaged as an RPM"
     local tg
     tg="$(build_telegram_rpm)" || die "Telegram RPM build failed (see above)"
     if [[ -n $tg ]]; then $DNF install "$tg"; else echo "telegram-desktop-official is current"; fi
   fi
 
-  if skipped ghostty-official; then echo "Ghostty: skipped (removed by you)"
-  elif [[ $GHOSTTY != 0 ]]; then
+  if ! on ghostty; then :
+  elif skipped ghostty-official; then echo "Ghostty: skipped (removed by you)"
+  else
     say "Ghostty — built from the official release (Settings → My Framework → Terminal)"
     local gt
     gt="$(build_ghostty_rpm)" || die "Ghostty RPM build failed (see above)"
@@ -265,7 +385,7 @@ system_phase() {
       && echo "$FWTOOL_SHA256  $fwt" | sha256sum -c --status || { rm -f "$fwt"; die "framework_tool download failed or checksum mismatch"; }
     $SUDO install -m 0755 "$fwt" /usr/local/bin/framework_tool; rm -f "$fwt"
   fi
-  if [[ $(cat /opt/scrcpy/.version 2>/dev/null) != "$SCRCPY_VERSION" ]]; then
+  if on android && [[ $(cat /opt/scrcpy/.version 2>/dev/null) != "$SCRCPY_VERSION" ]]; then
     say "scrcpy $SCRCPY_VERSION (Android screen mirroring, official release)"
     local sct; sct="$(mktemp -d)"
     curl -fsSL -o "$sct/s.tgz" "https://github.com/Genymobile/scrcpy/releases/download/$SCRCPY_VERSION/scrcpy-linux-x86_64-$SCRCPY_VERSION.tar.gz" \
@@ -344,8 +464,8 @@ EOF
     has_ppd || $SUDO systemctl enable --now tuned.service
     $SUDO systemctl enable --now fw-power-profile.service  # performance on AC, balanced on battery (+ udev rule)
     $SUDO systemctl enable fw-charge-limit.service  # Settings' charge limit into the Framework EC at boot (+ udev rule)
-    $SUDO systemctl enable --now ollama.service   # local models for OpenCode (fw-opencode)
-    skipped cloudflare-warp || $SUDO systemctl enable --now warp-svc.service  # Cloudflare WARP daemon; register/connect from the bar panel
+    if on ai; then $SUDO systemctl enable --now ollama.service; fi   # local models for OpenCode (fw-opencode)
+    if on warp && ! skipped cloudflare-warp; then $SUDO systemctl enable --now warp-svc.service; fi  # Cloudflare WARP daemon; register/connect from the bar panel
   fi
 
   rpm -qa --qf '%{NAME}\n' | sort > "$STATE_DIR/rpms-after.txt"
@@ -453,7 +573,7 @@ user_phase() {
 
 
 
-  if command -v citadel-daemon >/dev/null; then
+  if on firewall && command -v citadel-daemon >/dev/null; then
     say "Citadel: start the service and enforce (blocks what you block or don't answer)"
     systemctl --user daemon-reload
     systemctl --user enable --now citadel.service || warn "citadel.service didn't start — check: systemctl --user status citadel"
@@ -464,11 +584,12 @@ user_phase() {
   # Telegram wrote its own launcher entry while its updater was on (spec release 1); the packaged one replaces it.
   rm -f "$HOME"/.local/share/applications/org.telegram.desktop._*.desktop
 
-  say "Flathub remote + LocalSend (the only approved Flathub app)"
+  say "Flathub remote$(on localsend && echo " + LocalSend (the only approved Flathub app)")"
   flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
   # LocalSend (file sharing to nearby devices) isn't in Fedora; user-approved Flathub app. Receiving needs inbound
   # 53317/tcp+udp, which the installer leaves closed (firewall untouched, user decision).
-  if skipped org.localsend.localsend_app; then echo "LocalSend: skipped (removed by you)"
+  if ! on localsend; then :
+  elif skipped org.localsend.localsend_app; then echo "LocalSend: skipped (removed by you)"
   else flatpak install --user -y --noninteractive flathub org.localsend.localsend_app || warn "LocalSend (Flathub) didn't install — retry: flatpak install --user flathub org.localsend.localsend_app"; fi
 
   # Only when nothing is enrolled: fprintd-enroll replaces an existing print, and an interrupted run leaves none.

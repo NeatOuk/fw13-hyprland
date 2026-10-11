@@ -1,0 +1,3 @@
+# Optional group `android` (install.sh GROUP_*). Fedora official (user decision): adb/fastboot for Android phones;
+# scrcpy (official release, downloaded by install.sh) uses this adb
+android-tools

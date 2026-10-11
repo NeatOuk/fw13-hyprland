@@ -1,0 +1,3 @@
+# Optional group `ai` (install.sh GROUP_*). Local LLM server for OpenCode/Jarvis (Fedora); ollama.service is enabled.
+# Remote/cloud Ollama servers are managed with fw-opencode and need nothing here.
+ollama

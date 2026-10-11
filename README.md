@@ -34,6 +34,31 @@ bash <(curl -fsSL https://raw.githubusercontent.com/NeatOuk/fw13-hyprland/main/i
 
 Or `git clone` the repo and run `./install.sh`. Run it as your normal user; it asks for sudo when it needs it. It's safe to re-run. Reboot when it finishes, then pick **Hyprland (uwsm)** at the login screen.
 
+### Lean install: optional groups
+
+The core desktop (Hyprland, bar, login, fonts, theme, Framework tools, backup, codecs, VPN, kitty, Thunar, Chromium, VS Code…) is always installed. These groups are optional; the installer lists them once (all marked by default, Enter keeps them) and remembers your choice in `~/.config/fw13/install-groups`:
+
+| Group | What it adds |
+|---|---|
+| `games` | Steam, Lutris, gamescope, MangoHud, GameMode |
+| `ai` | Ollama (local models for OpenCode and Jarvis; remote servers work without it) |
+| `android` | adb/fastboot + scrcpy phone mirroring |
+| `remote` | Remote Desktop Manager (Devolutions repo, ~1.2 GB) |
+| `warp` | Cloudflare WARP + the bar's cloud icon |
+| `firewall` | Citadel outbound firewall (built from source) |
+| `messaging` | Telegram Desktop (official build) |
+| `ghostty` | Ghostty terminal (built from the official release) |
+| `localsend` | LocalSend file sharing (Flathub) |
+
+```bash
+./install.sh --minimal                   # core only
+./install.sh --with=games,ai             # add groups (also to a saved choice)
+./install.sh --without=games,warp        # leave groups out
+./install.sh --print-plan --minimal      # show the packages and steps, change nothing
+```
+
+`--yes` uses your saved choice (or all groups); `--ci` always installs everything. Leaving a group out never removes what's already installed: use Settings → Apps → Uninstall… for that.
+
 ## Fresh install on the Framework (Wi-Fi only)
 
 1. Install any Fedora 44+ edition. Connecting Wi-Fi in the installer is enough; the MT7925 card works out of the box.

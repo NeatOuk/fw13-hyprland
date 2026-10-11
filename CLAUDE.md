@@ -23,6 +23,7 @@ ML4W-style **installer** (`install.sh`) that adds a Hyprland (uwsm) desktop on t
 
 ```
 install.sh                   installer; packages/NN-*.txt (one per line, '#' lines only), repos/*.repo, rpm/*.spec
+                             optional groups = OPT_GROUPS/GROUP_INFO at its top (files + `on <group>` steps); core = the rest
 system/                      root side: usr/local/bin/fw-* helpers, systemd units, udev, modprobe, geoclue, polkit, Chromium policy
 dotfiles/                    chezmoi source (.chezmoiroot); .chezmoi.toml.tmpl = one-time prompts; jarvis/ = Jarvis briefing
   dot_config/hypr/*.lua      Hyprland Lua config (hyprland.lua require()s the rest); hyprlock/hypridle/hyprpaper keep .conf
@@ -45,7 +46,7 @@ Build/download mechanics for the non-repo sources: docs/ARCHITECTURE.md → Inst
 | mise (user) | node LTS, chezmoi, starship, opencode (self-update off), **Pi** `"npm:@earendil-works/pi-coding-agent"` (user decision; old @mariozechner name deprecated), uv, kubectl 1.34 (user decision) |
 | Built as RPMs (owner's repos) | **Citadel** outbound firewall: `citadel` (NeatOuk/citadel-app `main`) + `citadel-helper` (`v1.3.2`); user phase enables `citadel.service` + `citadel enforce on` (user decision); helper's polkit rule lets wheel in without a password (by design) |
 | Official binary repackaged | **Telegram Desktop** (user decision: official build as RPM `telegram-desktop-official`, self-updater off) |
-| Official release, built | **Ghostty** (user decision: official source, not a COPR) → `ghostty-official`, pinned sha256; `GHOSTTY=0` skips |
+| Official release, built | **Ghostty** (user decision: official source, not a COPR) → `ghostty-official`, pinned sha256; group `ghostty` (`GHOSTTY=0` skips for one run) |
 | Upstream release binaries | **framework_tool** (user decision; not in Fedora), **scrcpy** (user decision: official release, not a COPR; uses Fedora's adb); both sha256-pinned |
 | Flathub (user remote) | **LocalSend** only (user decision; `--user`; port 53317 not opened (user decision): send only) |
 | Upstream installer | Claude Code (`claude.ai/install.sh` → `~/.local/bin/claude`, self-updating; mise npm skipped its postinstall) |
@@ -60,6 +61,7 @@ Declined by the user — do not re-propose unless asked: `mesa-va-drivers-freewo
 ./install.sh                     # full install (interactive)
 ./install.sh --ci                # what CI runs in a fedora container (root, non-interactive)
 ./install.sh --user-only         # re-apply dotfiles/mise/shell only
+./install.sh --print-plan [--minimal|--with=a,b|--without=a,b]   # groups, package lists, steps; changes nothing
 T=$(mktemp -d); HOME=$T XDG_CONFIG_HOME=$T/.config XDG_DATA_HOME=$T/.local/share XDG_STATE_HOME=$T/.local/state XDG_CACHE_HOME=$T/.cache \
   chezmoi init --source=$PWD --apply --exclude=scripts   # dry-run dotfiles into a throwaway home (isolate every XDG dir)
 XDG_RUNTIME_DIR=$(mktemp -d) Hyprland --verify-config -c "$T/.config/hypr/hyprland.lua"   # check the rendered Lua config

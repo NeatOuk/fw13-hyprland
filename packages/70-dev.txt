@@ -5,7 +5,3 @@ distrobox
 gh
 # Vendor official (mise.jdx.dev/rpm)
 mise
-# Local LLM server for OpenCode (Fedora). Remote/cloud Ollama servers are managed with fw-opencode.
-ollama
-# Fedora official (user decision): adb/fastboot for Android phones; scrcpy (official release, install.sh) uses this adb
-android-tools
