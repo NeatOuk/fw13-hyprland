@@ -54,6 +54,7 @@ What you'll see at each step, and the Framework-only checks to do afterwards: [d
 | Framework tool | `framework_tool` (Framework's official command-line tool, from their GitHub release, checksum-pinned) in `/usr/local/bin`: firmware versions, charge limit, fan, keyboard backlight and other EC settings — e.g. `sudo framework_tool --versions` |
 | Power | Keeps `power-profiles-daemon` if it's installed; otherwise installs `tuned` + `tuned-ppd`. Adds `upower` for battery info and the charge limit. The power profile follows the charger: **Performance** when plugged in, **Balanced** on battery (a profile you pick by hand lasts until the next plug/unplug) |
 | Codecs | Replaces `ffmpeg-free` with RPM Fusion `ffmpeg`, the only package it swaps out |
+| Speakers | **EasyEffects** (Fedora) with **Framework's own FW13 speaker preset** (bass enhancer, room correction, compressor, limiter; from [FrameworkComputer/linux-docs](https://github.com/FrameworkComputer/linux-docs), GPL-3.0), loaded for the built-in speakers only; open EasyEffects from the app launcher to tweak or bypass it |
 | Fingerprint | Turns on fingerprint for sudo, login and polkit (`authselect … with-fingerprint`) |
 | Dotfiles | chezmoi applies `dotfiles/` to your home folder. It asks once for your Chromium OAuth keys and restic repository, which are never stored in git |
 | Tools | mise installs node LTS, chezmoi and starship; Claude Code comes from Anthropic's native installer (updates itself) |

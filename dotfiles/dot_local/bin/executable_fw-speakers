@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Framework 13 speaker tuning: EasyEffects with Framework's own FW13 preset (github.com/FrameworkComputer/linux-docs,
+# easy-effects/, GPL-3.0; shipped as ~/.local/share/easyeffects/output/fw13-speakers.json + irs/). Run at Hyprland start:
+# writes EasyEffects' autoload file so the preset follows the built-in speaker output only (headphones, HDMI and
+# Bluetooth stay untouched), then becomes the EasyEffects background service. Without easyeffects it does nothing.
+set -euo pipefail
+command -v easyeffects >/dev/null || exit 0
+PRESET=fw13-speakers
+auto="${XDG_DATA_HOME:-$HOME/.local/share}/easyeffects/autoload/output"
+mkdir -p "$auto"
+# The speaker sink(s) PipeWire knows now (ALSA UCM names it …__Speaker__sink on the FW13's Realtek codec).
+mapfile -t sinks < <(pw-dump 2>/dev/null | python3 -c '
+import json, sys
+for o in json.load(sys.stdin):
+    p = (o.get("info") or {}).get("props") or {}
+    if p.get("media.class") == "Audio/Sink" and p.get("node.name", "").endswith("__Speaker__sink"):
+        print(p["node.name"] + "\t" + p.get("node.description", ""))' || true)
+for line in "${sinks[@]}"; do
+  name="${line%%$'\t'*}" desc="${line#*$'\t'}"
+  f="$auto/$name:[Out] Speaker.json"
+  [[ -e $f ]] || printf '{\n    "device": "%s",\n    "device-description": "%s",\n    "device-profile": "[Out] Speaker",\n    "preset-name": "%s"\n}\n' \
+    "$name" "$desc" "$PRESET" > "$f"
+done
+# Outputs without an autoload file (headphones, HDMI, Bluetooth) get the empty "flat" preset, not the speaker tuning.
+# shortcut: keys taken from EasyEffects 8's settings names; that its fallback switches presets is not yet seen working
+python3 - "${XDG_CONFIG_HOME:-$HOME/.config}/easyeffects/db/easyeffectsrc" <<'PY' || true
+import configparser, os, sys
+p = sys.argv[1]
+c = configparser.ConfigParser(interpolation=None)
+c.optionxform = str
+c.read(p)
+if not c.has_section("StreamOutputs"):
+    c.add_section("StreamOutputs")
+c["StreamOutputs"]["outputAutoloadingUsesFallback"] = "true"
+c["StreamOutputs"]["outputAutoloadingFallbackPreset"] = "flat"
+os.makedirs(os.path.dirname(p), exist_ok=True)
+with open(p, "w") as f:
+    c.write(f, space_around_delimiters=False)
+PY
+pgrep -x easyeffects >/dev/null && exit 0
+exec easyeffects --service-mode --hide-window

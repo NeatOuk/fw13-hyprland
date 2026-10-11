@@ -23,3 +23,8 @@ nm-connection-editor
 NetworkManager-openvpn-gnome
 NetworkManager-openconnect-gnome
 NetworkManager-vpnc-gnome
+# Fedora official (user decision): speaker tuning with Framework's own FW13 EasyEffects preset (fw-speakers);
+# the LSP and Calf plugin packs are what the preset's compressor/limiter and bass enhancer run on
+easyeffects
+lsp-plugins-lv2
+lv2-calf-plugins
