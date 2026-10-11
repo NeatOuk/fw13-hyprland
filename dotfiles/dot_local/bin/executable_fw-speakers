@@ -22,7 +22,8 @@ for line in "${sinks[@]}"; do
   printf '{\n    "device": "%s",\n    "device-description": "%s",\n    "device-profile": "[Out] Speaker",\n    "preset-name": "%s"\n}\n' \
     "$name" "$desc" "$PRESET" > "$f"
 done
-# Outputs without an autoload file (headphones, HDMI, Bluetooth) get the empty "flat" preset, not the speaker tuning.
+# Outputs without an autoload file (headphones, HDMI, Bluetooth) get the empty "flat" preset, not the speaker tuning;
+# no tray icon.
 # shortcut: keys taken from EasyEffects 8's settings names; that its fallback switches presets is not yet seen working
 python3 - "${XDG_CONFIG_HOME:-$HOME/.config}/easyeffects/db/easyeffectsrc" <<'PY' || true
 import configparser, os, sys
@@ -34,6 +35,9 @@ if not c.has_section("StreamOutputs"):
     c.add_section("StreamOutputs")
 c["StreamOutputs"]["outputAutoloadingUsesFallback"] = "true"
 c["StreamOutputs"]["outputAutoloadingFallbackPreset"] = "flat"
+if not c.has_section("Window"):
+    c.add_section("Window")
+c["Window"]["showTrayIcon"] = "false"  # user decision: no tray icon; Settings → Sound controls it
 os.makedirs(os.path.dirname(p), exist_ok=True)
 with open(p, "w") as f:
     c.write(f, space_around_delimiters=False)
