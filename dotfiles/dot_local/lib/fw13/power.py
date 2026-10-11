@@ -81,6 +81,35 @@ def warn_levels():
     return tuple(int(x) for x in v.split(",")) if v != "off" else ()
 
 
+LOGIN = ("org.freedesktop.login1", "/org/freedesktop/login1", "org.freedesktop.login1.Manager")
+SLEEP_CONF = "/etc/systemd/sleep.conf.d/fw13-hibernate.conf"  # written by sudo fw-hibernate-setup delay <h>
+HIBERNATE_CHOICES = (("never", "Never"), ("1", "1 h"), ("3", "3 h"))
+
+
+def can_hibernate():
+    """logind's CanHibernate: yes / no / challenge / na (no disk swap, lockdown, …), or None without logind."""
+    r = _call(*LOGIN, "CanHibernate", None, "(s)")
+    return r[0] if r else None
+
+
+def disk_swap():
+    """True when a swap other than zram is active (hibernate needs one)."""
+    try:
+        with open("/proc/swaps") as f:
+            return any(not line.split()[0].startswith("/dev/zram") for line in f.readlines()[1:])
+    except OSError:
+        return False
+
+
+def hibernate_delay():
+    """'1' / '3' hours of suspend-then-hibernate (Settings → Power), 'never' without fw-hibernate-setup's drop-in."""
+    v = _read(SLEEP_CONF) or ""
+    for line in v.splitlines():
+        if line.startswith("HibernateDelaySec="):
+            return line.split("=", 1)[1].rstrip("h")
+    return "never"
+
+
 def duration(seconds):
     m = int(seconds) // 60
     return f"{m // 60} h {m % 60} min" if m >= 60 else f"{m} min"

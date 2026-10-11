@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+# fw-hibernate-setup [--dry-run] [undo | delay 1|3|never] — opt-in hibernate on a btrfs root (Settings → Power).
+#   (none)  explain each step and ask y/N: top-level subvolume "swap" (Fedora names: root, home) mounted at /swap,
+#           a RAM-sized swapfile in it (btrfs filesystem mkswapfile: NOCOW, no compression), SELinux swapfile_t,
+#           fstab lines with pri=10 (zram's 100 stays first; systemd never hibernates to zram), swapon, Timeshift
+#           rsync exclude /swap/***, dracut resume module + rebuild. Resume: systemd >= 255 writes the swapfile's
+#           device + offset into the HibernateLocation EFI variable and the initrd reads it, so on UEFI no resume=
+#           kernel argument is needed; without EFI resume=/resume_offset= are added via grubby.
+#   undo    reverse all of it (also the delay drop-ins)
+#   delay   suspend-then-hibernate: /etc/systemd/sleep.conf.d/fw13-hibernate.conf HibernateDelaySec + the lid
+#           (logind.conf.d HandleLidSwitch=suspend-then-hibernate); fw-idle's suspend follows the sleep drop-in.
+#           never = remove both. Nothing else.
+# --dry-run prints the plan and changes nothing. Root only; run in a terminal (it prompts).
+set -euo pipefail
+
+DRY=0
+[[ ${1:-} == --dry-run ]] && { DRY=1; shift; }
+cmd=${1:-setup}
+case $cmd in setup|undo) ;; delay) [[ ${2:-} =~ ^(1|3|never)$ ]] || cmd=usage ;; *) cmd=usage ;; esac
+[[ $cmd == usage ]] && { echo "usage: fw-hibernate-setup [--dry-run] [undo | delay 1|3|never]" >&2; exit 2; }
+[[ $EUID == 0 ]] || { echo "Run as root: sudo fw-hibernate-setup $*" >&2; exit 1; }
+
+SLEEP_CONF=/etc/systemd/sleep.conf.d/fw13-hibernate.conf
+LID_CONF=/etc/systemd/logind.conf.d/fw13-hibernate.conf
+DRACUT_CONF=/etc/dracut.conf.d/fw13-resume.conf
+TS_CONF=/etc/timeshift/timeshift.json
+SWAPFILE=/swap/swapfile
+
+# step "what and why" done-test action: skip when done, print in --dry-run, else ask y/N and run.
+step() {
+  local what=$1 done=$2 act=$3 a
+  echo
+  if $done; then echo "✓ $what — already done."; return 0; fi
+  echo "• $what"
+  if (( DRY )); then echo "  (dry run: not changed)"; return 0; fi
+  read -rp "  Do it? [y/N] " a
+  [[ $a == [yY]* ]] || { echo "  Skipped. Stopping here; run again to continue."; exit 0; }
+  $act
+}
+
+# --- delay ------------------------------------------------------------------------------------------------------
+if [[ $cmd == delay ]]; then
+  h=$2
+  if [[ $h == never ]]; then
+    echo "Suspend stays suspend: removing $SLEEP_CONF and $LID_CONF."
+    (( DRY )) || rm -f "$SLEEP_CONF" "$LID_CONF"
+  else
+    grep -qs "^$SWAPFILE " /proc/swaps || { echo "No hibernate swap yet: run 'sudo fw-hibernate-setup' first." >&2; exit 1; }
+    echo "Suspend, then hibernate after $h h (idle suspend and lid): writing $SLEEP_CONF and $LID_CONF."
+    if (( ! DRY )); then
+      mkdir -p "${SLEEP_CONF%/*}" "${LID_CONF%/*}"
+      printf '# fw-hibernate-setup delay (Settings → Power)\n[Sleep]\nHibernateDelaySec=%sh\n' "$h" > "$SLEEP_CONF"
+      printf '# fw-hibernate-setup delay (Settings → Power)\n[Login]\nHandleLidSwitch=suspend-then-hibernate\n' > "$LID_CONF"
+    fi
+  fi
+  (( DRY )) || systemctl reload systemd-logind   # sleep.conf.d is read at each sleep
+  echo "Done."
+  exit 0
+fi
+
+# --- facts ------------------------------------------------------------------------------------------------------
+[[ $(findmnt -nvo FSTYPE /) == btrfs ]] || { echo "/ is not btrfs: this helper only sets up a btrfs swapfile." >&2; exit 1; }
+DEV=$(findmnt -nvo SOURCE /)
+FSUUID=$(findmnt -nvo UUID /)
+SIZE_G=$(awk '/^MemTotal:/ {print int(($2 + 1048575) / 1048576)}' /proc/meminfo)   # RAM in GiB, rounded up
+EFI=0; [[ -d /sys/firmware/efi ]] && EFI=1
+has_subvol() { btrfs subvolume list / | awk '$7 == 5 && $9 == "swap" {f = 1} END {exit !f}'; }
+fstab_has() { awk -v k="$1" '!/^[[:space:]]*#/ && ($1 == k || $2 == k) {f = 1} END {exit !f}' /etc/fstab; }
+fstab_drop() {  # remove our two lines; cat > keeps owner, mode and SELinux label
+  local tmp; tmp=$(mktemp)
+  awk '/^[[:space:]]*#/ || ($2 != "/swap" && $1 != "'"$SWAPFILE"'")' /etc/fstab > "$tmp"
+  cat "$tmp" > /etc/fstab; rm -f "$tmp"
+  systemctl daemon-reload
+}
+subvol() {  # create|delete the subvolume "swap" with the btrfs top level (subvolid=5) mounted at a temp dir
+  local top rc=0
+  top=$(mktemp -d)
+  mount -o subvolid=5 "$DEV" "$top"
+  btrfs subvolume "$1" "$top/swap" || rc=$?
+  umount "$top"; rmdir "$top"
+  return "$rc"
+}
+ts_exclude() {  # add|remove /swap/*** in Timeshift's exclude list
+  python3 - "$1" "$TS_CONF" <<'PY'
+import json, sys
+act, path = sys.argv[1:]
+with open(path) as f:
+    c = json.load(f)
+ex = [e for e in c.get("exclude", []) if e != "/swap/***"]
+c["exclude"] = (["/swap/***"] if act == "add" else []) + ex
+with open(path, "w") as f:
+    json.dump(c, f, indent=2)
+    f.write("\n")
+PY
+}
+ts_has() { [[ -f $TS_CONF ]] && grep -qF '"/swap/***"' "$TS_CONF"; }
+rebuild_initrd() { echo "  Rebuilding the initramfs for every installed kernel (takes a minute)…"; dracut -f --regenerate-all; }
+
+# done-tests and actions for step()
+no_delay() { [[ ! -e $SLEEP_CONF && ! -e $LID_CONF ]]; }
+rm_delay() { rm -f "$SLEEP_CONF" "$LID_CONF"; systemctl reload systemd-logind; }
+swap_on() { grep -qs "^$SWAPFILE " /proc/swaps; }
+swap_off() { ! swap_on; }
+do_swapoff() { swapoff "$SWAPFILE"; }
+no_fstab() { ! fstab_has /swap && ! fstab_has "$SWAPFILE"; }
+mounted() { findmnt /swap >/dev/null; }
+gone() { ! mounted && ! has_subvol && [[ ! -d /swap ]]; }
+del_subvol() {
+  ! mounted || umount /swap
+  rmdir /swap 2>/dev/null || true
+  ! has_subvol || subvol delete
+}
+has_fcontext() { semanage fcontext -l -C | grep -q "^$SWAPFILE "; }
+no_fcontext() { ! has_fcontext; }
+del_fcontext() { semanage fcontext -d "$SWAPFILE"; }
+no_ts() { ! ts_has; }
+ts_add() { ts_exclude add; }
+ts_remove() { ts_exclude remove; }
+has_dracut() { [[ -e $DRACUT_CONF ]]; }
+no_dracut() { ! has_dracut; }
+add_dracut() { echo 'add_dracutmodules+=" resume "' > "$DRACUT_CONF"; rebuild_initrd; }
+del_dracut() { rm -f "$DRACUT_CONF"; rebuild_initrd; }
+has_karg() { grubby --info=ALL | grep -q 'resume_offset='; }
+no_karg() { ! has_karg; }
+add_karg() { grubby --update-kernel=ALL --args="resume=UUID=$FSUUID resume_offset=$(btrfs inspect-internal map-swapfile -r "$SWAPFILE")"; }
+del_karg() { grubby --update-kernel=ALL --remove-args="resume resume_offset"; }
+add_subvol() { subvol create; }
+do_mount() {
+  mkdir -p /swap
+  fstab_has /swap || echo "UUID=$FSUUID /swap btrfs subvol=swap,x-systemd.device-timeout=0 0 0" >> /etc/fstab
+  systemctl daemon-reload
+  mount /swap
+}
+has_file() { [[ -e $SWAPFILE ]]; }
+mkfile() { btrfs filesystem mkswapfile --size "${SIZE_G}g" "$SWAPFILE"; }
+labelled() { [[ $(stat -c %C "$SWAPFILE" 2>/dev/null) == *:swapfile_t:* ]]; }
+do_label() { has_fcontext || semanage fcontext -a -t swapfile_t "$SWAPFILE"; restorecon -v "$SWAPFILE"; }
+do_swapon() {
+  fstab_has "$SWAPFILE" || echo "$SWAPFILE none swap defaults,pri=10 0 0" >> /etc/fstab
+  systemctl daemon-reload
+  swapon "$SWAPFILE"
+}
+
+# --- undo -------------------------------------------------------------------------------------------------------
+if [[ $cmd == undo ]]; then
+  echo "Removing the hibernate setup (swapfile, /swap, its subvolume, drop-ins). zram swap is not touched."
+  step "Remove the suspend-then-hibernate drop-ins ($SLEEP_CONF, $LID_CONF)" no_delay rm_delay
+  step "Turn the swapfile off (needs free RAM for what is swapped out)" swap_off do_swapoff
+  step "Remove the /swap and swapfile lines from /etc/fstab" no_fstab fstab_drop
+  step "Unmount /swap and delete the btrfs subvolume 'swap' (the swapfile goes with it)" gone del_subvol
+  step "Remove the SELinux file context for $SWAPFILE" no_fcontext del_fcontext
+  step "Remove /swap/*** from Timeshift's exclude list" no_ts ts_remove
+  step "Remove the dracut resume drop-in and rebuild the initramfs" no_dracut del_dracut
+  step "Remove resume=/resume_offset= from the kernel command line" no_karg del_karg
+  echo; if (( DRY )); then echo "Dry run: nothing was changed."; else echo "Done. Hibernate is off."; fi
+  exit 0
+fi
+
+# --- setup ------------------------------------------------------------------------------------------------------
+lock=$(cat /sys/kernel/security/lockdown 2>/dev/null || echo "[none]")
+if [[ $lock != *"[none]"* ]]; then
+  echo "Kernel lockdown is on ($lock), usually because Secure Boot is on: the kernel refuses to hibernate." >&2
+  exit 1
+fi
+grep -qw disk /sys/power/state || { echo "This kernel has no hibernation support (/sys/power/state)." >&2; exit 1; }
+if ! has_file; then
+  avail=$(df -B1G --output=avail / | tail -1 | tr -d ' ')
+  (( avail >= SIZE_G + 20 )) || { echo "Not enough free space: the swapfile needs ${SIZE_G} GiB + 20 GiB spare, ${avail} GiB free." >&2; exit 1; }
+fi
+sysd=$(systemctl --version | awk 'NR == 1 {print $2}')
+
+echo "Hibernate set-up on $DEV (btrfs $FSUUID): a ${SIZE_G} GiB swapfile (RAM, rounded up) in its own subvolume."
+echo "zram stays the first swap; the swapfile is only used when zram is full, and for hibernation."
+step "Create the btrfs subvolume 'swap' at the top level (next to root and home, so root snapshots leave it out)" \
+  has_subvol add_subvol
+step "Mount it at /swap (fstab: UUID=$FSUUID /swap btrfs subvol=swap)" mounted do_mount
+step "Create $SWAPFILE, ${SIZE_G} GiB (btrfs filesystem mkswapfile: no copy-on-write, no compression)" has_file mkfile
+step "Label it swapfile_t for SELinux (semanage fcontext + restorecon)" labelled do_label
+step "Turn it on at boot after zram (fstab: $SWAPFILE none swap defaults,pri=10) and now (swapon)" swap_on do_swapon
+if [[ -f $TS_CONF ]] && grep -q '"btrfs_mode" *: *"false"' "$TS_CONF"; then
+  step "Keep the swapfile out of Timeshift's rsync snapshots (exclude /swap/***)" ts_has ts_add
+fi
+step "Add dracut's resume module ($DRACUT_CONF) and rebuild the initramfs" has_dracut add_dracut
+if (( EFI && sysd >= 255 )); then
+  echo; echo "✓ Resume: systemd $sysd on UEFI stores the swapfile location in the HibernateLocation EFI variable; no kernel argument needed."
+else
+  step "Tell the kernel where to resume from (grubby: resume=UUID=$FSUUID resume_offset=<swapfile offset>)" has_karg add_karg
+fi
+echo
+if (( DRY )); then echo "Dry run: nothing was changed."; exit 0; fi
+cat <<EOF
+Done. Save your work, then test with: systemctl hibernate
+(the laptop powers off; on boot, unlock the disk as usual and the session comes back).
+Settings → Power → On battery → "Then hibernate after" sets suspend-then-hibernate. Undo: sudo fw-hibernate-setup undo
+EOF

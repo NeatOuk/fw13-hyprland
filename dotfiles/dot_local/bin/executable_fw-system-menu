@@ -11,9 +11,15 @@ logout() {
   if uwsm check is-active >/dev/null 2>&1; then uwsm stop
   else loginctl terminate-session "${XDG_SESSION_ID:-$(loginctl show-user "$USER" -p Display --value)}"; fi
 }
-case "$(printf '  Lock\n  Suspend\n  Log out\n  Reboot\n  Shutdown\n' | fuzzel --dmenu "${pos[@]}" --prompt 'System › ' --lines 5)" in
+items=('  Lock' '  Suspend')
+# Hibernate only once a disk swap is set up (sudo fw-hibernate-setup): logind's CanHibernate says yes.
+[[ $(busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager CanHibernate 2>/dev/null) == 's "yes"' ]] &&
+  items+=('  Hibernate')
+items+=('  Log out' '  Reboot' '  Shutdown')
+case "$(printf '%s\n' "${items[@]}" | fuzzel --dmenu "${pos[@]}" --prompt 'System › ' --lines ${#items[@]})" in
   *Lock)     loginctl lock-session ;;
   *Suspend)  systemctl suspend ;;
+  *Hibernate) systemctl hibernate ;;
   *"Log out") logout ;;
   *Reboot)   systemctl reboot ;;
   *Shutdown) systemctl poweroff ;;
