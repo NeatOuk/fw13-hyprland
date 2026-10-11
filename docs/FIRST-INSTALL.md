@@ -69,3 +69,32 @@ These could not be tested on other hardware:
 - [ ] Telegram: one launcher entry, no "update available" prompt from its own updater
 - [ ] Auto-brightness curve
 - [ ] `sudo fw-timeshift-restore --list` and a dry run; a real restore + `undo` when comfortable
+
+### Tested on the author's Framework 13 (Ryzen AI 9 HX 370, Fedora 44), October 2026
+
+Checked live on the laptop (screenshots, the real services and D-Bus answers):
+
+- [x] Lock screen looks like the tuigreet login (console black/grey, 80-column box), text readable on the 2880x1920 panel
+- [x] Bar: weather right of the clock (Open-Meteo, time zone's city by default), profile left of it, keep-awake cup, 1–9 workspace dots
+- [x] VPN: the shield lists every VPN (strongSwan IKEv2 + NetworkManager OpenVPN/WireGuard imports); strongSwan toggles without a password (polkit `pkcheck` = yes)
+- [x] Shortcut cheat sheet (SUPER+K / SUPER+/): every bind described, no duplicates
+- [x] Hibernate set-up (`fw-hibernate-setup`): swap file on, logind CanHibernate = yes (after the `/swap` SELinux label fix)
+- [x] Low-battery warning: critical notifications from fw-battery appear (also under Do not disturb)
+- [x] Update notice counts firmware too (fwupd found the fingerprint-sensor update)
+- [x] Keep-awake holds a logind idle lock that hypridle respects
+- [x] Microphone noise suppression: the "Noise-cancelled microphone" appears and the old default comes back when off
+- [x] SSH agent (gcr) socket running in the Hyprland session
+- [x] Wallpaper colours: "Colour from" candidates (matugen) give the expected accents
+- [x] Settings search finds rows on every page (`python3 -m fw13.pages.search test`)
+- [x] Jarvis: inline answers, reading a screenshot, selected text, the kh6 Ollama fallback with the network faked off
+
+Built but not yet seen working for real:
+
+- [ ] `systemctl hibernate` and resume (unlock the disk, session comes back); "Then hibernate after" on battery
+- [ ] Warnings at a real 20 / 10 / 5 % battery
+- [ ] USB stick: the notice, Open, Eject → "Safe to unplug"
+- [ ] Automatic time zone actually changing the zone when travelling
+- [ ] Night light switching at sunset / sunrise
+- [ ] SUPER+ALT+A region pick; "Ask Jarvis" buttons on notifications; Jarvis History in the panel
+- [ ] Workspace dots and SUPER+N on external monitors (11–19, 21–29)
+- [ ] Settings search scrolling to and highlighting the found row
