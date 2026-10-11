@@ -271,6 +271,7 @@ class Panel(Gtk.Window):
         self.last_target = None
         self.answer = ""
         self.started = 0.0
+        self.take_snapshot()
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         for side in ("top", "bottom", "start", "end"):
@@ -338,6 +339,22 @@ class Panel(Gtk.Window):
         self.add(box)
         self.show_chips(STARTERS, fresh=True)
 
+    def take_snapshot(self):
+        """jcfg.snapshot() in the background, so the first question doesn't wait for it."""
+        self.snap, self.snap_at = "", time.time()
+
+        def work():
+            self.snap = jcfg.snapshot()
+        self.snap_thread = threading.Thread(target=work, daemon=True)
+        self.snap_thread.start()
+
+    def system_note(self):
+        """The first question of a conversation also gets the state of the laptop (follow-ups resume it)."""
+        if time.time() - self.snap_at > 60:  # the panel was left open: "just now" must stay true
+            self.take_snapshot()
+        self.snap_thread.join(2)
+        return f"Current state (taken just now):\n{self.snap}" if self.snap else ""
+
     # ---- keys ---------------------------------------------------------------------------------------------------
     def on_key(self, _w, e):
         if e.keyval == Gdk.KEY_Escape:
@@ -378,16 +395,18 @@ class Panel(Gtk.Window):
         target = self.last_target
         self.clear_card()
         self.clear_chips()
+        state = "" if follow_up else self.system_note()
         if target == "claude":
+            note = f"{INLINE_NOTE}\n\n{state}" if state else INLINE_NOTE
             cmd = ["claude", "-p", prompt, "--output-format", "stream-json", "--include-partial-messages",
-                   "--verbose", "--append-system-prompt", INLINE_NOTE, "--add-dir", "/",
+                   "--verbose", "--append-system-prompt", note, "--add-dir", "/",
                    "--allowedTools", *READ_ONLY_TOOLS, "--disallowedTools", *SECRET_READS, *jcfg.claude_args()]
             if follow_up and self.session:
                 cmd += ["--resume", self.session]
         elif follow_up:
             cmd = ["opencode", "run", "--continue", "--model", target, prompt]
         else:
-            cmd = ["opencode", "run", "--model", target, f"{INLINE_NOTE}\n\nQuestion: {prompt}"]
+            cmd = ["opencode", "run", "--model", target, f"{INLINE_NOTE}\n\n{state}\n\nQuestion: {prompt}"]
         if follow_up:
             self.answer += "\n\n---\n\n"
         self.turn_start = len(self.answer)
@@ -671,6 +690,7 @@ class Panel(Gtk.Window):
         self.set_status("")
         self.cont.hide()
         self.again.hide()
+        self.take_snapshot()
         self.show_chips(STARTERS, fresh=True)
         self.entry.grab_focus()
 
