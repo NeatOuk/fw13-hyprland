@@ -125,7 +125,8 @@ class HyprPage(Page):
         return self.row(text, box, hint=hint)
 
 
-THUMB_W = 160
+THUMB_W = 120
+GALLERY_ROWS = 2  # the picture grid scrolls past this many rows, so a big library doesn't fill the page
 MODES = (("dark", "Dark"), ("light", "Light"))
 STYLES = (("scheme-tonal-spot", "Tonal spot (default)"), ("scheme-content", "Content"),
           ("scheme-expressive", "Expressive"), ("scheme-vibrant", "Vibrant"), ("scheme-neutral", "Neutral"),
@@ -449,12 +450,19 @@ class AppearancePage(HyprPage):
             flow.set_column_spacing(8)
             flow.set_row_spacing(8)
             items = []
-            for path in lib:
+            for path in sorted(lib, key=lambda p: os.path.realpath(p) != cur):  # the current picture first
                 b = thumb_button(path, THUMB_W, os.path.realpath(path) == cur, self.set_wallpaper, self.thumb_menu)
                 flow.add(b)
                 items.append((path, b.image))
             flow.set_sensitive(not self.walling)
-            self.add_widget(flow)
+            gallery = Gtk.ScrolledWindow()
+            gallery.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            row_h = THUMB_W * 9 // 16 + 6 + 8  # thumb + border + spacing
+            # shortcut: assumes >= 3 per line (Settings at half a screen fits 3); a narrower window shows fewer rows
+            rows = min(GALLERY_ROWS, -(-len(lib) // 3))
+            gallery.set_min_content_height(rows * row_h)
+            gallery.add(flow)
+            self.add_widget(gallery)
             load_thumbs(items, THUMB_W)
         else:
             self.add_widget(label("No pictures yet: add some with + Add…, or put them in the folder", "dim"))
