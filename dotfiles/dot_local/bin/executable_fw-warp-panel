@@ -19,10 +19,9 @@ import time
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
 
-from fw13 import warp  # noqa: E402  (no GTK: --bar must stay fast)
+from fw13 import panel as single, warp  # noqa: E402  (no GTK: --bar must stay fast)
 
-RUNTIME = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
-PIDFILE = os.path.join(RUNTIME, "fw-warp-panel.pid")
+NAME = "fw-warp-panel"  # pidfile: a second click on the icon closes the open panel
 BAR_SIGNAL = 11
 PANEL_W = 480
 
@@ -35,18 +34,6 @@ def bar_refresh():
             os.kill(int(pid), signal.SIGRTMIN + BAR_SIGNAL)
     except (OSError, ValueError):
         pass
-
-
-def close_pidfile(path, name):
-    try:
-        pid = int(open(path).read())
-        with open(f"/proc/{pid}/cmdline", "rb") as f:
-            if name.encode() not in f.read():
-                return False
-        os.kill(pid, signal.SIGTERM)
-        return True
-    except (OSError, ValueError):
-        return False
 
 
 if len(sys.argv) > 1 and sys.argv[1] == "--bar":
@@ -73,16 +60,6 @@ from gi.repository import Gdk, GLib, Gtk, GtkLayerShell, Pango  # noqa: E402
 from fw13 import ui_theme  # noqa: E402
 from fw13.hypr import hj  # noqa: E402
 from fw13.ui_theme import button, label  # noqa: E402
-
-
-def right_margin():
-    """Centre the panel under the pointer on the focused monitor, like fw-menu-anchor."""
-    try:
-        cx = json.loads(subprocess.run(["hyprctl", "-j", "cursorpos"], capture_output=True, text=True).stdout)["x"]
-        m = next(m for m in hj("monitors") if m["focused"])
-        return max(0, int(m["x"] + m["width"] / m["scale"] - cx - PANEL_W / 2))
-    except (ValueError, KeyError, StopIteration):
-        return 0
 
 
 def max_height():
@@ -178,7 +155,7 @@ class Panel(Gtk.Window):
         if at_bar:
             GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP, True)
             GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.RIGHT, True)
-            GtkLayerShell.set_margin(self, GtkLayerShell.Edge.RIGHT, right_margin())
+            GtkLayerShell.set_margin(self, GtkLayerShell.Edge.RIGHT, single.right_margin(PANEL_W))
         self.connect("key-press-event", lambda _w, e: e.keyval == Gdk.KEY_Escape and Gtk.main_quit())
 
         scroll = Gtk.ScrolledWindow()
@@ -916,14 +893,13 @@ def launch(*cmd):
 
 
 def main():
-    if close_pidfile(PIDFILE, "fw-warp-panel"):
+    if single.close(NAME):
         return
     at_bar = bool(os.environ.get("FW_BAR"))
     subprocess.run(["pkill", "-x", "fuzzel"])  # close any open bar menu
     for gui in ("fw-display-panel", "fw-wallpaper"):
-        close_pidfile(os.path.join(RUNTIME, f"{gui}.pid"), gui)
-    with open(PIDFILE, "w") as f:
-        f.write(str(os.getpid()))
+        single.close(gui)
+    single.claim(NAME)
 
     ui_theme.install()
     panel = Panel(at_bar)
@@ -939,11 +915,7 @@ def main():
     try:
         Gtk.main()
     finally:
-        try:
-            if open(PIDFILE).read() == str(os.getpid()):
-                os.remove(PIDFILE)
-        except OSError:
-            pass
+        single.release(NAME)
 
 
 if __name__ == "__main__":

@@ -25,7 +25,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
-from fw13 import store, terminal  # noqa: E402
+from fw13 import panel as single, store, terminal  # noqa: E402
 from fw13.hypr import dispatch, hj, hypr, lua, q  # noqa: E402  (Lua-mode hyprctl helpers, shared)
 
 MAX_WS = 9  # SUPER+1…9
@@ -38,7 +38,6 @@ def shown():
     except (TypeError, ValueError):
         return 5
 RUN = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
-PIDFILE = os.path.join(RUN, "fw-workspaces.pid")
 LAYOUT_DONE = os.path.join(RUN, "fw-workspaces.layout-done")
 
 
@@ -205,15 +204,9 @@ def events():
 
 
 def daemon():
-    try:  # one per session
-        pid = int(open(PIDFILE).read())
-        with open(f"/proc/{pid}/cmdline", "rb") as f:
-            if b"fw-workspaces" in f.read():
-                return
-    except (OSError, ValueError):
-        pass
-    with open(PIDFILE, "w") as f:
-        f.write(str(os.getpid()))
+    if single.running("fw-workspaces"):  # one per session
+        return
+    single.claim("fw-workspaces")
 
     base_of = setup()
     if not os.path.exists(LAYOUT_DONE):

@@ -72,6 +72,7 @@ Paths: `lib/fw13/…` = `dotfiles/dot_local/lib/fw13/…` (→ `~/.local/lib/fw1
 ### Shared Python library (lib/fw13 → ~/.local/lib/fw13; scripts `sys.path.insert` ~/.local/lib)
 
 - **hypr**: Lua hyprctl helpers.
+- **panel**: single instance via `$XDG_RUNTIME_DIR/<name>.pid` checked against `/proc/<pid>/cmdline` (`running`/`close`/`claim`/`release`) for the layer-shell panels, fw-workspaces and fw-autobrightness; `right_margin(width)` centres a bar panel under the pointer. `python3 -m fw13.panel test` self-check.
 - **displays**, **system**, **ui_display**.
 - **store**: `~/.config/fw13/settings.json`.
 - **ui_theme**: flat CSS (incl. `.found` for search hits).

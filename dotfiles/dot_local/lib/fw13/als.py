@@ -13,7 +13,7 @@ import os
 import signal
 import subprocess
 
-from . import store
+from . import panel, store
 
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
 PIDFILE = os.path.join(RUNTIME, "fw-autobrightness.pid")
@@ -164,12 +164,7 @@ def set_enabled(on):
 
 def pid():
     """The running daemon's pid (pidfile checked against /proc), or None."""
-    try:
-        p = int(open(PIDFILE).read())
-        with open(f"/proc/{p}/cmdline", "rb") as f:
-            return p if b"fw-autobrightness" in f.read() else None
-    except (OSError, ValueError):
-        return None
+    return panel.running("fw-autobrightness")
 
 
 def signal_daemon(sig):

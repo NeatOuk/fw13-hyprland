@@ -10,7 +10,6 @@
 The work is fw13.wallpaper (~/.local/lib/fw13): desktop/lock images with their effects, hyprpaper restart, theme
 colours when they follow the wallpaper. GTK3 + gtk-layer-shell, like fw-display-panel.
 """
-import json
 import os
 import signal
 import subprocess
@@ -19,12 +18,11 @@ import threading
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
 
-from fw13 import wallpaper as wp  # noqa: E402
+from fw13 import panel as single, wallpaper as wp  # noqa: E402
 
 PANEL_W = 900
 THUMB_W = 200
-PIDFILE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "fw-wallpaper.pid")
-DISPLAY_PIDFILE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "fw-display-panel.pid")
+NAME = "fw-wallpaper"  # pidfile: a second call (SUPER+W or the bar icon) closes the open picker
 
 
 def cli(args):
@@ -54,19 +52,6 @@ def cli(args):
     return 0
 
 
-# --- single instance: a second call (SUPER+W or the bar icon) closes the open picker ------------------------
-def close_pidfile(path, name):
-    try:
-        pid = int(open(path).read())
-        with open(f"/proc/{pid}/cmdline", "rb") as f:
-            if name.encode() not in f.read():
-                return False
-        os.kill(pid, signal.SIGTERM)
-        return True
-    except (OSError, ValueError):
-        return False
-
-
 def gui():
     import gi
     gi.require_version("Gtk", "3.0")
@@ -75,18 +60,7 @@ def gui():
     from gi.repository import Gdk, GLib, Gtk, GtkLayerShell
 
     from fw13 import ui_theme
-    from fw13.hypr import hj
     from fw13.pages.appearance import image_filter, install_thumb_css, load_thumbs, thumb_button
-
-    def right_margin():
-        """Centre the picker under the pointer on the focused monitor, like fw-menu-anchor."""
-        try:
-            cx = json.loads(subprocess.run(["hyprctl", "-j", "cursorpos"], capture_output=True,
-                                           text=True, timeout=3).stdout)["x"]
-            m = next(m for m in hj("monitors") if m["focused"])
-            return max(0, int(m["x"] + m["width"] / m["scale"] - cx - PANEL_W / 2))
-        except (OSError, subprocess.TimeoutExpired, ValueError, KeyError, TypeError, StopIteration):
-            return 0
 
     class Picker(Gtk.Window):
         def __init__(self, at_bar):
@@ -101,7 +75,7 @@ def gui():
                 GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.ON_DEMAND)
                 GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP, True)
                 GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.RIGHT, True)
-                GtkLayerShell.set_margin(self, GtkLayerShell.Edge.RIGHT, right_margin())
+                GtkLayerShell.set_margin(self, GtkLayerShell.Edge.RIGHT, single.right_margin(PANEL_W))
             else:  # from the keyboard: take the keys at once (arrows + Enter), centred
                 GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)
             self.connect("key-press-event", self.key)
@@ -207,13 +181,12 @@ def gui():
                     return wp.set(added[0]) if added else "None of those pictures could be added"
                 self.run(work, "Adding and setting the wallpaper…")
 
-    if close_pidfile(PIDFILE, "fw-wallpaper"):
+    if single.close(NAME):
         return 0
     at_bar = bool(os.environ.get("FW_BAR"))
     subprocess.run(["pkill", "-x", "fuzzel"])  # close any open bar menu
-    close_pidfile(DISPLAY_PIDFILE, "fw-display-panel")
-    with open(PIDFILE, "w") as f:
-        f.write(str(os.getpid()))
+    single.close("fw-display-panel")
+    single.claim(NAME)
 
     try:  # the pidfile goes away whatever happens below
         ui_theme.install()
@@ -229,11 +202,7 @@ def gui():
             picker.first.grab_focus()
         Gtk.main()
     finally:
-        try:
-            if open(PIDFILE).read() == str(os.getpid()):
-                os.remove(PIDFILE)
-        except OSError:
-            pass
+        single.release(NAME)
     return 0
 
 

@@ -33,13 +33,12 @@ gi.require_version("Gdk", "3.0")
 gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import Gdk, GLib, Gtk, GtkLayerShell, Pango  # noqa: E402
 
-from fw13 import agents, jarvis as jcfg, ui_theme  # noqa: E402
+from fw13 import agents, jarvis as jcfg, panel as single, ui_theme  # noqa: E402
 from fw13.pages import PAGES  # noqa: E402
 from fw13.hypr import hj  # noqa: E402
 from fw13.ui_theme import button, label  # noqa: E402
 
-RUNTIME = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
-PIDFILE = os.path.join(RUNTIME, "fw-jarvis-panel.pid")
+NAME = "fw-jarvis-panel"  # pidfile: a second call closes the open panel
 JDIR = os.path.expanduser("~/jarvis")
 os.makedirs(JDIR, exist_ok=True)  # the working folder of every Jarvis agent run; chezmoi adds its AGENTS.md/CLAUDE.md
 jcfg.ensure_memory()  # CLAUDE.md imports it
@@ -125,29 +124,6 @@ UNREACHABLE_RE = re.compile(r"connect|network|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|E
 def root_argv(cmd):
     """Root cards run under pkexec (polkit prompt: password or fingerprint), so `sudo` inside is dropped."""
     return ["pkexec", "bash", "-c", SUDO_RE.sub("", cmd)]
-
-
-def close_running():
-    try:
-        pid = int(open(PIDFILE).read())
-        with open(f"/proc/{pid}/cmdline", "rb") as f:
-            if b"fw-jarvis-panel" not in f.read():
-                return False
-        os.kill(pid, signal.SIGTERM)
-        return True
-    except (OSError, ValueError):
-        return False
-
-
-def close_pidfile(name):
-    path = os.path.join(RUNTIME, f"{name}.pid")
-    try:
-        pid = int(open(path).read())
-        with open(f"/proc/{pid}/cmdline", "rb") as f:
-            if name.encode() in f.read():
-                os.kill(pid, signal.SIGTERM)
-    except (OSError, ValueError):
-        pass
 
 
 def screen_room():
@@ -920,14 +896,13 @@ def main():
         print(f"fw-jarvis-panel: no such image {image}", file=sys.stderr)
         return 2
     if opts:
-        close_running()  # a question or attachment replaces an open panel instead of toggling it shut
-    elif close_running():
+        single.close(NAME)  # a question or attachment replaces an open panel instead of toggling it shut
+    elif single.close(NAME):
         return 0
     subprocess.run(["pkill", "-x", "fuzzel"])  # close any open bar menu
     for gui in ("fw-display-panel", "fw-warp-panel", "fw-wallpaper"):
-        close_pidfile(gui)
-    with open(PIDFILE, "w") as f:
-        f.write(str(os.getpid()))
+        single.close(gui)
+    single.claim(NAME)
     ui_theme.install()
     panel = Panel(context_for(image, opts.get("--text-from-selection")))
     panel.connect("destroy", lambda *_: panel.quit())
@@ -947,11 +922,7 @@ def main():
         Gtk.main()
     finally:
         panel.stop()
-        try:
-            if open(PIDFILE).read() == str(os.getpid()):
-                os.remove(PIDFILE)
-        except OSError:
-            pass
+        single.release(NAME)
     return 0
 
 
