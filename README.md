@@ -1,6 +1,18 @@
 # fw13-hyprland (fw13-hypr)
 
-An ML4W-style installer that turns **any regular Fedora install** (Workstation/GNOME, KDE Plasma, any spin, or Minimal) into a clean Hyprland desktop, tuned for the **Framework Laptop 13, AMD Ryzen AI 9 HX 370**. It adds what's needed and removes nothing.
+A Hyprland desktop installer made for one machine: the **Framework Laptop 13 (AMD Ryzen AI 300, tested on the HX 370)** running **Fedora 44 or newer**. It adds a tuned Hyprland session on top of your Fedora install and removes nothing.
+
+## Supported
+
+| | Status |
+|---|---|
+| **Framework Laptop 13, AMD Ryzen AI 300** (HX 370 / 365 / 350) | ✅ The target: everything is tested on an HX 370 (Radeon 890M, MediaTek MT7925 Wi-Fi/BT) |
+| Framework Laptop 13, AMD Ryzen 7040 | ⚠️ Should work (same EC, `framework_tool` and AMD stack), not tested |
+| Framework Laptop 13 Intel, Framework 12/16, other laptops | ❌ Not supported: no Intel tuning, and the Framework-only parts (fan, keyboard backlight, charge limit, fingerprint LED, hardware checks) are hidden or skipped elsewhere |
+| **Fedora 44+**: Workstation (GNOME), KDE Plasma, any spin, or Minimal | ✅ GNOME/KDE stay installed and selectable at login |
+| Fedora Atomic (Silverblue, Kinoite, …), Fedora 43 or older, other distros | ❌ The installer stops: Atomic can't install packages this way, and Hyprland comes from a COPR that only builds for Fedora 44+ |
+
+## Install
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/NeatOuk/fw13-hyprland/main/install.sh)
@@ -38,8 +50,6 @@ What you'll see at each step, and the Framework-only checks to do afterwards: [d
 | Report | `~/.local/state/fw13-hypr/install-report.txt`: how many packages it added, their total size, and the largest 25 |
 
 On **Minimal** or another install without GNOME or KDE, the installer warns before it starts and again at the end: Hyprland alone has no file mounting, printing or document viewers, so install GNOME first with `sudo dnf group install workstation-product-environment` (it stays selectable at login). The installer doesn't add it for you.
-
-Not supported: Atomic editions (Silverblue/Kinoite), since they can't install packages this way. The installer stops on those.
 
 ## Backups
 
@@ -158,8 +168,9 @@ Hyprland's config is **Lua** (`~/.config/hypr/hyprland.lua`, which `require()`s 
 ```
 install.sh                 entry point (preflight → repos → packages → system files → login/power → user phase → report)
 packages/NN-*.txt          one package per line; 15-login and 61-power are conditional
-repos/*.repo               vendor repos (vscode, mise)
-system/                    copied into /usr/local/bin and /etc/systemd/system
+repos/*.repo               vendor repos (vscode, mise, cloudflare-warp, devolutions-rdm)
+rpm/                       specs built locally (Telegram Desktop)
+system/                    root helpers and config: /usr/local/bin, /etc (systemd, polkit, modprobe, geoclue, Chromium policy)
 dotfiles/                  chezmoi source (.chezmoiroot)
 ```
 
