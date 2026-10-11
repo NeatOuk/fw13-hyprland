@@ -257,7 +257,7 @@ def context_for(image=None, selection=None):
     """(text added to the first question, line shown in the panel, entry placeholder), or None."""
     if image:
         return (f"The owner attached a screenshot: {image} — look at it with Read.",
-                f"\uf0c6  Screenshot attached", "Ask about the screenshot…")
+                "\uf0c6  Screenshot attached", "Ask about the screenshot…")
     if selection:
         shown = " ".join(selection.strip().splitlines()[:2])[:120]
         return (f"The owner selected this text:\n```\n{selection}\n```",
