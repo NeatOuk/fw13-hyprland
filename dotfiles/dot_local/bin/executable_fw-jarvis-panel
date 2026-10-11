@@ -10,6 +10,7 @@ OpenCode — they go through `fw-jarvis` like before.
 
   fw-jarvis-panel            open (a second call closes it); Esc closes and stops a running answer
   fw-jarvis-panel --ask "…"  open with that question and answer it at once (crash notification → Diagnose)
+  fw-jarvis-panel test       self-check of the card parsing
 GTK3 + gtk-layer-shell, like fw-warp-panel. Colours from fw13.ui_theme.
 """
 import json
@@ -31,6 +32,7 @@ gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import Gdk, GLib, Gtk, GtkLayerShell, Pango  # noqa: E402
 
 from fw13 import jarvis as jcfg, ui_theme  # noqa: E402
+from fw13.pages import PAGES  # noqa: E402
 from fw13.hypr import hj  # noqa: E402
 from fw13.ui_theme import button, label  # noqa: E402
 
@@ -59,6 +61,7 @@ READ_ONLY_TOOLS = ["Read", "Grep", "Glob", "LS",
                    "Bash(sudo -n smartctl -a:*)", "Bash(sudo -n smartctl -H:*)", "Bash(sudo -n nvme smart-log:*)",
                    "Bash(fw-hwcheck)", "Bash(fw-hwcheck --json)", "Bash(fw-health --json)", "Bash(fw-health --last)"]
 # Never read inline, even though everything else is readable: keys and passwords.
+PAGE_TITLES = {pid: title for pid, _icon, title, _mod in PAGES}  # Settings pages a card may open
 SECRET_READS = ["Read(~/.config/chezmoi/**)", "Read(~/.config/restic/**)", "Read(~/.config/environment.d/**)",
                 "Read(~/.ssh/**)", "Read(~/.gnupg/**)", "Read(~/.local/share/keyrings/**)",
                 "Read(~/.config/chromium/**)", "Read(~/.mozilla/**)", "Read(~/.config/gh/**)",
@@ -78,6 +81,10 @@ INLINE_NOTE = ("You are answering inline in Jarvis's small panel. Be brief and p
                "\"why\": \"what it's for\", \"how\": \"what it changes, and how to undo it\", "
                "\"root\": false}\n"
                "```\n"
+               "When the fix is a setting the owner can change in Settings, propose a settings card instead: "
+               "{\"title\": \"short title\", \"settings\": \"<page>\", \"why\": \"what to change there\"} in "
+               "the same jarvis-action block, with no command. Pages: " + ", ".join(
+                   f"{pid} ({title})" for pid, title in PAGE_TITLES.items()) + ".\n"
                "Use plain `sudo` inside the command for root steps and set root to true (the panel runs root cards "
                "through pkexec, which asks the owner to authenticate). One command per card, no "
                "interactive programs, nothing that needs a terminal. Bigger jobs (edits across files, many steps) "
@@ -212,7 +219,8 @@ def parse_followups(text):
 
 
 def parse_actions(text):
-    """Complete jarvis-action blocks in `text` → [{title, command, why, how, root}] (malformed ones skipped)."""
+    """Complete jarvis-action blocks in `text` → [{title, command, why, how, root}] or, for a settings card,
+    [{title, settings, why}] (malformed ones and unknown pages skipped)."""
     out = []
     for m in ACTION_RE.finditer(text):
         if not m.group(0).rstrip().endswith("```"):
@@ -220,6 +228,14 @@ def parse_actions(text):
         try:
             a = json.loads(m.group(1))
         except ValueError:
+            continue
+        if not isinstance(a, dict):
+            continue
+        if "settings" in a:
+            page = str(a.get("settings") or "").strip()
+            if page in PAGE_TITLES:
+                out.append({"title": str(a.get("title") or "Open Settings"), "settings": page,
+                            "why": str(a.get("why") or "—")})
             continue
         cmd = str(a.get("command") or "").strip()
         if not cmd or "\n" in cmd:
@@ -475,7 +491,8 @@ class Panel(Gtk.Window):
         if actions:
             self.show_card(actions[0])
             if not self.status.get_style_context().has_class("bad"):
-                self.set_status(f"Done · {took} · nothing runs until you press Run")
+                self.set_status(f"Done · {took}" if "settings" in actions[0] else
+                                f"Done · {took} · nothing runs until you press Run")
         elif rc == 0 or self.answer:
             self.show_chips(parse_followups(self.answer[self.turn_start:]))
         self.entry.set_placeholder_text("Ask a follow-up…" if self.answer else "Ask anything about this computer…")
@@ -511,6 +528,9 @@ class Panel(Gtk.Window):
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         card.get_style_context().add_class("item")
         card.pack_start(label(a["title"], "heading"), False, False, 0)
+        if "settings" in a:
+            self.settings_card(card, a)
+            return
         grid = Gtk.Grid(column_spacing=12, row_spacing=4)
         for i, (k, v) in enumerate((("What", a["command"]), ("Why", a["why"]), ("How", a["how"]))):
             grid.attach(label(k, "dim", yalign=0), 0, i, 1, 1)
@@ -551,6 +571,27 @@ class Panel(Gtk.Window):
         card.show_all()        # the output stays hidden (no_show_all) until there is some
         self.card_box.show()   # show_all() does nothing on a no_show_all widget, so show it directly
         self.fit()
+
+    def settings_card(self, card, a):
+        """A setting to change by hand: only a button that opens that Settings page, nothing runs."""
+        why = label(a["why"], selectable=True, xalign=0)
+        why.set_line_wrap(True)
+        why.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+        card.pack_start(why, False, False, 0)
+        row = Gtk.Box(spacing=8)
+        row.pack_start(button(f"Open Settings → {PAGE_TITLES[a['settings']]}",
+                              lambda: self.open_settings(a["settings"]), "primary"), False, False, 0)
+        self.skip_btn = button("Skip", lambda: self.skip_action(a))
+        row.pack_start(self.skip_btn, False, False, 0)
+        card.pack_start(row, False, False, 0)
+        self.card_box.pack_start(card, False, False, 0)
+        card.show_all()
+        self.card_box.show()
+        self.fit()
+
+    def open_settings(self, page):
+        launch("fw-settings", page)
+        self.quit()  # the overlay would cover the Settings window
 
     def run_action(self, a):
         self.run_btn.set_sensitive(False)
@@ -647,8 +688,23 @@ class Panel(Gtk.Window):
         self.quit()
 
 
+def selftest():
+    block = "```jarvis-action\n{}\n```"
+    a = parse_actions(block.format('{"title": "Limit", "settings": "power", "why": "set 80 %"}'))
+    assert a == [{"title": "Limit", "settings": "power", "why": "set 80 %"}], a
+    assert parse_actions(block.format('{"title": "x", "settings": "nope", "command": "ls"}')) == []
+    assert parse_actions(block.format('["power"]')) == []
+    a = parse_actions(block.format('{"title": "t", "command": "sudo dnf upgrade", "why": "w", "how": "h"}'))
+    assert a[0]["root"] and a[0]["command"] == "sudo dnf upgrade", a
+    assert "power (Power)" in INLINE_NOTE
+    print("fw-jarvis-panel: self-check OK")
+    return 0
+
+
 def main():
     args = sys.argv[1:]
+    if args == ["test"]:
+        return selftest()
     ask_now = args[1] if len(args) >= 2 and args[0] == "--ask" else None
     if ask_now:
         close_running()  # a diagnosis replaces an open panel instead of toggling it shut
