@@ -8,7 +8,7 @@ import tempfile
 import time
 import urllib.request
 
-from . import store
+from . import agents as coding, store
 
 MODELS = [("", "Default (Claude Code's choice)"), ("fable", "Fable"), ("opus", "Opus"), ("sonnet", "Sonnet"),
           ("haiku", "Haiku")]  # aliases follow the newest model; a full model name can be typed too
@@ -19,7 +19,6 @@ JDIR = os.path.expanduser("~/jarvis")
 MEMORY = os.path.join(JDIR, "MEMORY.md")  # not a chezmoi target: the owner's notes, read by every run via CLAUDE.md
 NOTE_MAX = 300
 # Claude Code keeps each conversation in ~/.claude/projects/<cwd with every other character as '-'>/<id>.jsonl
-OPENCODE_CONFIG = os.path.expanduser("~/.config/fw-opencode/opencode.json")  # written by fw-opencode
 SESSIONS = os.path.expanduser("~/.claude/projects/" + re.sub(r"[^A-Za-z0-9]", "-", JDIR))
 
 
@@ -51,14 +50,8 @@ def claude_args():
 
 
 def agents():
-    """[(label, target)]: Claude, then the OpenCode servers with a chosen model (fw-opencode --list)."""
-    out = [("Claude", "claude")]
-    try:
-        r = subprocess.run(["fw-opencode", "--list"], capture_output=True, text=True, timeout=5)
-        out += [tuple(line.split("\t", 1)) for line in r.stdout.splitlines() if "\t" in line]
-    except (OSError, subprocess.TimeoutExpired):
-        pass
-    return out
+    """[(label, target)]: Claude, then the coding agent (OpenCode or Pi) on each Ollama server with a chosen model."""
+    return [("Claude", "claude"), *coding.targets()]
 
 
 def fallback_on():
@@ -78,18 +71,19 @@ def online():
 
 
 def server_up(target):
-    """The Ollama server behind an OpenCode target ("provider/model") answers GET /api/tags within 1.5 s."""
+    """The Ollama server behind a coding-agent target ("ollama-<name>/model") answers GET /api/tags within 1.5 s."""
+    url = coding.server_url(target)
+    if not url:
+        return False
     try:
-        with open(OPENCODE_CONFIG) as f:
-            base = json.load(f)["provider"][target.split("/", 1)[0]]["options"]["baseURL"]
-        with urllib.request.urlopen(re.sub(r"/v1/?$", "", base) + "/api/tags", timeout=1.5):
+        with urllib.request.urlopen(url + "/api/tags", timeout=1.5):
             return True
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError):
         return False
 
 
 def fallback(targets):
-    """The first (label, target) of the OpenCode ones whose server answers, or None."""
+    """The first (label, target) of the coding-agent ones whose server answers, or None."""
     return next(((lbl, t) for lbl, t in targets if t not in ("claude", "opencode") and server_up(t)), None)
 
 

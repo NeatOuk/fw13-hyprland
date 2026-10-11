@@ -5,7 +5,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk  # noqa: E402
 
-from .. import jarvis, ollama, store  # noqa: E402
+from .. import agents, jarvis, ollama, store  # noqa: E402
 from ..ui_theme import button, label  # noqa: E402
 from .common import Page, launch  # noqa: E402
 from .system import bg  # noqa: E402
@@ -37,16 +37,17 @@ class JarvisPage(Page):
         self.row("Effort", eff, hint="How hard Claude thinks: lower is faster and uses less of your plan limits")
         self.add_widget(self.status)
         self.add_widget(label("Used for the panel's answers, Continue in terminal and Work on repo, from the next "
-                              "question on. OpenCode sessions use the model chosen in the OpenCode panel.",
+                              "question on. Coding-agent sessions (OpenCode or Pi) use the model chosen in Settings → "
+                              "Coding agent.",
                               "dim", wrap=True))
         self.heading("When Claude is unreachable")
         sw = Gtk.Switch(active=jarvis.fallback_on())
         sw.connect("notify::active", lambda w, _p: self.save("jarvis_fallback", w.get_active()))
-        others = [lbl.removeprefix("OpenCode · ") for lbl, t in jarvis.agents() if t != "claude"]
+        others = [lbl.split(" · ", 1)[-1] for lbl, t in jarvis.agents() if t != "claude"]
         self.row("Answer with an Ollama server", sw,
                  hint=(f"Without internet, or when Claude can't be reached, the panel answers with {others[0]} "
-                       "(the first OpenCode server that answers)") if others else
-                 "No Ollama server with a model yet: add one in the OpenCode panel (the >_ icon)")
+                       f"(the first server that answers, through {agents.name()})") if others else
+                 "No Ollama server with a model yet: add one in Settings → Coding agent")
         self.heading("Local models (Ollama)")
         self.local = self.add_widget(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8))
         name = Gtk.Entry(placeholder_text="e.g. qwen3:8b", width_chars=22)
@@ -93,8 +94,8 @@ class JarvisPage(Page):
             r.pack_start(left, True, True, 0)
             r.pack_end(button("Remove", lambda n=m["name"]: self.remove_model(n), "danger"), False, False, 0)
             self.local.pack_start(r, False, False, 0)
-        self.local.pack_start(label("OpenCode and the fallback above use these through the \"laptop\" server; pick the "
-                                    "model in the OpenCode panel (the >_ icon).", "dim", wrap=True), False, False, 0)
+        self.local.pack_start(label("The coding agent and the fallback above use these through the \"laptop\" server; "
+                                    "pick the model in Settings → Coding agent.", "dim", wrap=True), False, False, 0)
         self.local.show_all()
         return False
 

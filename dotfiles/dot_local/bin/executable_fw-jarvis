@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Jarvis: ask an AI agent — Claude Code, or OpenCode on any Ollama server from the OpenCode panel — about
+# Jarvis: ask an AI agent — Claude Code, or the coding agent (OpenCode or Pi, Settings → Coding agent) on any
+# Ollama server from the >_ panel — about
 # this computer or the fw13-hypr repo. Tasks open in a floating terminal window (class fw13.jarvis; kitty or Ghostty via fw-term).
 #   fw-jarvis                  the Jarvis panel (SUPER+A): ask and the answer appears inline (fw-jarvis-panel)
 #   fw-jarvis menu             the older fuzzel menu
-#   fw-jarvis crash | repo <agent> <task> | open claude|opencode   the panel's buttons
+#   fw-jarvis crash | repo <agent> <task> | open claude|agent   the panel's buttons (opencode = agent)
 #   fw-jarvis diagnose <file>  explain a crash report (fw-crash-watch) or a daily health report (fw-health)
 #   fw-jarvis shot             pick a region (slurp), ask about it (SUPER+ALT+A)
 #   fw-jarvis selection        ask about the selected text (SUPER+CTRL+A)
@@ -37,7 +38,7 @@ menu() { fuzzel_free; local rc=0 out; out="$(fuzzel --dmenu "${pos[@]}" --prompt
 ask()  { fuzzel_free; local rc=0 out; out="$(fuzzel --dmenu "${pos[@]}" --prompt-only "$1 › " </dev/null)" || rc=$?
          log "ask '$1' rc=$rc -> ${#out} chars"; printf '%s' "$out"; return "$rc"; }
 
-# "label<TAB>target": claude, or provider/model for OpenCode (active server first).
+# "label<TAB>target": claude, or provider/model for the coding agent (active server first).
 agents() {
   printf 'Claude\tclaude\n'
   fw-opencode --list 2>/dev/null || true
@@ -55,14 +56,16 @@ pick_agent() {
 }
 
 # launch <dir> <target> [prompt] — with a prompt it's a Jarvis task (floating window, class fw-jarvis);
-# without one it's a plain Claude/OpenCode session that tiles like any terminal.
+# without one it's a plain Claude/coding-agent session that tiles like any terminal.
 launch() {
   local dir=$1 target=$2 prompt=${3:-} cmd class=() cargs=()
   if [[ $target == claude ]]; then
     mapfile -t cargs < <(PYTHONPATH="$HOME/.local/lib" python3 -m fw13.jarvis 2>/dev/null || true)  # Settings → Jarvis: --model/--effort
     cmd=(claude "${cargs[@]}" ${prompt:+"$prompt"})
-  elif [[ $target == opencode ]]; then cmd=(opencode ${prompt:+--prompt "$prompt"})
-  else cmd=(opencode --model "$target" ${prompt:+--prompt "$prompt"}); fi
+  else  # OpenCode or Pi (fw13.agents); target agent/opencode = its default model, provider/model = that one
+    mapfile -d '' -t cmd < <(PYTHONPATH="$HOME/.local/lib" python3 -m fw13.agents session "$target" ${prompt:+"$prompt"})
+    (( ${#cmd[@]} )) || { fw-notify "Jarvis" "Could not start the coding agent"; return 1; }
+  fi
   # Tasks keep their window when the agent exits (--hold), so an error stays readable instead of a window
   # that flashes and closes.
   [[ -n $prompt ]] && class=(--class fw13.jarvis --hold)
@@ -83,7 +86,7 @@ main() {
   local pick text target last
   pick="$(printf '%s\n' \
     $'  Ask…' $'  Work on the fw13-hypr repo…' $'  Diagnose last crash' \
-    $'✱  Open Claude' $'  Open OpenCode' | menu Jarvis 5)" || return 0
+    $'✱  Open Claude' $'  Open coding agent' | menu Jarvis 5)" || return 0
   case $pick in
     *Ask*)
       text="$(ask "Ask Jarvis")" || return 0
@@ -97,7 +100,7 @@ main() {
       launch "$REPO" "$target" "$text" ;;
     *crash*) last_crash ;;
     *Claude*)   launch "$HOME" claude ;;
-    *OpenCode*) launch "$HOME" opencode ;;
+    *coding*)   launch "$HOME" agent ;;
   esac
 }
 
@@ -125,5 +128,5 @@ case ${1:-} in
   open)     launch "$JDIR" "${2:-claude}" ;;
   shot)     shot ;;
   selection) exec fw-jarvis-panel --text-from-selection ;;
-  *) echo "usage: fw-jarvis [menu | diagnose <file> | crash | repo <agent> <task> | open claude|opencode | shot | selection]" >&2; exit 2 ;;
+  *) echo "usage: fw-jarvis [menu | diagnose <file> | crash | repo <agent> <task> | open claude|agent | shot | selection]" >&2; exit 2 ;;
 esac

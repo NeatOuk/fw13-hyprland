@@ -453,7 +453,7 @@ class Fw13Page(Page):
 
     def edit_ollama(self):
         got = self.ask("Ollama Cloud", [("api_key", "API key", True, True)],
-                       note="Used by OpenCode for Ollama Cloud models.")
+                       note="Used by the coding agent (OpenCode or Pi) for Ollama Cloud models.")
         if got:
             self.run("Saving…", lambda: setup.set_values("ollama", got), RELOGIN)
 

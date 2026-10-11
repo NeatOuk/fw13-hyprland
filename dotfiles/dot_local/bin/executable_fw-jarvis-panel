@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Jarvis panel (SUPER+A): type a question, the answer streams in right here.
 
-Inline answers are read-only: the agent runs one-shot (`claude -p`, or `opencode run` for an Ollama server set up in
-the OpenCode panel) in ~/jarvis, whose AGENTS.md briefs it on this OS, and may only read files and run
-read-only commands. When something needs changing, "Continue in terminal" reopens the same conversation as a full
-session (`claude --resume <id>` / `opencode -c`), where every change is asked for and root actions are explained
-first. The other Jarvis actions are buttons: Work on repo (with what you typed), Diagnose last crash, Open Claude or
-OpenCode — they go through `fw-jarvis` like before.
+Inline answers are read-only: the agent runs one-shot (`claude -p`, or the coding agent chosen in Settings → Coding
+agent, `opencode run` / `pi -p`, for an Ollama server set up in the >_ panel) in ~/jarvis, whose AGENTS.md briefs it
+on this OS, and may only read files and run read-only commands. When something needs changing, "Continue in
+terminal" reopens the same conversation as a full session (`claude --resume <id>` / `opencode -c` / `pi -c`), where
+every change is asked for and root actions are explained first. The other Jarvis actions are buttons: Work on repo (with what you typed), Diagnose last crash, Open Claude or
+the coding agent — they go through `fw-jarvis` like before.
 
   fw-jarvis-panel            open (a second call closes it); Esc closes and stops a running answer
   fw-jarvis-panel --ask "…"  open with that question and answer it at once (crash notification → Diagnose)
@@ -33,7 +33,7 @@ gi.require_version("Gdk", "3.0")
 gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import Gdk, GLib, Gtk, GtkLayerShell, Pango  # noqa: E402
 
-from fw13 import jarvis as jcfg, ui_theme  # noqa: E402
+from fw13 import agents, jarvis as jcfg, ui_theme  # noqa: E402
 from fw13.pages import PAGES  # noqa: E402
 from fw13.hypr import hj  # noqa: E402
 from fw13.ui_theme import button, label  # noqa: E402
@@ -117,7 +117,7 @@ DANGER_RE = re.compile(r"\brm\s+-[a-zA-Z]*[rf]|\bdd\b|\bmkfs|\bwipefs\b|--force\
 RUN_TIMEOUT = 120
 ROOT_TIMEOUT = 300   # includes the time the owner takes at the polkit prompt
 SUDO_RE = re.compile(r"\bsudo(?:\s+-n)?\s+")
-# Claude failing for these reasons (no answer at all) → the OpenCode fallback, like having no internet
+# Claude failing for these reasons (no answer at all) → the coding-agent fallback, like having no internet
 UNREACHABLE_RE = re.compile(r"connect|network|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|fetch failed|getaddrinfo"
                             r"|socket|timed? ?out|\b401\b|authenticat|log ?in|oauth", re.I)
 
@@ -313,7 +313,7 @@ class Panel(Gtk.Window):
         self.started = 0.0
         self.turn = ("", False)    # (prompt, follow_up) of the running answer
         self.claude_err = ""
-        self.fallback_note = ""    # "Claude unreachable: answering with kh6 · …" while OpenCode stands in
+        self.fallback_note = ""    # "Claude unreachable: answering with kh6 · …" while the coding agent stands in
         self.take_snapshot()
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -387,7 +387,7 @@ class Panel(Gtk.Window):
         more.pack_start(button("Work on repo…", self.work_on_repo), False, False, 0)
         more.pack_start(button("Diagnose last crash", lambda: self.jarvis("crash")), False, False, 0)
         more.pack_start(button("Open Claude", lambda: self.jarvis("open", "claude")), False, False, 0)
-        more.pack_start(button("Open OpenCode", lambda: self.jarvis("open", "opencode")), False, False, 0)
+        more.pack_start(button(f"Open {agents.name()}", lambda: self.jarvis("open", "agent")), False, False, 0)
         more.pack_start(button("History", self.history), False, False, 0)
         box.pack_start(more, False, False, 0)
         self.hint = label("Enter asks (a follow-up while an answer is open) · proposed changes run only when you press Run · Esc closes", "dim")
@@ -440,7 +440,7 @@ class Panel(Gtk.Window):
         self.ask()
 
     def fall_back(self, prompt, why):
-        """Claude can't be reached: answer with the first OpenCode server that can (the home Ollama box)."""
+        """Claude can't be reached: answer with the coding agent on the first Ollama server that can (the home box)."""
         self.entry.set_sensitive(False)
         self.set_status(f"{why}: looking for an Ollama server…")
 
@@ -457,7 +457,7 @@ class Panel(Gtk.Window):
         lbl, target = found
         self.last_target = target
         self.agent.set_active_id(target)  # follow-ups stay with it
-        self.fallback_note = f"Claude unreachable: answering with {lbl.removeprefix('OpenCode · ')}"
+        self.fallback_note = f"Claude unreachable: answering with {lbl.split(' · ', 1)[-1]}"
         self.start(prompt)
         return False
 
@@ -492,9 +492,9 @@ class Panel(Gtk.Window):
             if follow_up and self.session:
                 cmd += ["--resume", self.session]
         elif follow_up:
-            cmd = ["opencode", "run", "--continue", "--model", target, prompt]
+            cmd = agents.run_argv(target, prompt, follow_up=True)
         else:
-            cmd = ["opencode", "run", "--model", target, f"{INLINE_NOTE}\n\n{state}\n\nQuestion: {prompt}"]
+            cmd = agents.run_argv(target, f"{INLINE_NOTE}\n\n{state}\n\nQuestion: {prompt}")
         if follow_up:
             self.answer += "\n\n---\n\n"
         self.turn_start = len(self.answer)
@@ -863,7 +863,7 @@ class Panel(Gtk.Window):
                    "claude", *jcfg.claude_args(), "--resume", self.session, cwd=JDIR)
         elif self.last_target and self.last_target != "claude":
             launch("fw-term", "--class", "fw13.jarvis", "--hold", "--dir", JDIR, "-e",
-                   "opencode", "--continue", "--model", self.last_target, cwd=JDIR)
+                   *agents.session_argv(self.last_target, cont=True), cwd=JDIR)
         self.quit()
 
     def work_on_repo(self):
