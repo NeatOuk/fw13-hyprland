@@ -63,6 +63,7 @@ radiobutton:hover radio:checked, checkbutton:hover check:checked { background: $
 .sidebar row:hover { background: $surface; }
 list, list row { background: transparent; }
 .item { padding: 6px 4px; border-bottom: 1px solid $surface; }
+.found { background: $surface2; box-shadow: inset 3px 0 $accent; }
 """)
 
 _HEX = re.compile(r"#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?")

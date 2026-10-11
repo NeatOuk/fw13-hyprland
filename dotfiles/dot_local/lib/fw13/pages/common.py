@@ -21,10 +21,15 @@ NARROW = 620  # page width (px) below which rows put their control under the tex
 
 class Page(Gtk.ScrolledWindow):
     """Scrollable page with a title; add sections with heading() / row(). Rows registered with adapt() stack
-    vertically when the page is narrow."""
+    vertically when the page is narrow. Every heading()/row() is also recorded in self.index for Settings search
+    (pages/search.py), so new controls are found without a list; async re-renders update it the same way."""
+
+    on_index = None  # fw-settings sets a callable: the search results follow pages that render later
 
     def __init__(self, title):
         super().__init__()
+        self.index = []    # (section, row text, hint, widget); a heading is (its text, "", None, label)
+        self.section = ""
         self.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         self.narrow = False
         self.adaptive = []  # (row box, its control)
@@ -41,7 +46,14 @@ class Page(Gtk.ScrolledWindow):
         return w
 
     def heading(self, text):
-        return self.add_widget(label(text, "heading"))
+        self.section = text
+        return self._indexed("", None, self.add_widget(label(text, "heading")))
+
+    def _indexed(self, text, hint, widget):
+        self.index.append((self.section, text, hint, widget))
+        if Page.on_index:
+            Page.on_index()
+        return widget
 
     def row(self, text, widget=None, hint=None):
         """'text  ...  widget' line, with an optional dim hint under the text."""
@@ -56,7 +68,7 @@ class Page(Gtk.ScrolledWindow):
             widget.set_valign(Gtk.Align.CENTER)
             r.pack_end(widget, False, False, 0)
             self.adapt(r, widget)
-        return self.add_widget(r)
+        return self._indexed(text, hint, self.add_widget(r))
 
     def adapt(self, r, widget):
         """Lay `r` (a horizontal Box: text, then `widget` packed at the end) out for the current width."""
@@ -85,6 +97,7 @@ class Page(Gtk.ScrolledWindow):
         """Remove everything after the first `keep` children (the title)."""
         for child in self.box.get_children()[keep:]:
             self.box.remove(child)
+        self.index, self.section = [], ""
         self.adaptive = [(r, w) for r, w in self.adaptive if r.get_parent() is not None]
 
     def refresh(self):

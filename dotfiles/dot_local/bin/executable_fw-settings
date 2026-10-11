@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Settings — fw13-hypr's own settings app (flat, GTK3; colours follow the desktop theme and recolour live).
-Tiles like any app (no window rule). Header: Framework gear + title, a search box that filters the page list
-(Enter or a single match opens the page; Ctrl+F focuses it, Esc clears it, Esc again closes) and a close button.
+Tiles like any app (no window rule). Header: Framework gear + title, a search box and a close button. Search covers
+every heading and row of every page (pages/search.py over page.index; the first search builds the unopened pages
+one per idle callback): the sidebar keeps the pages with a match, the page area lists "Page › Section › Row";
+a click (Enter = the first) opens the page, scrolls to the row and highlights it. Ctrl+F focuses the box,
+Esc clears it, Esc again closes.
 
   fw-settings [page]          open (or focus the open window) at a page: network bluetooth sound display
                               power appearance input jarvis security system fw13 (keys, backups, login shell — what the
@@ -24,7 +27,8 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from fw13 import ui_theme  # noqa: E402
-from fw13.pages import PAGES  # noqa: E402
+from fw13.pages import PAGES, search  # noqa: E402
+from fw13.pages.common import Page  # noqa: E402
 
 
 class SettingsWindow(Gtk.ApplicationWindow):
@@ -32,6 +36,12 @@ class SettingsWindow(Gtk.ApplicationWindow):
         super().__init__(application=app, title="Settings")
         self.set_default_size(980, 680)
         self.pages = {}
+        self.current = None
+        self.hits = []
+        self.hit_pages = set()
+        self.indexing = None  # pages still to build for the search index; None = not started
+        self.rerun = None
+        Page.on_index = self.index_changed
 
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         outer.pack_start(self.header(), False, False, 0)
@@ -48,7 +58,16 @@ class SettingsWindow(Gtk.ApplicationWindow):
             row.add(ui_theme.label(f"{icon}   {title}"))
             self.sidebar.add(row)
         self.sidebar.connect("row-selected", lambda _l, row: row and self.show_page(row.page_id))
-        self.sidebar.set_filter_func(lambda row: self.query in row.title or self.query in row.page_id)
+        self.sidebar.set_filter_func(lambda row: not self.query or row.page_id in self.hit_pages)
+        self.results = Gtk.ListBox()
+        for side in ("top", "bottom", "start", "end"):
+            getattr(self.results, f"set_margin_{side}")(16)
+        self.results.connect("row-activated", lambda _l, row: self.open_hit(row.hit))
+        scroll = Gtk.ScrolledWindow()
+        scroll.get_style_context().add_class("page")
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.add(self.results)
+        self.stack.add_named(scroll, "search")
         root.pack_start(self.sidebar, False, False, 0)
         root.pack_start(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL), False, False, 0)
         root.pack_start(self.stack, True, True, 0)
@@ -78,19 +97,76 @@ class SettingsWindow(Gtk.ApplicationWindow):
         box.pack_end(ui_theme.button("\uf00d", self.close), False, False, 0)  # Font Awesome xmark
         return box
 
-    def visible_rows(self):
-        return [r for r in self.sidebar.get_children() if r.get_child_visible()]
-
     def on_search(self, entry):
         self.query = entry.get_text().strip().lower()
+        self.update_results()
+        if not self.query:
+            self.stack.set_visible_child_name(self.current or "network")
+            return
+        self.stack.set_visible_child_name("search")
+        if self.indexing is None:
+            self.indexing = [p for p, *_ in PAGES if p not in self.pages]
+            GLib.idle_add(self.index_next, priority=GLib.PRIORITY_LOW)
+
+    def index_next(self):
+        """Build one unopened page so its rows are searchable; one per idle call keeps typing smooth."""
+        if self.indexing:
+            pid = self.indexing.pop(0)
+            if pid not in self.pages:
+                self.build_page(pid)
+        return bool(self.indexing)
+
+    def index_changed(self):
+        """A page added rows (built for the index, or an async render): refresh the results shortly."""
+        if self.query and not self.rerun:
+            self.rerun = GLib.timeout_add(200, self.rerun_search)
+
+    def rerun_search(self):
+        self.rerun = None
+        self.update_results()
+        return False
+
+    def update_results(self):
+        self.hits = search.hits(self.query, self.pages)
+        self.hit_pages = {h[0] for h in self.hits}  # a page whose name matches is a hit of its own
         self.sidebar.invalidate_filter()
-        if len(self.visible_rows()) == 1:
-            self.open_first()
+        for child in self.results.get_children():
+            self.results.remove(child)
+        if self.query and not self.hits:
+            self.results.add(ui_theme.label("Nothing found" if not self.indexing else "Searching\u2026", "dim"))
+        for hit in self.hits[:60]:
+            row = Gtk.ListBoxRow()
+            row.hit = hit
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            box.get_style_context().add_class("item")
+            box.pack_start(ui_theme.label(search.label(hit)), False, False, 0)
+            if hit[3]:
+                box.pack_start(ui_theme.label(hit[3], "dim", wrap=True), False, False, 0)
+            row.add(box)
+            self.results.add(row)
+        self.results.show_all()
 
     def open_first(self):
-        rows = self.visible_rows()
-        if rows:
-            self.show_page(rows[0].page_id)
+        if self.hits:
+            self.open_hit(self.hits[0])
+
+    def open_hit(self, hit):
+        pid, section, text, _hint = hit
+        self.show_page(pid)
+        if section or text:
+            GLib.timeout_add(150, self.reveal, pid, section, text)  # after the page is laid out
+
+    def reveal(self, pid, section, text):
+        page = self.pages[pid]
+        w = search.find(page, section, text)
+        pos = w and w.get_parent() and w.translate_coordinates(page.box, 0, 0)
+        if not pos:
+            return False
+        adj = page.get_vadjustment()
+        adj.set_value(min(max(pos[1] - 24, 0), adj.get_upper() - adj.get_page_size()))
+        w.get_style_context().add_class("found")
+        GLib.timeout_add(1600, lambda: w.get_style_context().remove_class("found") and False)
+        return False
 
     def on_key(self, _w, e):
         if e.keyval in (Gdk.KEY_f, Gdk.KEY_F) and e.state & Gdk.ModifierType.CONTROL_MASK:
@@ -104,15 +180,19 @@ class SettingsWindow(Gtk.ApplicationWindow):
             return True
         return False
 
+    def build_page(self, pid):
+        mod = next(m for p, _i, _t, m in PAGES if p == pid)
+        page = importlib.import_module(f"fw13.pages.{mod}").build()
+        self.pages[pid] = page
+        self.stack.add_named(page, pid)
+        page.show_all()
+
     def show_page(self, pid):
         if pid not in self.pages:  # build lazily: a slow page doesn't delay opening Settings
-            mod = next(m for p, _i, _t, m in PAGES if p == pid)
-            page = importlib.import_module(f"fw13.pages.{mod}").build()
-            self.pages[pid] = page
-            self.stack.add_named(page, pid)
-            page.show_all()
+            self.build_page(pid)
         else:
             self.pages[pid].refresh()
+        self.current = pid
         self.stack.set_visible_child_name(pid)
         row = next(r for r in self.sidebar.get_children() if r.page_id == pid)
         if self.sidebar.get_selected_row() is not row:
