@@ -90,7 +90,7 @@ def main():
     args = sys.argv[1:]
     if args == ["--bar"]:
         bar()
-    elif not args or args == ["toggle"]:  # "toggle": the old bar binding, now the menu
+    elif not args:
         menu()
     elif len(args) == 3 and args[0] == "--failed":
         failed(args[1], args[2])
