@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# App launcher (SUPER+Space, the bar's gear): fuzzel about 80 % of the focused screen tall. fuzzel only takes a line
+# App launcher (SUPER+Space, the bar's gear): fuzzel as tall as its apps, at most about 80 % of the focused screen. fuzzel only takes a line
 # count, so it is worked out from that screen's logical height and fuzzel's row height there, and fuzzel is put on
 # that screen. Extra arguments go to fuzzel.
 set -euo pipefail
@@ -11,5 +11,28 @@ m = next((m for m in json.load(sys.stdin) if m["focused"]), None)
 print(m["name"], int(m["height"] / m["scale"]), 224 if m["scale"] > 1 else 172) if m else print("", 1080, 172)' 2>/dev/null \
   || echo " 1080 172")
 lines=$(( (h * 8 / 10 - 30) * 10 / row ))  # row in tenths of a px
-(( lines < 10 )) && lines=10
+# Fewer apps than that: just tall enough for them (the apps fuzzel lists: one entry per desktop id, first in the
+# XDG data dirs wins, NoDisplay/Hidden and non-Application entries left out)
+apps="$(python3 - <<'PY' 2>/dev/null || echo 0
+import glob, os
+dirs = [os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")]
+dirs += (os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share").split(":")
+seen, n = set(), 0
+for d in dirs:
+    for f in sorted(glob.glob(os.path.join(d, "applications", "**", "*.desktop"), recursive=True)):
+        did = os.path.relpath(f, os.path.join(d, "applications")).replace("/", "-")
+        if did in seen:
+            continue
+        seen.add(did)
+        try:
+            text = open(f, errors="ignore").read().partition("[Desktop Entry]")[2].split("\n[", 1)[0]
+        except OSError:
+            continue
+        keys = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
+        n += keys.get("Type") == "Application" and keys.get("NoDisplay") != "true" and keys.get("Hidden") != "true"
+print(n)
+PY
+)"
+(( apps > 0 && apps < lines )) && lines=$apps
+(( lines < 5 )) && lines=5
 exec fuzzel ${out:+--output "$out"} --lines "$lines" "$@"
