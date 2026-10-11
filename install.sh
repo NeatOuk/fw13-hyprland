@@ -54,8 +54,11 @@ declare -A GROUP_INFO=(
   [ghostty]="94-rpm-build.txt 98-ghostty.txt|Ghostty terminal, built from the official release (kitty stays)"
   [localsend]="|LocalSend file sharing (Flathub, send only)"
 )
-# The saved choice: one group per line. Absent = every group (today's full install).
-GROUPS_FILE="$HOME/.config/fw13/install-groups"
+# The saved choice: the groups LEFT OUT, one per line, so a group added later is on. Absent = every group.
+GROUPS_FILE="$HOME/.config/fw13/install-groups-off"
+# Before: the groups selected. Read when GROUPS_FILE is absent (selected → left out with today's OPT_GROUPS), then
+# replaced by save_groups.
+OLD_GROUPS_FILE="$HOME/.config/fw13/install-groups"
 
 YES=0 CI=0 DO_SYSTEM=1 DO_USER=1 PLAN=0 MINIMAL=0 WITH="" WITHOUT=""
 for a in "$@"; do
@@ -93,13 +96,17 @@ on() { [[ " ${SELECTED[*]} " == *" $1 "* ]]; }
 # valid_groups "a,b c": every name is a group (lower case)
 valid_groups() { local - g; set -f; for g in ${1//,/ }; do [[ -n ${GROUP_INFO[${g,,}]+x} ]] || return 1; done; }
 group_words() { local - g; set -f; for g in ${1//,/ }; do echo "${g,,}"; done; }
-# Base = the saved choice (else all); --ci = all; --minimal = none; then --with/--without. Asked once interactively
+# Base = all minus the saved left-out groups; --ci = all; --minimal = none; then --with/--without. Asked once interactively
 # (no --yes/--ci/--print-plan, no group flags, system phase), Enter keeping the base. save_groups stores it.
 CHOSEN=()
 choose_groups() {
-  local base=() add=() drop=() g ans
-  if [[ $CI == 0 && -r $GROUPS_FILE ]]; then mapfile -t base < <(grep -v '^\s*\(#\|$\)' "$GROUPS_FILE" || true)
-  else base=("${OPT_GROUPS[@]}"); fi
+  local base=() add=() drop=() off=() old=() g ans
+  if [[ $CI == 0 && -r $GROUPS_FILE ]]; then mapfile -t off < <(grep -v '^\s*\(#\|$\)' "$GROUPS_FILE" || true)
+  elif [[ $CI == 0 && -r $OLD_GROUPS_FILE ]]; then
+    mapfile -t old < <(grep -v '^\s*\(#\|$\)' "$OLD_GROUPS_FILE" || true)
+    for g in "${OPT_GROUPS[@]}"; do [[ " ${old[*]} " == *" $g "* ]] || off+=("$g"); done
+  fi
+  for g in "${OPT_GROUPS[@]}"; do [[ " ${off[*]} " == *" $g "* ]] || base+=("$g"); done
   [[ $MINIMAL == 1 ]] && base=()
   valid_groups "$WITH$WITHOUT" || die "unknown group in --with/--without (groups: ${OPT_GROUPS[*]})"
   mapfile -t add < <(group_words "$WITH")
@@ -130,9 +137,11 @@ choose_groups() {
   return 0
 }
 save_groups() {
+  local g
   mkdir -p "${GROUPS_FILE%/*}"
-  { echo "# fw13-hypr optional groups, one per line (install.sh --with/--without/--minimal rewrite this)"
-    if (( ${#CHOSEN[@]} )); then printf '%s\n' "${CHOSEN[@]}"; fi; } > "$GROUPS_FILE"
+  { echo "# fw13-hypr optional groups LEFT OUT, one per line; new groups are on (install.sh --with/--without/--minimal rewrite this)"
+    for g in "${OPT_GROUPS[@]}"; do [[ " ${CHOSEN[*]} " == *" $g "* ]] || echo "$g"; done; } > "$GROUPS_FILE"
+  rm -f "$OLD_GROUPS_FILE"
 }
 # The package lists for one dnf transaction: core + the selected groups' files (each once). 40-gaming (own transaction)
 # and 50-codecs (--allowerasing) are installed separately.
@@ -178,7 +187,9 @@ print_plan() {
   on ai && ! skipped ollama && echo "  enable ollama.service"
   on warp && ! skipped cloudflare-warp && echo "  enable warp-svc.service"
   on localsend && ! skipped org.localsend.localsend_app && echo "  flatpak install --user LocalSend"
-  echo "saved choice: $GROUPS_FILE ($([[ -r $GROUPS_FILE ]] && echo "$(grep -vc '^\s*\(#\|$\)' "$GROUPS_FILE" || true) groups" || echo "absent = all"))"
+  if [[ -r $GROUPS_FILE ]]; then echo "saved choice: $GROUPS_FILE ($(grep -vc '^\s*\(#\|$\)' "$GROUPS_FILE" || true) left out)"
+  elif [[ -r $OLD_GROUPS_FILE ]]; then echo "saved choice: $OLD_GROUPS_FILE (old format: groups selected; becomes $GROUPS_FILE on the next run)"
+  else echo "saved choice: $GROUPS_FILE (absent = all)"; fi
 }
 
 # --- Preflight ---------------------------------------------------------------
