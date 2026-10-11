@@ -4,17 +4,17 @@ A Hyprland desktop installer made for one machine: the **Framework Laptop 13 (AM
 
 ## Screenshots
 
-![Bar: launcher and workspace dots, keep-awake, profile, clock, weather, tray and status icons](docs/screenshots/bar.png)
+[![Bar: launcher and workspace dots, keep-awake, profile, clock, weather, tray and status icons](docs/screenshots/bar.png)](docs/screenshots/bar.png)
 
 | Settings → Appearance | Settings → Power |
 |---|---|
-| ![Settings, Appearance page: theme from the wallpaper, palette, wallpaper gallery](docs/screenshots/settings-appearance.png) | ![Settings, Power page: battery, charge limit, power profile, tuning](docs/screenshots/settings-power.png) |
+| [![Settings, Appearance page: theme from the wallpaper, palette, wallpaper gallery](docs/screenshots/settings-appearance.png)](docs/screenshots/settings-appearance.png) | [![Settings, Power page: battery, charge limit, power profile, tuning](docs/screenshots/settings-power.png)](docs/screenshots/settings-power.png) |
 
 | Jarvis (SUPER+A) | Shortcut cheat sheet (SUPER+K) |
 |---|---|
-| ![Jarvis panel with starter questions](docs/screenshots/jarvis.png) | ![Searchable list of keyboard shortcuts](docs/screenshots/shortcuts.png) |
+| [![Jarvis panel with starter questions](docs/screenshots/jarvis.png)](docs/screenshots/jarvis.png) | [![Searchable list of keyboard shortcuts](docs/screenshots/shortcuts.png)](docs/screenshots/shortcuts.png) |
 
-![Lock screen styled like the tuigreet text login](docs/screenshots/lock.png)
+[![Lock screen styled like the tuigreet text login](docs/screenshots/lock.png)](docs/screenshots/lock.png)
 
 ## Supported
 
