@@ -1,10 +1,11 @@
-"""Sound: output and input devices (default + volume + mute) via wpctl."""
+"""Sound: output and input devices (default + volume + mute) via wpctl, speaker sound (EasyEffects via fw13.speakers),
+noise suppression."""
 import gi
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
-from .. import sound  # noqa: E402
+from .. import sound, speakers, store  # noqa: E402
 from .common import Page, label, launch  # noqa: E402
 from .system import bg  # noqa: E402
 
@@ -26,6 +27,8 @@ class SoundPage(Page):
                 self.add_widget(label("No devices", "dim"))
             for d in devs[key]:
                 self.device_row(d)
+        self.speaker_section()
+        self.heading("Microphone")
         self.noise_row()
         b = Gtk.Button(label="Advanced… (pavucontrol)")
         b.set_halign(Gtk.Align.START)
@@ -63,6 +66,59 @@ class SoundPage(Page):
         r.pack_end(controls, False, False, 0)
         self.adapt(r, controls)  # narrow: device name on its own line, controls under it
         self.add_widget(r)
+
+    def speaker_section(self):
+        if not speakers.available():
+            return
+        self.heading("Speaker sound")
+        on = Gtk.Switch(active=speakers.enabled())
+        on.connect("notify::active", lambda s, _p: speakers.set_enabled(s.get_active()))
+        self.row("Speaker tuning", on, hint="Framework's speaker correction (EasyEffects), for the built-in speakers only")
+        cur = speakers.preset()
+        combo = Gtk.ComboBoxText()
+        for key, text in speakers.PRESETS:
+            combo.append(key, text)
+        combo.set_active_id(cur)
+        combo.connect("changed", lambda c: self.pick_preset(c.get_active_id()))
+        self.row("Sound", combo, hint="Framework: fuller and louder · Clear voice: softer, clearer speech · "
+                                      "Custom: the sliders below")
+        if cur != speakers.CUSTOM:
+            return
+        vals = speakers.eq()
+        for key, text in speakers.SLIDERS:
+            scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, -speakers.LIMIT, speakers.LIMIT, 0.5)
+            scale.set_draw_value(False)
+            scale.set_size_request(180, -1)
+            scale.set_value(vals[key])
+            scale.add_mark(0, Gtk.PositionType.BOTTOM, None)
+            val = label(f"{vals[key]:+.1f} dB", width_chars=8, xalign=1)
+            scale.connect("value-changed", self.on_eq, key, val)
+            box = Gtk.Box(spacing=8)
+            box.pack_start(scale, False, False, 0)
+            box.pack_start(val, False, False, 0)
+            hint = {"bass": "below 150 Hz", "warmth": "around 300 Hz (minus = less muddy)",
+                    "voice": "around 3 kHz (speech, presence)", "air": "above 8 kHz (detail)",
+                    "level": "overall loudness"}[key]
+            self.row(text, box, hint=hint)
+
+    def pick_preset(self, name):
+        store.set("speaker_preset", name)  # now, so the rebuilt page shows it; writing + loading runs in the background
+        bg(speakers.apply, lambda _r: False, name)
+        GLib.idle_add(lambda: self.refresh() and False)  # not from inside the combo's own signal
+
+    def on_eq(self, scale, key, val):
+        val.set_text(f"{scale.get_value():+.1f} dB")
+        vals = dict(speakers.eq(), **self.pending.get("eq_vals", {}))
+        vals[key] = scale.get_value()
+        self.pending["eq_vals"] = vals
+        if self.pending.get("eq"):
+            GLib.source_remove(self.pending["eq"])
+
+        def flush():  # one rewrite + reload after the drag settles
+            self.pending["eq"] = None
+            bg(speakers.apply, lambda _r: False, speakers.CUSTOM, self.pending.pop("eq_vals"))
+            return False
+        self.pending["eq"] = GLib.timeout_add(350, flush)
 
     def noise_row(self):
         sw = Gtk.Switch(active=sound.noise_suppression())

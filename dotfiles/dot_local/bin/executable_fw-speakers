@@ -5,7 +5,8 @@
 # Bluetooth stay untouched), then becomes the EasyEffects background service. Without easyeffects it does nothing.
 set -euo pipefail
 command -v easyeffects >/dev/null || exit 0
-PRESET=fw13-speakers  # Framework's official tuning (user decision); fw13-clear = softer, clearer-voice variant
+# The preset chosen in Settings → Sound (store speaker_preset), else Framework's (fw13-clear / fw13-custom: see fw13.speakers)
+PRESET="$(PYTHONPATH="$HOME/.local/lib" python3 -c 'from fw13 import speakers; print(speakers.preset())' 2>/dev/null || echo fw13-speakers)"
 auto="${XDG_DATA_HOME:-$HOME/.local/share}/easyeffects/autoload/output"
 mkdir -p "$auto"
 # The speaker sink(s) PipeWire knows now (ALSA UCM names it …__Speaker__sink on the FW13's Realtek codec).
