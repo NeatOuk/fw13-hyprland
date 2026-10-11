@@ -15,7 +15,7 @@ mkdir -p "$JDIR"
 [[ -e $JDIR/MEMORY.md ]] || : > "$JDIR/MEMORY.md"  # the owner's notes, imported by CLAUDE.md; never a chezmoi target
 CRASHES="${XDG_RUNTIME_DIR:-/tmp}/jarvis"
 REPO="$HOME/.local/share/fw13-hypr"
-for d in "$HOME/fw13-hyprland" "$HOME/Framework13Pro-Linux"; do   # owner's clone (new name, old name)
+for d in "$HOME/claude/fw13-hyprland" "$HOME/fw13-hyprland"; do   # owner's clone
   [[ -d $d/.git ]] && { REPO=$d; break; }
 done
 
