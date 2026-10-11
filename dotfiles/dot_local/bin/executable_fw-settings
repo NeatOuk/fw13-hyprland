@@ -17,6 +17,8 @@ Pages live in ~/.local/lib/fw13/pages; backends in ~/.local/lib/fw13 (shared wit
 import importlib
 import os
 import sys
+import time
+import traceback
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
 
@@ -41,6 +43,8 @@ class SettingsWindow(Gtk.ApplicationWindow):
         self.hit_pages = set()
         self.indexing = None  # pages still to build for the search index; None = not started
         self.rerun = None
+        self.pending = None  # (page id, section, text, until): the hit to reveal again after a re-render
+        self.reveal_id = None
         Page.on_index = self.index_changed
 
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -113,11 +117,19 @@ class SettingsWindow(Gtk.ApplicationWindow):
         if self.indexing:
             pid = self.indexing.pop(0)
             if pid not in self.pages:
-                self.build_page(pid)
+                try:
+                    self.build_page(pid)
+                except Exception:  # one broken page must not stop the index of the others
+                    print(f"fw-settings: page {pid} failed to build for search:", file=sys.stderr)
+                    traceback.print_exc()
+        if not self.indexing and self.query:
+            self.update_results()  # "Searching…" → "Nothing found" even if no page rendered at the end
         return bool(self.indexing)
 
     def index_changed(self):
         """A page added rows (built for the index, or an async render): refresh the results shortly."""
+        if self.pending and time.monotonic() < self.pending[3]:
+            self.schedule_reveal()  # the opened page re-rendered (refresh() → background load): find the row again
         if self.query and not self.rerun:
             self.rerun = GLib.timeout_add(200, self.rerun_search)
 
@@ -154,9 +166,18 @@ class SettingsWindow(Gtk.ApplicationWindow):
         pid, section, text, _hint = hit
         self.show_page(pid)
         if section or text:
-            GLib.timeout_add(150, self.reveal, pid, section, text)  # after the page is laid out
+            self.pending = (pid, section, text, time.monotonic() + 3)
+            self.schedule_reveal()
 
-    def reveal(self, pid, section, text):
+    def schedule_reveal(self):
+        """Reveal the pending hit once the page has been laid out and has stopped re-rendering (debounced)."""
+        if self.reveal_id:
+            GLib.source_remove(self.reveal_id)
+        self.reveal_id = GLib.timeout_add(150, self.reveal)
+
+    def reveal(self):
+        self.reveal_id = None
+        pid, section, text, _until = self.pending
         page = self.pages[pid]
         w = search.find(page, section, text)
         pos = w and w.get_parent() and w.translate_coordinates(page.box, 0, 0)

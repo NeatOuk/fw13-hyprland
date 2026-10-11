@@ -4,6 +4,7 @@ so a new row is found as soon as it exists. SYNONYMS only adds words people type
   PYTHONPATH=~/.local/lib python3 -m fw13.pages.search test   build every page headless, check common queries
 """
 import importlib
+import shutil
 import sys
 import time
 
@@ -68,11 +69,16 @@ def find(page, section, text):
 
 CASES = [("hibernate", "power"), ("night light", "display"), ("noise", "sound"), ("vpn", "network"),
          ("ssh", "security"), ("warn at", "power"), ("weather", "system"), ("colour from", "appearance"),
-         ("jarvis memory", "jarvis"), ("fan", "fw13"), ("wifi", "network"), ("shortcuts", None)]
+         ("jarvis memory", "jarvis"), ("wifi", "network"), ("shortcuts", None)]
 
 
 def test():
     from gi.repository import GLib  # pages import Gtk 3 first
+    from .framework import TOOL
+    if shutil.which(TOOL):  # My Framework draws its Fan section only with framework_tool
+        CASES.append(("fan", "fw13"))
+    else:
+        print(f"skip 'fan': no {TOOL}")
     pages, took = {}, {}
     for pid, _icon, _title, mod in PAGES:
         t = time.monotonic()
@@ -93,6 +99,8 @@ def test():
     bad = failing()
     assert not bad, f"no hit on the expected page: {bad}"
     assert all(find(pages[h[0]], h[1], h[2]) for h in hits("hibernate", pages)), "hit without a widget"
+    if any(s.endswith("On battery") for s, *_ in pages["power"].index):  # laptops: both idle blocks findable
+        assert {"Suspend after"} <= {h[2] for h in hits("battery suspend", pages)}, "battery idle rows not found"
     print("ok")
 
 

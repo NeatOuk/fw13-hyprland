@@ -69,7 +69,8 @@ class PowerPage(Page):
         for suffix, title in (("", "Plugged in"), (idle.BAT, "On battery")):
             if suffix and not b:
                 continue  # no battery: only the plugged-in timeouts apply
-            self.add_widget(label(title, "dim"))
+            self.section = f"Screen & sleep › {title}"  # both blocks share row names: keep each findable
+            self._indexed("", None, self.add_widget(label(title, "dim")))
             for key, text, hint in rows:
                 k = key + suffix
                 combo = Gtk.ComboBoxText()
