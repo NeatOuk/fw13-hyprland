@@ -248,6 +248,8 @@ system_phase() {
   # Bar VPN toggle without a password: pkexec fw-vpn-ctl (action file) + rule for wheel in an active local session
   $SUDO install -D -m 0644 system/usr/share/polkit-1/actions/org.fw13.vpn.policy /usr/share/polkit-1/actions/org.fw13.vpn.policy
   $SUDO install -D -m 0644 system/etc/polkit-1/rules.d/50-fw13-vpn.rules /etc/polkit-1/rules.d/50-fw13-vpn.rules
+  $SUDO install -D -m 0644 system/usr/share/polkit-1/actions/org.fw13.power.policy /usr/share/polkit-1/actions/org.fw13.power.policy
+  $SUDO install -D -m 0644 system/etc/polkit-1/rules.d/50-fw13-power.rules /etc/polkit-1/rules.d/50-fw13-power.rules
   # Automatic time zone (fw13.timezone): Hyprland has no GeoClue agent, so our client is allowed as a system app
   $SUDO install -D -m 0644 system/etc/geoclue/conf.d/90-fw13-timezone.conf /etc/geoclue/conf.d/90-fw13-timezone.conf
   [[ $CI == 1 ]] || $SUDO udevadm control --reload
@@ -316,6 +318,7 @@ EOF
     $SUDO systemctl enable --now fw-health-root.timer  # root-only facts (Timeshift snapshots) for fw-health
     has_ppd || $SUDO systemctl enable --now tuned.service
     $SUDO systemctl enable --now fw-power-profile.service  # performance on AC, balanced on battery (+ udev rule)
+    $SUDO systemctl enable fw-charge-limit.service  # Settings' charge limit into the Framework EC at boot (+ udev rule)
     $SUDO systemctl enable --now ollama.service   # local models for OpenCode (fw-opencode)
     skipped cloudflare-warp || $SUDO systemctl enable --now warp-svc.service  # Cloudflare WARP daemon; register/connect from the bar panel
   fi

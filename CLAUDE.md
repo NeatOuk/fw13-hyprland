@@ -40,6 +40,7 @@ system/usr/local/bin/      fw-vpn-ctl (root side of the bar VPN toggle, see fw-v
                            tpm2-device=auto in the volume's crypttab line (backup crypttab.fw13.bak) or rd.luks.options via grubby;
                            /etc/dracut.conf.d/fw13-tpm2.conf adds tpm2-tss (removed for password); dracut -f --regenerate-all)
 system/etc/geoclue/conf.d/ 90-fw13-timezone.conf: [fw13-timezone] allowed + system=true, so fw13.timezone gets a location without a GeoClue agent (none runs in Hyprland)
+system/usr/local/bin/fw-charge-limit (root, no args: copies charge_control_end_threshold into the Framework EC with `framework_tool --charge-limit` — the kernel threshold alone is not enforced on the FW13 AMD, it charged past 80 %; fw-charge-limit.service at boot, the Mains udev rule, and Settings → Power's switch via pkexec: action org.fw13.charge-limit in system/usr/share/polkit-1/actions/org.fw13.power.policy, rule 50-fw13-power.rules = wheel at the laptop, no password)
 system/etc/modprobe.d/     fw13-charge-control.conf: cros_charge_control probe_with_fwk_charge_control=1 (the kernel skips Framework otherwise) → charge limit in UPower / power panel
 system/etc/systemd/system/ fw-health-root.{service,timer} (:30 hourly → /var/lib/fw13/health-root.json, 0644; install.sh copies the folder only if it has files),
                            fw-power-profile.service (boot) + system/etc/udev/rules.d/90-fw-power-profile.rules (Mains change) → fw-power-profile:

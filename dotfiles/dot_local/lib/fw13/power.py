@@ -5,6 +5,8 @@ tuning() is a read-only look at what the profile actually set (sysfs + tuned's a
 `python3 -m fw13.power tuning` prints it for the bash panel.
 """
 import glob
+import os
+import subprocess
 import sys
 
 import gi
@@ -50,10 +52,17 @@ def battery():
     return dict(props[0], _path=path) if props else None
 
 
+EC_LIMIT = "/usr/local/bin/fw-charge-limit"  # copies the threshold into the Framework EC (not enforced otherwise)
+
+
 def set_charge_limit(enabled):
     path = battery_path()
-    return path is not None and _call(UP, path, "org.freedesktop.UPower.Device", "EnableChargeThreshold",
-                                      GLib.Variant("(b)", (enabled,))) is not None
+    ok = path is not None and _call(UP, path, "org.freedesktop.UPower.Device", "EnableChargeThreshold",
+                                    GLib.Variant("(b)", (enabled,))) is not None
+    if ok and os.access(EC_LIMIT, os.X_OK):
+        subprocess.Popen(["pkexec", EC_LIMIT], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return ok
 
 
 def profiles():

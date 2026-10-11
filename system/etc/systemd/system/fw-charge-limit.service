@@ -1,0 +1,10 @@
+[Unit]
+Description=Framework EC charge limit follows Settings → Power → Limit charging (fw-charge-limit)
+After=upower.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/fw-charge-limit
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+// fw13-hypr: Settings → Power → Limit charging runs pkexec /usr/local/bin/fw-charge-limit (no arguments: it only copies
+// the current kernel threshold into the Framework EC), with no password for wheel users at the laptop.
+polkit.addRule(function (action, subject) {
+    if (action.id == "org.fw13.charge-limit" && subject.isInGroup("wheel") && subject.active && subject.local) {
+        return polkit.Result.YES;
+    }
+});

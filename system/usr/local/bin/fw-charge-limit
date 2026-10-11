@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Root: copy the battery charge limit (Settings → Power → Limit charging = UPower's threshold, written to
+# charge_control_end_threshold by cros_charge_control) into Framework's EC with framework_tool. The kernel threshold
+# alone is not enforced on the Framework 13 AMD (it kept charging past 80 %); the EC's own limit is. Runs at boot
+# (fw-charge-limit.service), on charger plug/unplug (udev) and from Settings via pkexec (polkit: no password for
+# wheel at the laptop). No arguments; does nothing without framework_tool or the threshold file.
+set -euo pipefail
+PATH=/usr/local/bin:/usr/sbin:/usr/bin
+command -v framework_tool >/dev/null || exit 0
+end=""
+for f in /sys/class/power_supply/BAT*/charge_control_end_threshold; do
+  [[ -r $f ]] && { end="$(<"$f")"; break; }
+done
+[[ $end =~ ^[0-9]+$ ]] || exit 0
+(( end > 100 )) && end=100
+exec framework_tool --charge-limit "$end"

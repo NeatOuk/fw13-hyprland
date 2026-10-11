@@ -1,2 +1,4 @@
 # Plug / unplug the charger → fw-power-profile.service sets performance (AC) or balanced (battery).
 SUBSYSTEM=="power_supply", ACTION=="change", ATTR{type}=="Mains", RUN+="/usr/bin/systemctl start --no-block fw-power-profile.service"
+# … and the Framework EC charge limit is put back to the Settings value (fw-charge-limit.service).
+SUBSYSTEM=="power_supply", ACTION=="change", ATTR{type}=="Mains", RUN+="/usr/bin/systemctl start --no-block fw-charge-limit.service"
