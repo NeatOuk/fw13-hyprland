@@ -120,7 +120,7 @@ class AppsPage(Page):
         self.heading("Removed apps")
         for n in names:
             self.row(n, button("Reinstall on next installer run", lambda n=n: self.unskip(n)),
-                     hint="install.sh skips it until then")
+                     hint="install.sh skips it until then (and installs it only if its group is selected)")
 
     def unskip(self, name):
         apps.unskip(name)
