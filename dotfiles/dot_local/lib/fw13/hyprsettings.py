@@ -181,18 +181,9 @@ def write(changes=None, reset=False):
 def _save(text, new):
     """Store first, then settings.lua: if we are cut off in between, the next write renders the file again."""
     os.makedirs(DIR, exist_ok=True)
-    os.makedirs(os.path.dirname(store.PATH), exist_ok=True)
     data = store.load()
     data["hypr"] = new
-    # Own temp name: store.save's fixed settings.json.tmp may be in use by a page on the main thread.
-    fd, tmp = tempfile.mkstemp(prefix=".settings-", suffix=".json", dir=os.path.dirname(store.PATH))
-    try:
-        with os.fdopen(fd, "w") as f:
-            json.dump(data, f, indent=2)
-        os.replace(tmp, store.PATH)
-    finally:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
+    store.save(data)
     fd, tmp = tempfile.mkstemp(prefix=".settings-", suffix=".lua", dir=DIR)
     try:
         with os.fdopen(fd, "w") as f:
