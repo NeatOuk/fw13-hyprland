@@ -7,10 +7,10 @@ window#waybar { background: @bg; color: @fg; }
 #custom-menu { padding: 0 12px 0 14px; min-width: 18px; background-image: -gtk-scaled(url("../fw13/theme/framework-logo.svg"), url("../fw13/theme/framework-logo@2x.svg"));
                background-repeat: no-repeat; background-position: center; background-size: 18px 18px; }
 /* Workspace dots (custom/ws1-5, fw-workspaces): ● active · ◉ has windows · ○ empty */
-#custom-ws1, #custom-ws2, #custom-ws3, #custom-ws4, #custom-ws5 { padding: 0 6px; color: @muted; }
-#custom-ws1.occupied, #custom-ws2.occupied, #custom-ws3.occupied, #custom-ws4.occupied, #custom-ws5.occupied { color: @fg; }
-#custom-ws1.active, #custom-ws2.active, #custom-ws3.active, #custom-ws4.active, #custom-ws5.active { color: @accent; }
-#custom-ws1:hover, #custom-ws2:hover, #custom-ws3:hover, #custom-ws4:hover, #custom-ws5:hover { color: @fg; }
+#custom-ws1, #custom-ws2, #custom-ws3, #custom-ws4, #custom-ws5, #custom-ws6, #custom-ws7, #custom-ws8, #custom-ws9 { padding: 0 6px; color: @muted; }
+#custom-ws1.occupied, #custom-ws2.occupied, #custom-ws3.occupied, #custom-ws4.occupied, #custom-ws5.occupied, #custom-ws6.occupied, #custom-ws7.occupied, #custom-ws8.occupied, #custom-ws9.occupied { color: @fg; }
+#custom-ws1.active, #custom-ws2.active, #custom-ws3.active, #custom-ws4.active, #custom-ws5.active, #custom-ws6.active, #custom-ws7.active, #custom-ws8.active, #custom-ws9.active { color: @accent; }
+#custom-ws1:hover, #custom-ws2:hover, #custom-ws3:hover, #custom-ws4:hover, #custom-ws5:hover, #custom-ws6:hover, #custom-ws7:hover, #custom-ws8:hover, #custom-ws9:hover { color: @fg; }
 #tray, #bluetooth, #network, #custom-warp, #custom-vpn, #pulseaudio, #custom-display, #custom-claude, #custom-opencode, #cpu, #battery { padding: 0 9px; }
 #custom-notifications, #custom-control, #custom-caffeine, #custom-profile, #custom-weather { padding: 0 9px; }
 #custom-power { padding: 0 14px 0 9px; color: @red; }

@@ -2,7 +2,8 @@
 """Per-screen workspaces: each screen has its own 1–9, so "workspace 1" exists on every screen.
 
 Hyprland workspace IDs are global, so each screen gets a range: the built-in panel (eDP*) 1–9, other
-monitors (sorted by connector name) 11–19, 21–29, … Each bar shows its own five circles.
+monitors (sorted by connector name) 11–19, 21–29, … Each bar shows its own circles: the first N (store
+`workspaces_shown`, 1–9, default 5, Settings → Appearance → Workspaces) always, higher ones only while used.
 
   fw-workspaces go N     SUPER+N:       workspace N of the focused screen
   fw-workspaces move N   SUPER+Shift+N: move the active window there
@@ -10,6 +11,7 @@ monitors (sorted by connector name) 11–19, 21–29, … Each bar shows its own
                          (the terminal on the laptop's 1, Chromium on the monitor's 1), and re-binds on hotplug —
                          an unplugged monitor's workspaces move to the laptop and go back when it returns.
   fw-workspaces layout   just the login layout (testing)
+  fw-workspaces apply    re-bind the ranges and redraw the dots (after Settings changes the count)
   fw-workspaces dot N    waybar: JSON for workspace N's dot on this bar's screen (WAYBAR_OUTPUT_NAME)
   fw-workspaces click N  waybar: switch the screen under the pointer to its workspace N
                          (waybar's own hyprland/workspaces click sends a hyprlang dispatch, which the Lua
@@ -23,10 +25,18 @@ import sys
 import time
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
-from fw13 import terminal  # noqa: E402
+from fw13 import store, terminal  # noqa: E402
 from fw13.hypr import dispatch, hj, hypr, lua, q  # noqa: E402  (Lua-mode hyprctl helpers, shared)
 
-PERSISTENT = 5  # circles shown per screen
+MAX_WS = 9  # SUPER+1…9
+
+
+def shown():
+    """How many workspaces each bar always shows (and Hyprland keeps), 1–9."""
+    try:
+        return min(MAX_WS, max(1, int(store.get("workspaces_shown") or 5)))
+    except (TypeError, ValueError):
+        return 5
 RUN = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
 PIDFILE = os.path.join(RUN, "fw-workspaces.pid")
 LAYOUT_DONE = os.path.join(RUN, "fw-workspaces.layout-done")
@@ -83,8 +93,11 @@ def dot(n):
         icon, cls = "\u25cf", "active"      # ●
     elif windows.get(wid):
         icon, cls = "\u25c9", "occupied"    # ◉
-    else:
+    elif n <= shown():
         icon, cls = "\u25cb", "empty"       # ○
+    else:  # beyond the count: only while in use
+        print(json.dumps({"text": ""}))
+        return
     print(json.dumps({"text": icon, "class": cls, "tooltip": f"Workspace {n}"}))
 
 
@@ -123,10 +136,11 @@ def setup(previous=None):
     for name, base in (previous or {}).items():
         if name not in base_of:
             rules += [f"hl.workspace_rule({{ workspace = {q(base + i)}, persistent = false }})"
-                      for i in range(1, PERSISTENT + 1)]
-    for name, base in base_of.items():
-        rules += [f"hl.workspace_rule({{ workspace = {q(base + i)}, monitor = {q(name)}, persistent = true"
-                  + (", default = true" if i == 1 else "") + " })" for i in range(1, PERSISTENT + 1)]
+                      for i in range(1, MAX_WS + 1)]
+    n = shown()
+    for name, base in base_of.items():  # 1…n persistent, the rest bound to the screen but free to vanish when empty
+        rules += [f"hl.workspace_rule({{ workspace = {q(base + i)}, monitor = {q(name)}, persistent = {str(i <= n).lower()}"
+                  + (", default = true" if i == 1 else "") + " })" for i in range(1, MAX_WS + 1)]
     lua(*rules)
 
     was = focused(mons)
@@ -225,6 +239,9 @@ def main():
         daemon()
     elif cmd == "layout":
         layout()
+    elif cmd == "apply":
+        setup()
+        refresh_dots()
     else:
         print(__doc__.strip(), file=sys.stderr)
         return 2

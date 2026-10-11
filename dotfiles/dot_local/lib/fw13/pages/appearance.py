@@ -5,6 +5,7 @@ HyprPage is shared with Input: both write ~/.config/hypr/settings.lua through fw
 The thumbnail helpers (thumb_button, load_thumbs, install_thumb_css) are shared with fw-wallpaper.
 """
 import os
+import subprocess
 import string
 import threading
 
@@ -423,6 +424,9 @@ class AppearancePage(HyprPage):
         self.slider("Gaps inside", "general.gaps_in", 0, 30, 1, hint="between windows")
         self.slider("Gaps outside", "general.gaps_out", 0, 30, 1, hint="between windows and the screen edge")
         self.slider("Border size", "general.border_size", 0, 6, 1)
+        self.heading("Workspaces")
+        ws = combo([(str(i), str(i)) for i in range(1, 10)], str(store.get("workspaces_shown") or 5), self.set_workspaces)
+        self.row("Shown on the bar", ws, hint="Per screen; higher ones (up to SUPER+9) appear only while in use")
         if self.confirm:
             box = Gtk.Box(spacing=8)
             box.pack_start(button("Cancel", lambda: self.ask_reset(False)), False, False, 0)
@@ -436,6 +440,11 @@ class AppearancePage(HyprPage):
                      hint="Tokyo Night, JetBrains Mono and every Appearance and Input change (touchpad, keyboard too); "
                           "the wallpaper is kept")
         self.show_all()
+
+    def set_workspaces(self, n):
+        store.set("workspaces_shown", int(n))
+        subprocess.Popen(["fw-workspaces", "apply"], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def wallpaper_section(self):
         self.heading("Wallpaper")
