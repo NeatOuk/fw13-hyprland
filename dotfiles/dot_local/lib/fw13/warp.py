@@ -121,11 +121,6 @@ def tunnel_stats():
     return d if ok else None
 
 
-def warp_stats():
-    ok, d = cli("stats", timeout=5)
-    return d if ok else None
-
-
 def dns_stats():
     ok, d = cli("dns", "stats", timeout=5)
     return d if ok else None

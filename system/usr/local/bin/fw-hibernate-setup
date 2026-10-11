@@ -113,7 +113,6 @@ del_subvol() {
   ! has_subvol || subvol delete
 }
 # /swap itself needs a type logind may search (var_t, as Fedora's /var/swap), or CanHibernate fails with AccessDenied
-has_fcontext() { semanage fcontext -l -C | grep -q "^$SWAPFILE " && semanage fcontext -l -C | grep -q "^/swap "; }
 no_fcontext() { ! semanage fcontext -l -C | grep -qE "^($SWAPFILE|/swap) "; }
 del_fcontext() { semanage fcontext -d "$SWAPFILE" || true; semanage fcontext -d /swap || true; }
 no_ts() { ! ts_has; }
