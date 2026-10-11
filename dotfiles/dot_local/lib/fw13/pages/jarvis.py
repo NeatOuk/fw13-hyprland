@@ -1,12 +1,14 @@
-"""Jarvis: which Claude model and effort the panel (SUPER+A) and fw-jarvis sessions use."""
+"""Jarvis: which Claude model and effort the panel (SUPER+A) and fw-jarvis sessions use, the Ollama fallback, the
+laptop's own Ollama models (fw13.ollama) and Jarvis's memory."""
 import gi
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk  # noqa: E402
 
-from .. import jarvis, store  # noqa: E402
+from .. import jarvis, ollama, store  # noqa: E402
 from ..ui_theme import button, label  # noqa: E402
 from .common import Page, launch  # noqa: E402
+from .system import bg  # noqa: E402
 
 
 class JarvisPage(Page):
@@ -45,6 +47,16 @@ class JarvisPage(Page):
                  hint=(f"Without internet, or when Claude can't be reached, the panel answers with {others[0]} "
                        "(the first OpenCode server that answers)") if others else
                  "No Ollama server with a model yet: add one in the OpenCode panel (the >_ icon)")
+        self.heading("Local models (Ollama)")
+        self.local = self.add_widget(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8))
+        name = Gtk.Entry(placeholder_text="e.g. qwen3:8b", width_chars=22)
+        get = button("Download…", lambda: self.pull(name.get_text().strip()))
+        name.connect("activate", lambda _e: self.pull(name.get_text().strip()))
+        box = Gtk.Box(spacing=8)
+        box.pack_start(name, False, False, 0)
+        box.pack_start(get, False, False, 0)
+        self.row("Download a model", box, hint="Opens a terminal with the download progress · names from ollama.com/library")
+        self.fill_local()
         self.heading("Memory")
         self.add_widget(label("Notes Jarvis reads before every answer. Jarvis proposes them (Save / Skip in the "
                               "panel); say \"remember …\" to add one.", "dim", wrap=True))
@@ -53,8 +65,50 @@ class JarvisPage(Page):
         self.fill_memory()
         self.show_all()
 
-    def refresh(self):  # notes saved in the panel since the page was built
+    def refresh(self):  # notes saved in the panel since the page was built; models pulled meanwhile
         self.fill_memory()
+        self.fill_local()
+
+    def fill_local(self):
+        bg(ollama.state, self.got_local, fail=lambda e: {"up": False, "models": [], "loaded": {}})
+
+    def got_local(self, st):
+        for c in self.local.get_children():
+            self.local.remove(c)
+        if not st["up"]:
+            self.local.pack_start(label("The Ollama service isn't running (sudo systemctl start ollama)", "warn",
+                                        wrap=True), False, False, 0)
+        elif not st["models"]:
+            self.local.pack_start(label("No models on this laptop yet", "dim"), False, False, 0)
+        for m in st["models"]:
+            share = st["loaded"].get(m["name"])
+            where = "" if share is None else (" · loaded on the GPU" if share > 0.95 else
+                                               f" · loaded, {int(share * 100)} % on the GPU" if share else " · loaded on the CPU")
+            r = Gtk.Box(spacing=12)
+            r.get_style_context().add_class("item")
+            left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            left.pack_start(label(m["name"], xalign=0), False, False, 0)
+            left.pack_start(label(" · ".join(x for x in (ollama.gb(m["size"]), m["params"], m["quant"]) if x) + where,
+                                  "dim", xalign=0), False, False, 0)
+            r.pack_start(left, True, True, 0)
+            r.pack_end(button("Remove", lambda n=m["name"]: self.remove_model(n), "danger"), False, False, 0)
+            self.local.pack_start(r, False, False, 0)
+        self.local.pack_start(label("OpenCode and the fallback above use these through the \"laptop\" server; pick the "
+                                    "model in the OpenCode panel (the >_ icon).", "dim", wrap=True), False, False, 0)
+        self.local.show_all()
+        return False
+
+    def pull(self, name):
+        if not ollama.valid(name):
+            self.status.set_text("Type a model name such as qwen3:8b")
+            return
+        launch("fw-term", "--hold", "-e", "ollama", "pull", name)
+        self.status.set_text(f"Downloading {name} in a terminal; it shows up here when done (reopen the page)")
+
+    def remove_model(self, name):
+        self.status.set_text(f"Removing {name}…")
+        bg(ollama.remove, lambda err: (self.status.set_text(err or f"Removed {name}"), self.fill_local(), False)[2],
+           name, fail=lambda e: str(e))
 
     def fill_memory(self):
         for c in self.mem.get_children():
