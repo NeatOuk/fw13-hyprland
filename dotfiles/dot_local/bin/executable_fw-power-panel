@@ -123,6 +123,8 @@ set_profile() {
 }
 set_limit() {
   if gdbus call --system --dest $UP --object-path "$dev" --method $UP.Device.EnableChargeThreshold "$1" >/dev/null; then
+    # the Framework EC enforces the limit only once fw-charge-limit copies it there (polkit: no password for wheel)
+    [[ -x /usr/local/bin/fw-charge-limit ]] && pkexec /usr/local/bin/fw-charge-limit >/dev/null 2>&1 &
     if [[ $1 == true ]]; then fw-notify "Battery" "Charging stops at $(prop ChargeEndThreshold "$all")%"
     else fw-notify "Battery" "Charging to 100%"; fi
   else fw-notify "Battery" "Could not change the charge limit"; fi
