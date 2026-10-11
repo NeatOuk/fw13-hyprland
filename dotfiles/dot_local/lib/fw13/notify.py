@@ -1,7 +1,8 @@
 """Desktop notifications with action buttons over Gio D-Bus (org.freedesktop.Notifications; mako in Hyprland).
 
-Shared by fw-crash-watch (long-running, its own main loop), fw-health and fw-hwcheck (one notification, then
-wait() for the click). Plain one-line messages from shell scripts stay with fw-notify.
+Shared by the Python scripts and modules that notify: fw-crash-watch and fw-battery-warn (long-running, their own main
+loop), fw-health, fw-hwcheck, fw-updates, fw-usb, fw-vpn, fw-caffeine, nightlight, timezone and Settings → Security.
+Plain one-line messages from shell scripts stay with fw-notify.
 """
 import os
 import shutil
