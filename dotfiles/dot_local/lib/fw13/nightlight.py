@@ -11,7 +11,7 @@ import os
 import subprocess
 import sys
 
-from . import store
+from . import notify, store
 
 FALLBACK = ("19:00", "06:30")
 SCHEDULES = {"off": "Off", "sun": "Sunset to sunrise", "custom": "Custom times"}
@@ -26,8 +26,7 @@ def switch(want, temp=None):
     subprocess.run(["pkill", "-x", "hyprsunset"])
     if want:
         t = int(temp or store.get("nightlight_temp") or 4000)
-        subprocess.Popen(["uwsm", "app", "--", "hyprsunset", "-t", str(t)], start_new_session=True,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        notify.launch(["hyprsunset", "-t", str(t)])
 
 
 def minutes(hhmm):

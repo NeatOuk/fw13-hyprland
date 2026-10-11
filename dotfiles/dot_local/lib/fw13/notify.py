@@ -6,6 +6,7 @@ wait() for the click). Plain one-line messages from shell scripts stay with fw-n
 import os
 import shutil
 import subprocess
+import sys
 
 import gi
 
@@ -111,9 +112,14 @@ def wait(nid, limit=3600, bus=None):
 
 
 def launch(argv):
-    """Start a GUI command detached from the caller: through uwsm (its own unit, so it survives a oneshot service
-    or a short-lived parent) inside a uwsm session, else in a new session."""
+    """Start a GUI command detached from the caller: inside a uwsm session as its own transient service, waiting
+    until uwsm has created it (a oneshot service's leftovers are killed when it exits, and a scope-mode `uwsm app`
+    still sits in that cgroup until it moves itself out), else in a new session."""
+    quiet = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
     if shutil.which("uwsm") and session_env("WAYLAND_DISPLAY"):
-        argv = ["uwsm", "app", "--", *argv]
-    subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                     start_new_session=True)
+        try:
+            subprocess.run(["uwsm", "app", "-t", "service", "--", *argv], timeout=30, **quiet)
+        except subprocess.TimeoutExpired:
+            print(f"uwsm app timed out starting {argv[0]}", file=sys.stderr)
+        return
+    subprocess.Popen(argv, start_new_session=True, **quiet)
