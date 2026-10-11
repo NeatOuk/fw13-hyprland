@@ -8,14 +8,12 @@ import datetime
 import html
 import json
 import os
-import subprocess
 import time
 import urllib.parse
 import urllib.request
 
-from . import store
+from . import bar as waybar, store
 
-SIGNAL = 15
 CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "fw13", "weather.json")
 MAX_AGE = 1800
 GEO = "https://geocoding-api.open-meteo.com/v1/search"
@@ -168,4 +166,4 @@ def bar():
 
 
 def refresh_bar():
-    subprocess.run(["pkill", f"-RTMIN+{SIGNAL}", "-x", "waybar"], stderr=subprocess.DEVNULL)
+    waybar.refresh("weather")

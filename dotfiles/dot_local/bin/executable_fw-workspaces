@@ -25,7 +25,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
-from fw13 import panel as single, store, terminal  # noqa: E402
+from fw13 import bar as waybar, panel as single, store, terminal  # noqa: E402
 from fw13.hypr import dispatch, hj, hypr, lua, q  # noqa: E402  (Lua-mode hyprctl helpers, shared)
 
 MAX_WS = 9  # SUPER+1…9
@@ -72,8 +72,7 @@ def go(n, move=False):
              else f"hl.dsp.focus({{ workspace = {q(target)} }})")
 
 
-# --- bar dots (custom/ws1..5 in waybar; refreshed with SIGRTMIN+DOTS_SIGNAL) -------------------
-DOTS_SIGNAL = 10  # waybar "signal": 10 on the custom/wsN modules
+# --- bar dots (custom/ws1..9 in waybar; refreshed with waybar.refresh("ws")) -------------------
 DOT_EVENTS = ("workspace>>", "workspacev2>>", "focusedmon>>", "createworkspace>>", "destroyworkspace>>",
               "moveworkspace>>", "openwindow>>", "closewindow>>", "movewindow>>", "monitoradded>>",
               "monitorremoved>>", "configreloaded>>")
@@ -122,7 +121,7 @@ def click(n):
 
 
 def refresh_dots():
-    subprocess.run(["pkill", f"-RTMIN+{DOTS_SIGNAL}", "-x", "waybar"])
+    waybar.refresh("ws")
 
 
 # --- ranges ↔ screens ---------------------------------------------------------------------------

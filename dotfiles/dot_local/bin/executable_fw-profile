@@ -18,11 +18,10 @@ import sys
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
 
-from fw13 import store  # noqa: E402
+from fw13 import bar as waybar, store  # noqa: E402
 from fw13.hypr import hypr, lua  # noqa: E402
 from fw13.hyprsettings import call  # noqa: E402
 
-SIGNAL = 14
 DND = "do-not-disturb"
 ZEN_KEYS = ("general.gaps_in", "general.gaps_out", "general.border_size", "decoration.rounding")
 # Font Awesome 6 Free: circle-half-stroke, moon, leaf
@@ -94,8 +93,8 @@ def set_mode(mode):
     subprocess.run(["makoctl", "mode", "-a" if mode != "normal" else "-r", DND], capture_output=True)
     store.set("profile", mode)
     store.set("profile_session", session())
-    for sig in (12, SIGNAL):  # bell + this module
-        subprocess.run(["pkill", f"-RTMIN+{sig}", "-x", "waybar"], stderr=subprocess.DEVNULL)
+    for name in ("notifications", "profile"):  # bell + this module
+        waybar.refresh(name)
 
 
 def bar():

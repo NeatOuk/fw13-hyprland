@@ -15,9 +15,8 @@ import sys
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
 
-from fw13 import notify as fwnotify, vpn  # noqa: E402
+from fw13 import bar as waybar, notify as fwnotify, vpn  # noqa: E402
 
-SIGNAL = 13
 SHIELD = "\uf3ed"  # Font Awesome shield-halved
 
 
@@ -60,7 +59,7 @@ def toggle(v):
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif err:
         notify(f"VPN {v['name']}", f"Could not {'connect' if on else 'disconnect'}: {err}")
-    subprocess.run(["pkill", f"-RTMIN+{SIGNAL}", "-x", "waybar"], check=False)
+    waybar.refresh("vpn")
 
 
 def menu():

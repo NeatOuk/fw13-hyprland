@@ -1,7 +1,6 @@
 """Network: Wi-Fi (switch, networks, connect/forget, hidden), Ethernet via nmcli, and every VPN (fw13.vpn:
 NetworkManager's + strongSwan's): connect/disconnect, edit (nm-connection-editor / pages/vpn_edit.py), add."""
 import os
-import subprocess
 import threading
 import time
 
@@ -10,7 +9,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from .. import net, vpn  # noqa: E402
+from .. import bar as waybar, net, vpn  # noqa: E402
 from ..ui_theme import button  # noqa: E402
 from . import vpn_edit  # noqa: E402
 from .common import Page, label, launch, wrap  # noqa: E402
@@ -197,7 +196,7 @@ class NetworkPage(Page):
             GLib.idle_add(lambda: launch("fw-term", "--hold", "-e", "nmcli", "--ask", "connection", "up", "uuid",
                                          v["id"]) and False)
             err = "Asking for the VPN password in a terminal…"
-        subprocess.run(["pkill", "-RTMIN+13", "-x", "waybar"], check=False)  # bar shield (fw-vpn)
+        waybar.refresh("vpn")  # bar shield (fw-vpn)
         return err
 
     def import_wireguard(self):
@@ -242,7 +241,7 @@ class NetworkPage(Page):
         if "error" in res and req is not None:  # back to the form with what was typed
             return self.swan_form(cur, req, res["error"])
         self.set_status(res.get("error") or res.get("note") or "Saved", "bad" if "error" in res else "dim")
-        subprocess.run(["pkill", "-RTMIN+13", "-x", "waybar"], check=False)
+        waybar.refresh("vpn")
         self.refresh()
         return False
 

@@ -19,7 +19,6 @@ import time
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
 
-SIGNAL = 16
 CUP = ""  # Font Awesome mug-saucer
 LOW = 20
 PIDFILE = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "fw-caffeine.pid")
@@ -58,7 +57,8 @@ def off():
 
 
 def refresh():
-    subprocess.run(["pkill", f"-RTMIN+{SIGNAL}", "-x", "waybar"], check=False)
+    from fw13 import bar as waybar
+    waybar.refresh("caffeine")
 
 
 def should_stop(pct, on_battery):

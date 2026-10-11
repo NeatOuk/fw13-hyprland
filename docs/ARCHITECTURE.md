@@ -72,6 +72,7 @@ Paths: `lib/fw13/…` = `dotfiles/dot_local/lib/fw13/…` (→ `~/.local/lib/fw1
 ### Shared Python library (lib/fw13 → ~/.local/lib/fw13; scripts `sys.path.insert` ~/.local/lib)
 
 - **hypr**: Lua hyprctl helpers.
+- **bar**: `SIGNALS` = the waybar custom modules' `"signal"` numbers (config.jsonc), `refresh(name)` = `pkill -RTMIN+N -x waybar`; imported `as waybar` (several scripts have their own `bar()`). `python3 -m fw13.bar test` checks the table against config.jsonc.
 - **panel**: single instance via `$XDG_RUNTIME_DIR/<name>.pid` checked against `/proc/<pid>/cmdline` (`running`/`close`/`claim`/`release`) for the layer-shell panels, fw-workspaces and fw-autobrightness; `right_margin(width)` centres a bar panel under the pointer. `python3 -m fw13.panel test` self-check.
 - **displays**, **system**, **ui_display**.
 - **store**: `~/.config/fw13/settings.json`.

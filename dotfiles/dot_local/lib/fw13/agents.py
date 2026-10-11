@@ -20,7 +20,7 @@ import tempfile
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-from . import store
+from . import bar as waybar, store
 
 DIR = os.path.expanduser("~/.config/fw-opencode")
 SERVERS = os.path.join(DIR, "servers")
@@ -249,7 +249,7 @@ def generate(st, lst):
     if model:
         _merge(os.path.join(PI_DIR, "settings.json"),
                lambda obj: {**obj, "defaultProvider": provider_id(active), "defaultModel": model})
-    subprocess.run(["pkill", "-RTMIN+9", "-x", "waybar"])  # refresh the bar label
+    waybar.refresh("opencode")  # the bar label
 
 
 def targets():

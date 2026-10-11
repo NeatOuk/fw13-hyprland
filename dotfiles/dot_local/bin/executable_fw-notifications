@@ -22,16 +22,15 @@ import time
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
 
-from fw13 import store  # noqa: E402
+from fw13 import bar as waybar, store  # noqa: E402
 
-BAR_SIGNAL = 12
 DND = "do-not-disturb"
 SKIP_APPS = {"fw-osd"}
 BELL, BELL_SLASH = "", ""  # Font Awesome 6 Free: bell, bell-slash
 
 
 def bar_refresh():
-    subprocess.run(["pkill", f"-RTMIN+{BAR_SIGNAL}", "-x", "waybar"], stderr=subprocess.DEVNULL)
+    waybar.refresh("notifications")
 
 
 def makoctl(*args):
@@ -205,7 +204,7 @@ def menu(pos):
 def toggle_dnd():
     makoctl("mode", "-t", DND)
     bar_refresh()
-    subprocess.run(["pkill", "-RTMIN+14", "-x", "waybar"], stderr=subprocess.DEVNULL)  # fw-profile: DND off leaves Focus/Zen
+    waybar.refresh("profile")  # fw-profile: DND off leaves Focus/Zen
 
 
 def main():

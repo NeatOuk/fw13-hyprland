@@ -19,21 +19,10 @@ import time
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
 
-from fw13 import panel as single, warp  # noqa: E402  (no GTK: --bar must stay fast)
+from fw13 import bar as waybar, panel as single, warp  # noqa: E402  (no GTK: --bar must stay fast)
 
 NAME = "fw-warp-panel"  # pidfile: a second click on the icon closes the open panel
-BAR_SIGNAL = 11
 PANEL_W = 480
-
-
-def bar_refresh():
-    """Tell waybar to re-run the cloud module now (custom/warp "signal": 11)."""
-    try:
-        out = subprocess.run(["pgrep", "-x", "waybar"], capture_output=True, text=True).stdout.split()
-        for pid in out:
-            os.kill(int(pid), signal.SIGRTMIN + BAR_SIGNAL)
-    except (OSError, ValueError):
-        pass
 
 
 if len(sys.argv) > 1 and sys.argv[1] == "--bar":
@@ -45,7 +34,7 @@ if len(sys.argv) > 1 and sys.argv[1] == "--toggle":
     if st is None:
         os.execvp("fw-warp-panel", ["fw-warp-panel"])  # not set up yet: open the panel instead
     err = warp.disconnect() if st["status"] in ("Connected", "Connecting") else warp.connect()
-    bar_refresh()
+    waybar.refresh("warp")
     if err:
         subprocess.run(["fw-notify", "Cloudflare WARP", err])
     sys.exit(0)
@@ -453,7 +442,7 @@ class Panel(Gtk.Window):
                 self.set_message(f"Sign in to {team} in the browser; WARP registers when you're done")
             else:
                 self.set_message(f"Registered with {team}")
-            bar_refresh()
+            waybar.refresh("warp")
             self.poll()
         in_thread(lambda: warp.join_org(team), done)
 
@@ -464,7 +453,7 @@ class Panel(Gtk.Window):
 
     def accept(self):
         warp.accept_tos()
-        bar_refresh()
+        waybar.refresh("warp")
         self.view = None
         self.poll()
 
@@ -509,7 +498,7 @@ class Panel(Gtk.Window):
             self.trace = {}  # exit IP may have changed
             if self.data:
                 self.data["slow_at"] = 0  # re-read the registration now: it picks the view
-            bar_refresh()
+            waybar.refresh("warp")
             self.poll()
         in_thread(fn, done)
 
