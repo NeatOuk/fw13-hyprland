@@ -6,7 +6,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
 from .. import sound, speakers, store  # noqa: E402
-from .common import Page, label, launch  # noqa: E402
+from .common import Page, label  # noqa: E402
 from .system import bg  # noqa: E402
 
 
@@ -27,13 +27,15 @@ class SoundPage(Page):
                 self.add_widget(label("No devices", "dim"))
             for d in devs[key]:
                 self.device_row(d)
+        self.heading("Apps")
+        playing = sound.apps()
+        if not playing:
+            self.add_widget(label("No app is playing sound", "dim"))
+        for a in playing:
+            self.app_row(a)
         self.speaker_section()
         self.heading("Microphone")
         self.noise_row()
-        b = Gtk.Button(label="Advanced… (pavucontrol)")
-        b.set_halign(Gtk.Align.START)
-        b.connect("clicked", lambda _b: launch("pavucontrol"))
-        self.add_widget(b)
         self.show_all()
 
     def device_row(self, d):
@@ -66,6 +68,23 @@ class SoundPage(Page):
         r.pack_end(controls, False, False, 0)
         self.adapt(r, controls)  # narrow: device name on its own line, controls under it
         self.add_widget(r)
+
+    def app_row(self, a):
+        """Per-app volume: like a device row, without the default choice."""
+        mute = Gtk.ToggleButton(label="\uf6a9" if a["muted"] else "\uf028")
+        mute.set_active(a["muted"])
+        mute.connect("toggled", lambda b: (sound.set_mute(a["id"], b.get_active()),
+                                           b.set_label("\uf6a9" if b.get_active() else "\uf028")))
+        vol = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1)
+        vol.set_draw_value(False)
+        vol.set_size_request(140, -1)
+        vol.set_value(round(min(a["volume"], 1.0) * 100))
+        pct = label(f"{int(vol.get_value())}%", width_chars=4, xalign=1)
+        vol.connect("value-changed", self.on_volume, a["id"], pct)
+        box = Gtk.Box(spacing=12)
+        for w in (mute, vol, pct):
+            box.pack_start(w, False, False, 0)
+        self.row(a["name"], box)
 
     def speaker_section(self):
         if not speakers.available():

@@ -62,7 +62,7 @@
     "format-icons": { "default": ["", "", ""] },
     "tooltip-format": "{desc} {volume}%",
     "on-click": "FW_BAR=1 fw-control-center volume",
-    "on-click-middle": "uwsm app -- pavucontrol",
+    "on-click-middle": "uwsm app -- fw-settings sound",
     "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
     "scroll-step": 5
   },

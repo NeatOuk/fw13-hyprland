@@ -23,7 +23,6 @@ brightnessctl
 playerctl
 wf-recorder
 # Applets — Fedora official
-pavucontrol
 network-manager-applet
 blueman
 # fw-display-panel (GTK3 popup) — already pulled by blueman/waybar; listed for Minimal

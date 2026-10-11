@@ -41,6 +41,24 @@ def devices():
     return out
 
 
+def apps():
+    """Apps playing sound now: [{id, name, volume, muted}] (pw-dump streams; EasyEffects' own streams left out)."""
+    try:
+        objs = json.loads(sh("pw-dump") or "[]")
+    except ValueError:
+        return []
+    out = []
+    for o in objs:
+        p = (o.get("info") or {}).get("props") or {}
+        if not p.get("media.class", "").startswith("Stream/Output/Audio") or \
+                "easyeffects" in (p.get("application.id", "") + p.get("application.process.binary", "")).lower():
+            continue
+        v = _VOL.search(sh("wpctl", "get-volume", str(o["id"]))) or _VOL.search("Volume: 1.0")
+        out.append({"id": o["id"], "name": p.get("application.name") or p.get("media.name") or p.get("node.name", "?"),
+                    "volume": float(v.group(1)), "muted": bool(v.group(2))})
+    return out
+
+
 def set_default(node_id):
     sh("wpctl", "set-default", str(node_id))
 
