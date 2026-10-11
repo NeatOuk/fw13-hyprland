@@ -6,12 +6,15 @@ from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
 from .. import sound  # noqa: E402
 from .common import Page, label, launch  # noqa: E402
+from .system import bg  # noqa: E402
 
 
 class SoundPage(Page):
     def __init__(self):
         super().__init__("Sound")
         self.pending = {}
+        self.noise_busy = False
+        self.noise_note = ""
         self.refresh()
 
     def refresh(self):
@@ -23,6 +26,7 @@ class SoundPage(Page):
                 self.add_widget(label("No devices", "dim"))
             for d in devs[key]:
                 self.device_row(d)
+        self.noise_row()
         b = Gtk.Button(label="Advanced… (pavucontrol)")
         b.set_halign(Gtk.Align.START)
         b.connect("clicked", lambda _b: launch("pavucontrol"))
@@ -59,6 +63,26 @@ class SoundPage(Page):
         r.pack_end(controls, False, False, 0)
         self.adapt(r, controls)  # narrow: device name on its own line, controls under it
         self.add_widget(r)
+
+    def noise_row(self):
+        sw = Gtk.Switch(active=sound.noise_suppression())
+        sw.set_sensitive(not self.noise_busy)
+        sw.connect("state-set", self.on_noise)
+        self.row("Noise suppression", sw, hint="Adds a Noise-cancelled microphone (WebRTC) and makes it the default; "
+                 "switching restarts the audio, so sound drops out for a moment")
+        if self.noise_busy or self.noise_note:
+            self.add_widget(label("Restarting audio\u2026" if self.noise_busy else self.noise_note, "dim"))
+
+    def on_noise(self, _sw, on):
+        if not self.noise_busy:
+            self.noise_busy, self.noise_note = True, ""
+            self.refresh()
+            bg(sound.set_noise_suppression, self.done_noise, on)
+        return True  # the switch is rebuilt from the drop-in's presence
+
+    def done_noise(self, res):
+        self.noise_busy, self.noise_note = False, res[1]
+        self.refresh()
 
     def on_volume(self, scale, node_id, pct):
         pct.set_text(f"{int(scale.get_value())}%")
