@@ -136,8 +136,8 @@ Paths: `lib/fw13/…` = `dotfiles/dot_local/lib/fw13/…` (→ `~/.local/lib/fw1
 - **record**, **notify** (gdbus), **system-menu**, **control-center**, **power-panel**, **nightlight**.
 - **display-panel**: layer-shell popup around fw13.ui_display.
 - **idle**: hypridle actions guarded by power source; suspend → suspend-then-hibernate when fw-hibernate-setup's sleep drop-in exists.
-- **clipboard**: SUPER+V: cliphist pick → paste via `hl.dsp.send_shortcut`; key must be lowercase `v`.
-- **clip-key**: SUPER+C copy / SUPER+X cut: send_shortcut to the focused window, Ctrl+Shift+C in terminals, no cut there; VS Code moved to SUPER+SHIFT+C.
+- **clipboard**: SUPER+V: cliphist pick → paste via `fw-clip-key paste` into the window captured before fuzzel opened.
+- **clip-key** `copy|cut|paste`: SUPER+C copy / SUPER+X cut, paste for fw-clipboard and fw-emoji: `hl.dsp.send_shortcut` to the focused window (or `FW_CLIP_WINDOW`), Ctrl+Shift+C/V in terminals (by program), no cut there; key must be lowercase; VS Code moved to SUPER+SHIFT+C.
 - **settings**: Settings app: Gtk.Application, single instance, `fw-settings [page] [--toggle]`; pages in lib/fw13/pages (see Settings pages).
 - **workspaces**: Python daemon: per-screen ranges eDP 1–9, others 11–19…; SUPER+N goes through it; login layout; bar dots custom/ws1–9: the first store `workspaces_shown` (1–9, default 5, Settings → Appearance → Workspaces) persistent and always shown, higher ones only while used; `fw-workspaces apply` re-binds after a change.
 - **jarvis** / **jarvis-panel**:

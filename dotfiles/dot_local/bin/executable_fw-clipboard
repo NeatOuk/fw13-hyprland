@@ -1,22 +1,14 @@
 #!/usr/bin/env bash
 # Clipboard history (SUPER+V): pick an entry → it's copied and pasted into the window you were in.
-# Paste is sent with Hyprland's send_shortcut dispatcher (no extra tool): Ctrl+Shift+V in terminals, Ctrl+V elsewhere.
+# Paste = fw-clip-key paste (Hyprland's send_shortcut, no extra tool): Ctrl+Shift+V in terminals, Ctrl+V elsewhere.
 set -euo pipefail
 
-info="$(hyprctl activewindow)"
-addr="$(awk '/^Window / { print $2; exit }' <<<"$info")"
-pid="$(awk -F': ' '/^\tpid:/ { print $2; exit }' <<<"$info")"
+addr="$(hyprctl activewindow | awk '/^Window / { print $2; exit }')"
 
 pick="$(cliphist list | fuzzel --dmenu --prompt 'Clipboard › ' --width 60)" || exit 0
 [[ -n $pick ]] || exit 0
 cliphist decode <<<"$pick" | wl-copy >/dev/null 2>&1  # wl-copy stays running to serve the clipboard
 
 [[ -n $addr ]] || exit 0  # empty workspace: just copied
-# Terminals by program, not window class (terminal windows may be fw13.btop, fw13.jarvis, …).
-case "$(cat "/proc/$pid/comm" 2>/dev/null)" in
-  kitty|foot|alacritty|ghostty|wezterm-gui|konsole|gnome-terminal-*|ptyxis*) mods="CTRL SHIFT" ;;
-  *) mods="CTRL" ;;
-esac
 sleep 0.1  # let fuzzel close and the clipboard settle
-# Lua dispatcher (Hyprland Lua config). key must be lowercase: "V" is silently not delivered.
-hyprctl dispatch "hl.dsp.send_shortcut({ mods = '$mods', key = 'v', window = 'address:0x$addr' })" >/dev/null
+FW_CLIP_WINDOW="${addr#0x}" fw-clip-key paste

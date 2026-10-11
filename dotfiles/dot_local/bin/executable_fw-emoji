@@ -26,7 +26,6 @@ FUZZEL_CACHE = os.path.join(CACHE_DIR, "fuzzel-emoji")      # fuzzel's frecency 
 VERSION = "1"
 GTK_LIBS = ["/usr/lib64/libgtk-3.so.0", "/usr/lib/libgtk-3.so.0", "/usr/lib/x86_64-linux-gnu/libgtk-3.so.0"]
 GTK_COMPONENTS = 2      # GTK group "Component": bare skin tones and hair parts, hidden in GTK's chooser too
-TERMINALS = re.compile(r"^(kitty|foot|alacritty|ghostty|wezterm-gui|konsole|gnome-terminal-.*|ptyxis.*)$")
 # Unicode ranges with emoji, for the fallback (pictographs, transport, supplemental symbols, dingbats, misc symbols).
 RANGES = [(0x1F300, 0x1F5FF), (0x1F600, 0x1F64F), (0x1F680, 0x1F6FF), (0x1F900, 0x1F9FF), (0x1FA70, 0x1FAFF),
           (0x2600, 0x26FF), (0x2700, 0x27BF)]
@@ -125,13 +124,13 @@ def emoji_of(pick):
 
 
 def focused():
-    """(address, pid) of the window focused now, before fuzzel takes the keyboard; (None, None) if none."""
+    """Address of the window focused now, before fuzzel takes the keyboard; None if none."""
     if not os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
-        return None, None
+        return None
     from fw13.hypr import hj
     w = hj("activewindow")
     addr = w.get("address", "") if isinstance(w, dict) else ""
-    return (addr, w.get("pid")) if re.fullmatch(r"0x[0-9a-fA-F]+", addr or "") else (None, None)
+    return addr if re.fullmatch(r"0x[0-9a-fA-F]+", addr or "") else None
 
 
 def fuzzel_free():
@@ -142,22 +141,14 @@ def fuzzel_free():
         time.sleep(0.05)
 
 
-def paste(addr, pid):
-    from fw13.hypr import dispatch, q
-    try:
-        with open(f"/proc/{int(pid)}/comm", encoding="utf-8") as f:
-            comm = f.read().strip()
-    except (OSError, TypeError, ValueError):
-        comm = ""
-    mods = "CTRL SHIFT" if TERMINALS.match(comm) else "CTRL"
+def paste(addr):
     time.sleep(0.1)  # let fuzzel close and the clipboard settle
-    # key must be lowercase: "V" is silently not delivered (see fw-clipboard).
-    dispatch(f"hl.dsp.send_shortcut({{ mods = {q(mods)}, key = 'v', window = {q('address:' + addr)} }})")
+    subprocess.run(["fw-clip-key", "paste"], env={**os.environ, "FW_CLIP_WINDOW": addr.removeprefix("0x")})
 
 
 def run():
     lines = load()
-    addr, pid = focused()
+    addr = focused()
     fuzzel_free()
     try:
         os.makedirs(CACHE_DIR, exist_ok=True)
@@ -171,7 +162,7 @@ def run():
         return 0
     subprocess.run(["wl-copy", "--", emoji], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if addr:
-        paste(addr, pid)
+        paste(addr)
     return 0
 
 
