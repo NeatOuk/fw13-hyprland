@@ -117,6 +117,9 @@ DANGER_RE = re.compile(r"\brm\s+-[a-zA-Z]*[rf]|\bdd\b|\bmkfs|\bwipefs\b|--force\
 RUN_TIMEOUT = 120
 ROOT_TIMEOUT = 300   # includes the time the owner takes at the polkit prompt
 SUDO_RE = re.compile(r"\bsudo(?:\s+-n)?\s+")
+# Claude failing for these reasons (no answer at all) → the OpenCode fallback, like having no internet
+UNREACHABLE_RE = re.compile(r"connect|network|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|fetch failed|getaddrinfo"
+                            r"|socket|timed? ?out|\b401\b|authenticat|log ?in|oauth", re.I)
 
 
 def root_argv(cmd):
@@ -159,20 +162,6 @@ def screen_room():
         return int(w - left - right - 32), int(h - top - bottom - TOP_MARGIN - BOTTOM_GAP)
     except (ValueError, KeyError, TypeError, StopIteration):
         return PANEL_W, 600
-
-
-def agents():
-    """[(label, target)]: Claude, then the OpenCode servers with a chosen model (fw-opencode --list)."""
-    out = [("Claude", "claude")]
-    try:
-        r = subprocess.run(["fw-opencode", "--list"], capture_output=True, text=True, timeout=5)
-        for line in r.stdout.splitlines():
-            if "\t" in line:
-                lbl, target = line.split("\t", 1)
-                out.append((lbl, target))
-    except (OSError, subprocess.TimeoutExpired):
-        pass
-    return out
 
 
 def launch(*cmd, cwd=None):
@@ -322,6 +311,9 @@ class Panel(Gtk.Window):
         self.last_target = None
         self.answer = ""
         self.started = 0.0
+        self.turn = ("", False)    # (prompt, follow_up) of the running answer
+        self.claude_err = ""
+        self.fallback_note = ""    # "Claude unreachable: answering with kh6 · …" while OpenCode stands in
         self.take_snapshot()
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -331,7 +323,7 @@ class Panel(Gtk.Window):
         head = Gtk.Box(spacing=10)
         head.pack_start(label("Jarvis", "title"), True, True, 0)
         self.agent = Gtk.ComboBoxText()
-        self.targets = agents()
+        self.targets = jcfg.agents()
         for lbl, target in self.targets:
             self.agent.append(target, lbl)
         self.agent.set_active(0)
@@ -447,6 +439,28 @@ class Panel(Gtk.Window):
         self.entry.set_text(q)
         self.ask()
 
+    def fall_back(self, prompt, why):
+        """Claude can't be reached: answer with the first OpenCode server that can (the home Ollama box)."""
+        self.entry.set_sensitive(False)
+        self.set_status(f"{why}: looking for an Ollama server…")
+
+        def work():
+            found = jcfg.fallback(self.targets)
+            GLib.idle_add(self.fallen_back, prompt, why, found)
+        threading.Thread(target=work, daemon=True).start()
+
+    def fallen_back(self, prompt, why, found):
+        self.entry.set_sensitive(True)
+        if not found:
+            self.set_status(f"{why}, and no Ollama server reachable", "bad")
+            return False
+        lbl, target = found
+        self.last_target = target
+        self.agent.set_active_id(target)  # follow-ups stay with it
+        self.fallback_note = f"Claude unreachable: answering with {lbl.removeprefix('OpenCode · ')}"
+        self.start(prompt)
+        return False
+
     def follow(self, q):
         """Ask `q` as a follow-up: same conversation, shown under the previous answer."""
         if self.proc:
@@ -458,6 +472,12 @@ class Panel(Gtk.Window):
     def start(self, prompt, follow_up=False):
         """Run the agent once; a follow-up (an action's result) continues the same conversation."""
         target = self.last_target
+        if target == "claude" and not follow_up and jcfg.fallback_on() and not jcfg.online():
+            self.fall_back(prompt, "No internet")
+            return
+        if target == "claude":
+            self.fallback_note = ""
+        self.turn, self.claude_err = (prompt, follow_up), ""
         self.clear_card()
         self.clear_chips()
         self.clear_memory()
@@ -490,7 +510,7 @@ class Panel(Gtk.Window):
         self.cont.hide()
         self.again.hide()
         self.show_answer(self.answer)
-        self.set_status("Checking the result…" if follow_up else "Thinking…")
+        self.set_status(self.fallback_note or ("Checking the result…" if follow_up else "Thinking…"))
         reader = self.read_claude if target == "claude" else self.read_plain
         threading.Thread(target=reader, args=(self.proc,), daemon=True).start()
 
@@ -517,6 +537,7 @@ class Panel(Gtk.Window):
             elif t == "result":
                 GLib.idle_add(self.got_session, e.get("session_id"))
                 if e.get("is_error"):
+                    self.claude_err = str(e.get("result") or "")
                     GLib.idle_add(self.set_status, str(e.get("result") or "The agent stopped with an error"), "bad")
         err = proc.stderr.read()
         GLib.idle_add(self.finished, proc, err)
@@ -571,12 +592,18 @@ class Panel(Gtk.Window):
             return False
         rc = proc.wait()
         self.proc = None
+        prompt, follow_up = self.turn
+        if (self.last_target == "claude" and not follow_up and not self.answer.strip() and jcfg.fallback_on()
+                and (rc or self.claude_err) and UNREACHABLE_RE.search(f"{err} {self.claude_err}")):
+            self.agent.set_sensitive(True)
+            self.fall_back(prompt, "Claude unreachable")
+            return False
         self.entry.set_sensitive(True)
         self.agent.set_sensitive(True)
         took = f"{time.time() - self.started:.0f} s"
         if rc == 0 or self.answer:
             if not self.status.get_style_context().has_class("bad"):
-                self.set_status(f"Done · {took}")
+                self.set_status(f"Done · {took}" + (f" · {self.fallback_note}" if self.fallback_note else ""))
         else:
             msg = (err or "").strip().splitlines()[-1:] or [f"exit {rc}"]
             self.set_status(f"The agent stopped: {msg[0][:200]}", "bad")
@@ -867,6 +894,8 @@ def selftest():
     assert parse_remember(note.format('{"note": "' + "x" * 400 + '"}')) is None
     assert parse_remember(note.format('{"note": "a"}')[:-3]) is None  # cut off
     assert parse_remember(note.format('"just text"')) is None
+    assert UNREACHABLE_RE.search("API Error: Connection error.") and UNREACHABLE_RE.search("Please run /login")
+    assert not UNREACHABLE_RE.search("Error: max turns reached")
     print("fw-jarvis-panel: self-check OK")
     return 0
 

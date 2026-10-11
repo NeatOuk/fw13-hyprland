@@ -6,6 +6,7 @@ import re
 import subprocess
 import tempfile
 import time
+import urllib.request
 
 from . import store
 
@@ -18,6 +19,7 @@ JDIR = os.path.expanduser("~/jarvis")
 MEMORY = os.path.join(JDIR, "MEMORY.md")  # not a chezmoi target: the owner's notes, read by every run via CLAUDE.md
 NOTE_MAX = 300
 # Claude Code keeps each conversation in ~/.claude/projects/<cwd with every other character as '-'>/<id>.jsonl
+OPENCODE_CONFIG = os.path.expanduser("~/.config/fw-opencode/opencode.json")  # written by fw-opencode
 SESSIONS = os.path.expanduser("~/.claude/projects/" + re.sub(r"[^A-Za-z0-9]", "-", JDIR))
 
 
@@ -46,6 +48,49 @@ def claude_args():
     if effort():
         out += ["--effort", effort()]
     return out
+
+
+def agents():
+    """[(label, target)]: Claude, then the OpenCode servers with a chosen model (fw-opencode --list)."""
+    out = [("Claude", "claude")]
+    try:
+        r = subprocess.run(["fw-opencode", "--list"], capture_output=True, text=True, timeout=5)
+        out += [tuple(line.split("\t", 1)) for line in r.stdout.splitlines() if "\t" in line]
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return out
+
+
+def fallback_on():
+    """Settings → Jarvis → When Claude is unreachable (on unless switched off)."""
+    return store.get("jarvis_fallback") is not False
+
+
+def online():
+    """NetworkManager reports full connectivity. FW_JARVIS_CONNECTIVITY=none|limited|full overrides it (tests)."""
+    state = os.environ.get("FW_JARVIS_CONNECTIVITY")
+    if not state:
+        try:
+            state = _run("nmcli", "-t", "networking", "connectivity").strip()
+        except (OSError, subprocess.TimeoutExpired):
+            return True  # can't tell: let Claude try
+    return state == "full"
+
+
+def server_up(target):
+    """The Ollama server behind an OpenCode target ("provider/model") answers GET /api/tags within 1.5 s."""
+    try:
+        with open(OPENCODE_CONFIG) as f:
+            base = json.load(f)["provider"][target.split("/", 1)[0]]["options"]["baseURL"]
+        with urllib.request.urlopen(re.sub(r"/v1/?$", "", base) + "/api/tags", timeout=1.5):
+            return True
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+def fallback(targets):
+    """The first (label, target) of the OpenCode ones whose server answers, or None."""
+    return next(((lbl, t) for lbl, t in targets if t not in ("claude", "opencode") and server_up(t)), None)
 
 
 def check_note(text):
@@ -254,6 +299,12 @@ def selftest():
     for sid, when, q in sessions(5):
         assert len(sid) == 36 and when > 0 and q and "\n" not in q, (sid, q)
     print(f"sessions: {len(sessions())}")
+    os.environ["FW_JARVIS_CONNECTIVITY"] = "none"
+    assert not online()
+    os.environ["FW_JARVIS_CONNECTIVITY"] = "full"
+    assert online()
+    assert not server_up("no-such-provider/model") and fallback([("Claude", "claude")]) is None
+    print(f"fallback: {fallback(agents())}")
     print(f"fw13.jarvis: self-check OK ({took:.2f} s)")
 
 

@@ -37,6 +37,14 @@ class JarvisPage(Page):
         self.add_widget(label("Used for the panel's answers, Continue in terminal and Work on repo, from the next "
                               "question on. OpenCode sessions use the model chosen in the OpenCode panel.",
                               "dim", wrap=True))
+        self.heading("When Claude is unreachable")
+        sw = Gtk.Switch(active=jarvis.fallback_on())
+        sw.connect("notify::active", lambda w, _p: self.save("jarvis_fallback", w.get_active()))
+        others = [lbl.removeprefix("OpenCode · ") for lbl, t in jarvis.agents() if t != "claude"]
+        self.row("Answer with an Ollama server", sw,
+                 hint=(f"Without internet, or when Claude can't be reached, the panel answers with {others[0]} "
+                       "(the first OpenCode server that answers)") if others else
+                 "No Ollama server with a model yet: add one in the OpenCode panel (the >_ icon)")
         self.heading("Memory")
         self.add_widget(label("Notes Jarvis reads before every answer. Jarvis proposes them (Save / Skip in the "
                               "panel); say \"remember …\" to add one.", "dim", wrap=True))
