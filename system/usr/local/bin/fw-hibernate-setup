@@ -112,9 +112,10 @@ del_subvol() {
   rmdir /swap 2>/dev/null || true
   ! has_subvol || subvol delete
 }
-has_fcontext() { semanage fcontext -l -C | grep -q "^$SWAPFILE "; }
-no_fcontext() { ! has_fcontext; }
-del_fcontext() { semanage fcontext -d "$SWAPFILE"; }
+# /swap itself needs a type logind may search (var_t, as Fedora's /var/swap), or CanHibernate fails with AccessDenied
+has_fcontext() { semanage fcontext -l -C | grep -q "^$SWAPFILE " && semanage fcontext -l -C | grep -q "^/swap "; }
+no_fcontext() { ! semanage fcontext -l -C | grep -qE "^($SWAPFILE|/swap) "; }
+del_fcontext() { semanage fcontext -d "$SWAPFILE" || true; semanage fcontext -d /swap || true; }
 no_ts() { ! ts_has; }
 ts_add() { ts_exclude add; }
 ts_remove() { ts_exclude remove; }
@@ -135,8 +136,12 @@ do_mount() {
 }
 has_file() { [[ -e $SWAPFILE ]]; }
 mkfile() { btrfs filesystem mkswapfile --size "${SIZE_G}g" "$SWAPFILE"; }
-labelled() { [[ $(stat -c %C "$SWAPFILE" 2>/dev/null) == *:swapfile_t:* ]]; }
-do_label() { has_fcontext || semanage fcontext -a -t swapfile_t "$SWAPFILE"; restorecon -v "$SWAPFILE"; }
+labelled() { [[ $(stat -c %C "$SWAPFILE" 2>/dev/null) == *:swapfile_t:* && $(stat -c %C /swap 2>/dev/null) == *:var_t:* ]]; }
+do_label() {
+  semanage fcontext -l -C | grep -q "^$SWAPFILE " || semanage fcontext -a -t swapfile_t "$SWAPFILE"
+  semanage fcontext -l -C | grep -q "^/swap " || semanage fcontext -a -t var_t /swap
+  restorecon -v /swap "$SWAPFILE"
+}
 do_swapon() {
   fstab_has "$SWAPFILE" || echo "$SWAPFILE none swap defaults,pri=10 0 0" >> /etc/fstab
   systemctl daemon-reload
@@ -150,7 +155,7 @@ if [[ $cmd == undo ]]; then
   step "Turn the swapfile off (needs free RAM for what is swapped out)" swap_off do_swapoff
   step "Remove the /swap and swapfile lines from /etc/fstab" no_fstab fstab_drop
   step "Unmount /swap and delete the btrfs subvolume 'swap' (the swapfile goes with it)" gone del_subvol
-  step "Remove the SELinux file context for $SWAPFILE" no_fcontext del_fcontext
+  step "Remove the SELinux file contexts for /swap and $SWAPFILE" no_fcontext del_fcontext
   step "Remove /swap/*** from Timeshift's exclude list" no_ts ts_remove
   step "Remove the dracut resume drop-in and rebuild the initramfs" no_dracut del_dracut
   step "Remove resume=/resume_offset= from the kernel command line" no_karg del_karg
@@ -177,7 +182,7 @@ step "Create the btrfs subvolume 'swap' at the top level (next to root and home,
   has_subvol add_subvol
 step "Mount it at /swap (fstab: UUID=$FSUUID /swap btrfs subvol=swap)" mounted do_mount
 step "Create $SWAPFILE, ${SIZE_G} GiB (btrfs filesystem mkswapfile: no copy-on-write, no compression)" has_file mkfile
-step "Label it swapfile_t for SELinux (semanage fcontext + restorecon)" labelled do_label
+step "Label it for SELinux: /swap var_t, the swapfile swapfile_t (semanage fcontext + restorecon)" labelled do_label
 step "Turn it on at boot after zram (fstab: $SWAPFILE none swap defaults,pri=10) and now (swapon)" swap_on do_swapon
 if [[ -f $TS_CONF ]] && grep -q '"btrfs_mode" *: *"false"' "$TS_CONF"; then
   step "Keep the swapfile out of Timeshift's rsync snapshots (exclude /swap/***)" ts_has ts_add
