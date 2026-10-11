@@ -7,6 +7,7 @@ Used by fw-launcher (how many entries fuzzel lists) and Settings → Apps.
 """
 import glob
 import os
+import shlex
 import subprocess
 import sys
 
@@ -17,6 +18,24 @@ PACKAGE_LISTS = (os.path.join(HOME, ".local/share/chezmoi/packages"), os.path.jo
 # install.sh builds or installs these itself, outside packages/*.txt
 BUILT = {"telegram-desktop-official", "ghostty-official", "citadel", "citadel-helper"}
 OUR_FLATPAKS = {"org.localsend.localsend_app"}
+# Apps the installer chose that nothing else in the desktop needs: Uninstall… removes them (+ the extra packages that
+# only serve them) and records every name in SKIP_FILE, which install.sh skips from then on.
+# {package or Flatpak id: (extra packages, note for the row)}
+OPTIONAL = {
+    "steam": (("steam-devices",), ""),
+    "lutris": ((), "its games and Wine runners stay in ~/.local/share/lutris"),
+    "telegram-desktop-official": ((), ""),
+    "chromium": ((), "the default browser for links and SUPER+B: links fall back to another browser, SUPER+B stops"),
+    "code": ((), "SUPER+SHIFT+C opens it"),
+    "RemoteDesktopManager": ((), ""),
+    "ghostty-official": ((), "the terminal falls back to kitty"),
+    "citadel": (("citadel-helper",), "the outbound firewall goes with it"),
+    "cloudflare-warp": ((), "the bar's cloud icon hides itself"),
+    "easyeffects": (("lsp-plugins-lv2", "lv2-calf-plugins"), "Settings → Sound loses Speaker sound"),
+    "org.localsend.localsend_app": ((), ""),
+}
+OPTIONAL_LC = {k.lower(): k for k in OPTIONAL}  # rpm names come back as packaged; dnf matches case-insensitively
+SKIP_FILE = os.path.join(HOME, ".config/fw13/skip-packages")
 GNOME_NEEDS = {"gnome-software", "nautilus", "gnome-control-center", "ptyxis", "loupe", "papers",
                "gnome-text-editor", "showtime", "decibels"}
 OUR_DIR = os.path.join(HOME, ".local/share/fw13/")
@@ -139,8 +158,14 @@ def other_installer(path, keys):
     return next((who for word, who in INSTALLERS if word in hay), None)
 
 
+def optional_key(pkg, flatpak_id):
+    return OPTIONAL_LC.get((flatpak_id or pkg or "").lower())
+
+
 def protected(did, path, pkg, flatpak_id, ours):
     """Why an app can't be uninstalled here, or None."""
+    if optional_key(pkg, flatpak_id):
+        return None
     if did.startswith(("fw-", "fw13-")) or path.startswith(OUR_DIR) or (pkg or "").lower() in ours \
             or flatpak_id in OUR_FLATPAKS:
         return "part of this desktop"
@@ -172,12 +197,14 @@ def classify(entries, owners, fps, ours):
             app.update(kind="other", source="fw13-hypr" if ours_file else f"Installed by {who}" if who
                        else "Installed by hand")
         app["protected"] = protected(did, path, pkg, fp and fp["id"], ours)
+        app["optional"] = optional_key(pkg, fp and fp["id"])
         apps.append(app)
     for fp in fps:  # Flatpak apps without a launcher entry
         if fp["id"] not in shown:
             apps.append({"id": fp["id"], "name": fp["name"], "icon": fp["id"], "package": None, "kind": "flatpak",
                          "flatpak": fp["id"], "installation": fp["installation"], "source": f"Flatpak ({fp['installation']})",
-                         "protected": protected(fp["id"], "", None, fp["id"], ours)})
+                         "protected": protected(fp["id"], "", None, fp["id"], ours),
+                         "optional": optional_key(None, fp["id"])})
     return apps
 
 
@@ -202,17 +229,68 @@ def guard_deps(apps, ours, needed=needed_by):
     return out
 
 
+def rpm_installed(names):
+    """The names of `names` that are installed (one rpm call)."""
+    if not names:
+        return set()
+    try:
+        out = subprocess.run(["rpm", "-q", "--qf", "%{NAME}\n", *names], capture_output=True, text=True, timeout=30).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return set()
+    return {line for line in out.splitlines() if " " not in line}  # "package x is not installed"
+
+
 def installed():
     entries = launcher_entries()
     owners = rpm_owners([p for _d, p, _k in entries if "/flatpak/exports/" not in p])
     ours = installer_packages()
-    return guard_deps(classify(entries, owners, flatpaks(), ours), ours)
+    apps = guard_deps(classify(entries, owners, flatpaks(), ours), ours)
+    have = rpm_installed(sorted({x for e, _n in OPTIONAL.values() for x in e}))
+    return [{**a, "extras": [x for x in OPTIONAL[a["optional"]][0] if x in have]} if a.get("optional") else a
+            for a in apps]
+
+
+def skipped():
+    """Names in SKIP_FILE (what Uninstall… recorded), in file order."""
+    try:
+        with open(SKIP_FILE) as fh:
+            return list(dict.fromkeys(w for w in (line.strip() for line in fh) if w and not w.startswith("#")))
+    except OSError:
+        return []
+
+
+def unskip(name):
+    """Take a name out of SKIP_FILE: the next install.sh run installs it again."""
+    rest = [n for n in skipped() if n != name]
+    tmp = SKIP_FILE + ".tmp"
+    with open(tmp, "w") as fh:
+        fh.writelines(n + "\n" for n in rest)
+    os.replace(tmp, SKIP_FILE)
+
+
+def optional_script(app):
+    """bash: remove the app interactively, then record its names in SKIP_FILE only if that worked and it's gone."""
+    key = app["optional"]
+    names = [key, *OPTIONAL[key][0]]
+    q = shlex.quote
+    if app["kind"] == "flatpak":
+        inst = f"--{app['installation']}"
+        remove, gone = ["flatpak", "uninstall", inst, app["flatpak"]], f"! flatpak info {inst} {q(app['flatpak'])} >/dev/null 2>&1"
+    else:
+        remove = ["sudo", "dnf", "remove", app["package"], *app.get("extras", ())]
+        gone = f"! rpm -q --quiet {q(app['package'])}"
+    f = q(SKIP_FILE)
+    return (f"{shlex.join(remove)} && {gone} && mkdir -p {q(os.path.dirname(SKIP_FILE))} && "
+            f"for n in {' '.join(map(q, names))}; do grep -qxF -- \"$n\" {f} 2>/dev/null || echo \"$n\" >> {f}; done && "
+            f"echo {q('Removed. install.sh will skip ' + ', '.join(names) + ' from now on (Settings → Apps → Removed apps undoes that).')}")
 
 
 def uninstall_argv(app):
     """Terminal command that removes the app (dnf/flatpak ask y/N themselves), or None."""
     if app["protected"]:
         return None
+    if app.get("optional"):
+        return ["bash", "-c", optional_script(app)]
     if app["kind"] == "rpm":
         return ["sudo", "dnf", "remove", app["package"]]
     if app["kind"] == "flatpak":
@@ -249,24 +327,80 @@ def test():
               "/usr/share/applications/gimp.desktop": "gimp",
               "/usr/share/applications/org.gnome.Nautilus.desktop": "nautilus"}
     a = {x["id"]: x for x in classify(entries, owners, fps, ours)}
-    assert a["chromium-browser.desktop"]["protected"] == "part of this desktop"
+    assert a["chromium-browser.desktop"]["protected"] is None and a["chromium-browser.desktop"]["optional"] == "chromium"
+    assert a["gimp.desktop"]["optional"] is None
     assert a["gimp.desktop"]["protected"] is None and a["gimp.desktop"]["source"] == "Package gimp"
     assert uninstall_argv(a["gimp.desktop"]) == ["sudo", "dnf", "remove", "gimp"]
     assert a["org.gnome.Nautilus.desktop"]["protected"] == "GNOME needs it"
     assert a["fw-settings.desktop"]["protected"] and a["fw13-calc.desktop"]["protected"]
     assert a["Terraria.desktop"]["source"] == "Installed by Steam" and uninstall_argv(a["Terraria.desktop"]) is None
     assert a["Mine.desktop"]["source"] == "Installed by hand"
-    assert a["org.localsend.localsend_app.desktop"]["protected"] == "part of this desktop"
+    ls = a["org.localsend.localsend_app.desktop"]
+    assert ls["protected"] is None and ls["optional"] == "org.localsend.localsend_app"
     assert uninstall_argv(a["org.example.App.desktop"]) == ["flatpak", "uninstall", "--system", "org.example.App"]
     assert uninstall_argv(a["org.example.NoEntry"]) == ["flatpak", "uninstall", "--user", "org.example.NoEntry"]
     g = {x["id"]: x for x in guard_deps(list(a.values()), {"fcitx5"}, lambda p: {"fcitx5"} if p == "gimp" else set())}
     assert g["gimp.desktop"]["protected"] == "part of this desktop (needed by fcitx5)" and a["gimp.desktop"]["protected"] is None
     assert classify(entries, {"/usr/share/applications/gimp.desktop": "Thunar"}, [], {"thunar"})[1]["protected"]
     assert "-y" not in sum((uninstall_argv(x) or [] for x in a.values()), [])
+    test_optional(a)
     real = installer_packages()
     assert {"chromium", "code"} <= real or not any(os.path.isdir(d) for d in PACKAGE_LISTS), "package lists not read"
     assert not any(w.startswith("#") for w in real)
     print("ok")
+
+
+def test_optional(a):
+    import tempfile
+    global SKIP_FILE
+    # core vs optional for the installer's real package names (packages/*.txt + BUILT)
+    real = installer_packages()
+    if any(os.path.isdir(d) for d in PACKAGE_LISTS):
+        rpm_keys = [k for k in OPTIONAL if "." not in k]
+        missing = [n for k in rpm_keys for n in (k, *OPTIONAL[k][0]) if n.lower() not in real]
+        assert not missing, f"OPTIONAL names not in packages/*.txt: {missing}"
+        for core in ("thunar", "waybar", "kitty", "fuzzel", "mako", "hyprland", "gamescope", "nss-tools", "gnome-keyring"):
+            assert core in real and protected(f"{core}.desktop", "", core, None, real) == "part of this desktop", core
+    for k in OPTIONAL:
+        fp = k if "." in k else None
+        assert protected(f"{k}.desktop", "", None if fp else k, fp, real | {k.lower()}) is None, k
+    assert optional_key("remotedesktopmanager", None) == "RemoteDesktopManager"
+    # the uninstall command: interactive, records only after success and once the app is gone
+    with tempfile.TemporaryDirectory() as t:
+        stubs = os.path.join(t, "bin")
+        os.mkdir(stubs)
+        for name, body in (("sudo", 'echo "$@" >> "$T/ran"; exit "${RC:-0}"'), ("rpm", 'exit "${GONE:-1}"'),
+                           ("flatpak", 'echo "$@" >> "$T/ran"; [ "$1" = info ] && exit "${GONE:-1}"; exit "${RC:-0}"')):
+            with open(os.path.join(stubs, name), "w") as fh:
+                fh.write(f"#!/bin/sh\n{body}\n")
+            os.chmod(os.path.join(stubs, name), 0o755)
+        saved, SKIP_FILE = SKIP_FILE, os.path.join(t, "cfg/fw13/skip-packages")
+        try:
+            steam = {"kind": "rpm", "package": "steam", "optional": "steam", "protected": None, "extras": ["steam-devices"]}
+
+            def run(app, **env):
+                argv = uninstall_argv(app)
+                assert argv[:2] == ["bash", "-c"] and "-y" not in shlex.split(argv[2].split("&&")[0]), argv
+                subprocess.run(argv, env={**os.environ, "PATH": f"{stubs}:/usr/bin:/bin", "T": t, **env},
+                               capture_output=True, timeout=10)
+            run(steam, RC="1")
+            assert not os.path.exists(SKIP_FILE), "recorded after dnf failed"
+            run(steam, GONE="0")
+            assert not os.path.exists(SKIP_FILE), "recorded while still installed"
+            run(steam)
+            run(steam)
+            assert skipped() == ["steam", "steam-devices"] and open(SKIP_FILE).read() == "steam\nsteam-devices\n"
+            assert open(os.path.join(t, "ran")).read().splitlines()[0] == "dnf remove steam steam-devices"
+            run({**a["org.localsend.localsend_app.desktop"]})
+            assert skipped()[-1] == "org.localsend.localsend_app"
+            assert "uninstall --user org.localsend.localsend_app" in open(os.path.join(t, "ran")).read()
+            with open(SKIP_FILE, "a") as fh:
+                fh.write("\n# comment\n  code  \nsteam\n")
+            assert skipped() == ["steam", "steam-devices", "org.localsend.localsend_app", "code"]
+            unskip("steam")
+            assert skipped() == ["steam-devices", "org.localsend.localsend_app", "code"]
+        finally:
+            SKIP_FILE = saved
 
 
 if __name__ == "__main__":

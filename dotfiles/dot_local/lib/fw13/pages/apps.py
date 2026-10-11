@@ -15,6 +15,7 @@ from .system import bg  # noqa: E402
 ICON = 24
 REFOCUS = 5  # s: Settings regaining focus re-reads the list at most this often (e.g. back from an Uninstall terminal)
 UPDATE_ALL = ("fw-term", "--hold", "-e", "fw-updates", "apply")
+OPTIONAL_HINT = "Installed by this desktop · optional: the installer won't reinstall it once removed"
 
 
 def _load():
@@ -103,7 +104,21 @@ class AppsPage(Page):
             self.add_widget(label("Uninstall… opens a terminal: dnf or flatpak lists what goes and asks before "
                                   "removing anything. Apps from Steam, Lutris or other launchers are removed there.",
                                   "dim", wrap=True))
+        self.render_removed()
         self.show_all()
+
+    def render_removed(self):
+        names = apps.skipped()
+        if not names:
+            return
+        self.heading("Removed apps")
+        for n in names:
+            self.row(n, button("Reinstall on next installer run", lambda n=n: self.unskip(n)),
+                     hint="install.sh skips it until then")
+
+    def unskip(self, name):
+        apps.unskip(name)
+        self.render()
 
     def render_updates(self):
         check = button("  Check now", lambda: self.reload(flatpak=True))
@@ -134,6 +149,8 @@ class AppsPage(Page):
             hint.append(f"Update available → {ver}" if ver else "Update available")
         if app["protected"]:
             hint.append(app["protected"])
+        if app.get("optional"):
+            hint += [OPTIONAL_HINT] + [n for n in [apps.OPTIONAL[app["optional"]][1]] if n]
         argv = apps.uninstall_argv(app)
         widget = button("Uninstall…", lambda: launch("fw-term", "--hold", "-e", *argv)) if argv else None
         r = self.row(app["name"], widget, hint=" · ".join(hint))

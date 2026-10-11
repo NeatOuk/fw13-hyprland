@@ -47,7 +47,14 @@ say()  { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m!! %s\033[0m\n' "$*"; }
 die()  { printf '\033[1;31mxx %s\033[0m\n' "$*"; exit 1; }
 ask()  { [[ $YES == 1 ]] && return 0; read -rp "$1 [Y/n] " r; [[ "${r,,}" != n ]]; }
-pkgs() { grep -hv '^\s*#' "$@" | tr -s ' \t' '\n' | sed '/^$/d'; }
+# Apps you removed with Settings → Apps → Uninstall… (optional ones only) are listed here, one name per line, and
+# skipped from then on; Settings → Apps → Removed apps takes a name out again. Absent under --ci (root's home).
+SKIP_FILE="$HOME/.config/fw13/skip-packages"
+skipped() { [[ -r $SKIP_FILE ]] && grep -qxF -- "$1" "$SKIP_FILE"; }
+pkgs() {
+  grep -hv '^\s*#' "$@" | tr -s ' \t' '\n' | sed '/^$/d' \
+    | if [[ -s $SKIP_FILE ]]; then grep -vxF -f "$SKIP_FILE" || true; else cat; fi
+}
 SUDO=sudo; [[ $EUID -eq 0 ]] && SUDO=""
 
 # --- Preflight ---------------------------------------------------------------
@@ -181,13 +188,18 @@ system_phase() {
     "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA}.noarch.rpm"
   $SUDO dnf config-manager setopt fedora-cisco-openh264.enabled=1 || true
   [[ -n "$HYPR_COPR" ]] && $SUDO dnf -y copr enable "$HYPR_COPR"
-  $SUDO install -m 0644 repos/*.repo /etc/yum.repos.d/
+  local r
+  for r in repos/*.repo; do
+    [[ $r == repos/cloudflare-warp.repo ]] && skipped cloudflare-warp && continue
+    $SUDO install -m 0644 "$r" /etc/yum.repos.d/
+  done
 
   say "Packages (weak dependencies off — only what's listed)"
   local lists=(00-core.txt 10-desktop.txt 20-input-fonts.txt 30-apps.txt 60-framework.txt 70-dev.txt 80-shells.txt 90-backup.txt 95-citadel.txt 96-theme.txt 97-warp.txt)
   use_greetd && lists+=(15-login.txt)
   has_ppd || lists+=(61-power.txt)
-  [[ $GHOSTTY == 0 ]] || lists+=(98-ghostty.txt)
+  [[ $GHOSTTY == 0 ]] || skipped ghostty-official || lists+=(98-ghostty.txt)
+  [[ -s $SKIP_FILE ]] && echo "skipped (removed by you): $(grep -v '^\s*$' "$SKIP_FILE" | paste -sd' ')"
   local main gaming codecs
   mapfile -t main   < <(cd packages && pkgs "${lists[@]}")
   mapfile -t gaming < <(cd packages && pkgs 40-gaming.txt)
@@ -204,19 +216,24 @@ system_phase() {
     warn "HYPR_COPR is empty: no matugen 4 (Fedora's 3.1.0 is too old), so the theme stays Tokyo Night"
   fi
 
-  say "Citadel (outbound firewall) + citadel-helper — built from source as RPMs"
-  local rpms=()
-  mapfile -t rpms < <(build_citadel_rpm citadel-app "$CITADEL_APP_REPO" "$CITADEL_APP_REF" linux/packaging/rpm/citadel.spec
-                      build_citadel_rpm citadel-helper "$CITADEL_HELPER_REPO" "$CITADEL_HELPER_REF" packaging/rpm/citadel-helper.spec)
-  (( ${#rpms[@]} == 2 )) || die "Citadel RPM build failed (see above)"
-  $DNF install "${rpms[@]}"   # same version: no-op; newer build: upgrade
+  if skipped citadel; then echo "Citadel: skipped (removed by you)"; else
+    say "Citadel (outbound firewall) + citadel-helper — built from source as RPMs"
+    local rpms=()
+    mapfile -t rpms < <(build_citadel_rpm citadel-app "$CITADEL_APP_REPO" "$CITADEL_APP_REF" linux/packaging/rpm/citadel.spec
+                        build_citadel_rpm citadel-helper "$CITADEL_HELPER_REPO" "$CITADEL_HELPER_REF" packaging/rpm/citadel-helper.spec)
+    (( ${#rpms[@]} == 2 )) || die "Citadel RPM build failed (see above)"
+    $DNF install "${rpms[@]}"   # same version: no-op; newer build: upgrade
+  fi
 
-  say "Telegram Desktop — official telegram.org build, packaged as an RPM"
-  local tg
-  tg="$(build_telegram_rpm)" || die "Telegram RPM build failed (see above)"
-  if [[ -n $tg ]]; then $DNF install "$tg"; else echo "telegram-desktop-official is current"; fi
+  if skipped telegram-desktop-official; then echo "Telegram: skipped (removed by you)"; else
+    say "Telegram Desktop — official telegram.org build, packaged as an RPM"
+    local tg
+    tg="$(build_telegram_rpm)" || die "Telegram RPM build failed (see above)"
+    if [[ -n $tg ]]; then $DNF install "$tg"; else echo "telegram-desktop-official is current"; fi
+  fi
 
-  if [[ $GHOSTTY != 0 ]]; then
+  if skipped ghostty-official; then echo "Ghostty: skipped (removed by you)"
+  elif [[ $GHOSTTY != 0 ]]; then
     say "Ghostty — built from the official release (Settings → My Framework → Terminal)"
     local gt
     gt="$(build_ghostty_rpm)" || die "Ghostty RPM build failed (see above)"
@@ -300,7 +317,7 @@ EOF
     has_ppd || $SUDO systemctl enable --now tuned.service
     $SUDO systemctl enable --now fw-power-profile.service  # performance on AC, balanced on battery (+ udev rule)
     $SUDO systemctl enable --now ollama.service   # local models for OpenCode (fw-opencode)
-    $SUDO systemctl enable --now warp-svc.service  # Cloudflare WARP daemon; register/connect from the bar panel
+    skipped cloudflare-warp || $SUDO systemctl enable --now warp-svc.service  # Cloudflare WARP daemon; register/connect from the bar panel
   fi
 
   rpm -qa --qf '%{NAME}\n' | sort > "$STATE_DIR/rpms-after.txt"
@@ -423,7 +440,8 @@ user_phase() {
   flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
   # LocalSend (file sharing to nearby devices) isn't in Fedora; user-approved Flathub app. Receiving needs inbound
   # 53317/tcp+udp, which the installer leaves closed (firewall untouched, user decision).
-  flatpak install --user -y --noninteractive flathub org.localsend.localsend_app || warn "LocalSend (Flathub) didn't install — retry: flatpak install --user flathub org.localsend.localsend_app"
+  if skipped org.localsend.localsend_app; then echo "LocalSend: skipped (removed by you)"
+  else flatpak install --user -y --noninteractive flathub org.localsend.localsend_app || warn "LocalSend (Flathub) didn't install — retry: flatpak install --user flathub org.localsend.localsend_app"; fi
 
   # Only when nothing is enrolled: fprintd-enroll replaces an existing print, and an interrupted run leaves none.
   if ! fprintd-list "$USER" 2>/dev/null | grep -q ' - #[0-9]' && ask "Enroll a fingerprint now?"; then fprintd-enroll || warn "fingerprint enroll failed — retry later: fprintd-enroll"; fi
