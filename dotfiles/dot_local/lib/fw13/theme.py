@@ -35,7 +35,8 @@ gtk-theme itself at Plasma login.
 
 State lives in fw13.store under "theme":
   {"source": "tokyo-night" | "wallpaper", "mode": "dark" | "light", "type": "scheme-tonal-spot",
-   "wallpaper": path, "palette": {...last generated}}
+   "pick": "colourful" | "0".."3" (matugen's source colour: most saturated candidate, or candidate N, 0 = most of
+   the image), "wallpaper": path, "palette": {...last generated}}
 Palette values are "#rrggbb" ("shadow" is "#rrggbbaa"); "ansi" is the 16 terminal colours.
 """
 import colorsys
@@ -59,6 +60,7 @@ MODES = ("dark", "light")
 TYPES = ("scheme-tonal-spot", "scheme-content", "scheme-expressive", "scheme-vibrant", "scheme-neutral",
          "scheme-monochrome", "scheme-fidelity", "scheme-rainbow", "scheme-fruit-salad")
 DEFAULT_TYPE = "scheme-tonal-spot"
+PICKS = ("colourful", "0", "1", "2", "3")
 
 # The Linux console's default VGA black and grey: what tuigreet (no --theme) shows on the login screen; hyprlock copies it
 TTY = {"bg": "#000000", "fg": "#aaaaaa"}
@@ -167,9 +169,9 @@ def _shade(c, d):
 
 # ---- matugen ------------------------------------------------------------------------------------------------
 
-def _matugen(path, mode, scheme_type):
-    cmd = ["matugen", "image", path, "--dry-run", "--json", "hex", "-m", mode, "--prefer", "saturation",
-           "-t", scheme_type]
+def _matugen(path, mode, scheme_type, pick="colourful"):
+    how = ["--prefer", "saturation"] if pick == "colourful" else ["--source-color-index", pick]
+    cmd = ["matugen", "image", path, "--dry-run", "--json", "hex", "-m", mode, *how, "-t", scheme_type]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL,
                            env={**os.environ, "NO_COLOR": "1"})
@@ -222,11 +224,21 @@ def _ansi(p):
     return out
 
 
-def from_wallpaper(path, mode="dark", scheme_type=DEFAULT_TYPE):
+def source_colors(path):
+    """matugen's candidate source colours for `path`, most of the image first ([] on failure)."""
+    try:
+        r = subprocess.run(["matugen", "image", path, "--show-source-colors", "-m", "dark"], capture_output=True,
+                           text=True, timeout=60, stdin=subprocess.DEVNULL, env={**os.environ, "NO_COLOR": "1"})
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    return re.findall(r"#[0-9a-fA-F]{6}", r.stdout)[:len(PICKS) - 1]
+
+
+def from_wallpaper(path, mode="dark", scheme_type=DEFAULT_TYPE, pick="colourful"):
     """Palette for `path` (jpg/png/jxl) via matugen. Raises RuntimeError with a short message on failure."""
     mode = mode if mode in MODES else "dark"
     scheme_type = scheme_type if scheme_type in TYPES else DEFAULT_TYPE
-    data = _matugen(path, mode, scheme_type)
+    data = _matugen(path, mode, scheme_type, pick if pick in PICKS else "colourful")
     try:
         m = {k: v[mode]["color"] for k, v in data["colors"].items()}
         p = {
@@ -256,6 +268,7 @@ def state():
     return {"source": t.get("source") if t.get("source") in SOURCES else "tokyo-night",
             "mode": t.get("mode") if t.get("mode") in MODES else "dark",
             "type": t.get("type") if t.get("type") in TYPES else DEFAULT_TYPE,
+            "pick": t.get("pick") if t.get("pick") in PICKS else "colourful",
             "wallpaper": t.get("wallpaper"), "palette": t.get("palette")}
 
 
@@ -1472,7 +1485,7 @@ def init():
     return link_gtk()
 
 
-def set_source(source, mode=None, scheme_type=None, wallpaper=None):
+def set_source(source, mode=None, scheme_type=None, wallpaper=None, pick=None):
     """Follow `source` ("tokyo-night" or "wallpaper"), store the choice, write the files and apply them.
 
     Unspecified options keep their stored value; the wallpaper defaults to ~/.config/hypr/wallpaper.jpg.
@@ -1486,13 +1499,14 @@ def set_source(source, mode=None, scheme_type=None, wallpaper=None):
     s["source"] = source
     s["mode"] = mode if mode in MODES else s["mode"]
     s["type"] = scheme_type if scheme_type in TYPES else s["type"]
+    s["pick"] = pick if pick in PICKS else s["pick"]
     if source == "wallpaper":
         from .hyprsettings import WALLPAPER
         path = wallpaper or WALLPAPER
         if not os.path.isfile(path):
             return "No wallpaper set"
         try:
-            p = from_wallpaper(path, s["mode"], s["type"])
+            p = from_wallpaper(path, s["mode"], s["type"], s["pick"])
         except RuntimeError as e:
             return f"Could not read colours from the wallpaper: {e}"
         s["wallpaper"] = path

@@ -131,6 +131,8 @@ STYLES = (("scheme-tonal-spot", "Tonal spot (default)"), ("scheme-content", "Con
           ("scheme-expressive", "Expressive"), ("scheme-vibrant", "Vibrant"), ("scheme-neutral", "Neutral"),
           ("scheme-monochrome", "Monochrome"), ("scheme-fidelity", "Fidelity"), ("scheme-rainbow", "Rainbow"),
           ("scheme-fruit-salad", "Fruit salad"))
+PICKS = (("colourful", "Most colourful"), ("0", "Most of the image"), ("1", "Colour 2"), ("2", "Colour 3"),
+         ("3", "Colour 4"))
 SWATCHES = (("bg", "Background"), ("surface", "Surface"), ("accent", "Accent"), ("accent2", "Second accent"),
             ("ok", "Good"), ("warn", "Warning"), ("bad", "Error"), ("fg", "Text"))
 
@@ -158,6 +160,33 @@ def swatches():
         area.connect("draw", draw)
         watch(area, recolour)
         box.pack_start(area, False, False, 0)
+    return box
+
+
+def candidate_strip(colors, active, cb):
+    """The wallpaper's candidate colours (matugen, most of the image first) as buttons; click = take it."""
+    box = Gtk.Box(spacing=6)
+    for i, hexc in enumerate(colors):
+        b = Gtk.Button()
+        b.set_relief(Gtk.ReliefStyle.NONE)
+        b.set_tooltip_text(f"Colour {i + 1}  {hexc}" + ("  (most of the image)" if i == 0 else ""))
+        area = Gtk.DrawingArea()
+        area.set_size_request(26, 26)
+        col = tuple(int(hexc[j:j + 2], 16) / 255 for j in (1, 3, 5))
+
+        def draw(w, cr, col=col, on=(str(i) == active)):
+            a = w.get_allocation()
+            cr.set_source_rgb(*rgb("accent" if on else "muted"))  # outline; the chosen one in the accent
+            cr.rectangle(0, 0, a.width, a.height)
+            cr.fill()
+            pad = 3 if on else 1
+            cr.set_source_rgb(*col)
+            cr.rectangle(pad, pad, a.width - 2 * pad, a.height - 2 * pad)
+            cr.fill()
+        area.connect("draw", draw)
+        b.add(area)
+        b.connect("clicked", lambda _b, i=i: cb(str(i)))
+        box.pack_start(b, False, False, 0)
     return box
 
 
@@ -281,6 +310,21 @@ class AppearancePage(HyprPage):
             style = combo(STYLES, s["type"], lambda v: self.set_theme("wallpaper", scheme_type=v))
             controls.append(self.row("Mode", mode))
             controls.append(self.row("Style", style, hint="How matugen builds the palette from the image"))
+            pick = combo(PICKS, s["pick"], lambda v: self.set_theme("wallpaper", pick=v))
+            strip = Gtk.Box(spacing=8)
+            strip.pack_start(pick, False, False, 0)
+            controls.append(self.row("Colour from", strip,
+                                     hint="Most colourful picks small bright details (sunlit rock, leaves); "
+                                          "Most of the image follows the big areas (sky, sea). Or click a colour"))
+
+            def got(colors, strip=strip, active=s["pick"]):
+                if isinstance(colors, list) and colors and strip.get_parent() is not None:
+                    w = candidate_strip(colors, active, lambda v: self.set_theme("wallpaper", pick=v))
+                    w.set_sensitive(not self.theming)
+                    strip.pack_start(w, False, False, 0)
+                    strip.show_all()
+                return False
+            background(wp.candidates, got)
         self.row("Palette", swatches(), hint="Hover a colour for its name")
         controls.append(self.row("Font", combo([(n, n) for n in theme.fonts()], theme.font(), self.set_font),
                                  hint="Bar, menus, notifications, lock screen, these panels and the terminals "
@@ -329,15 +373,15 @@ class AppearancePage(HyprPage):
         self.show_status(note, "bad" if note and note.startswith(("Could not", "Error")) else "dim")
         return False
 
-    def set_theme(self, source, mode=None, scheme_type=None):
+    def set_theme(self, source, mode=None, scheme_type=None, pick=None):
         if self.theming:  # one at a time: two set_source() calls would race on the store and files
-            self.queued = (source, mode, scheme_type)
+            self.queued = (source, mode, scheme_type, pick)
             return
         self.theming = True
         self.show_status("Reading colours from the wallpaper…" if source == "wallpaper" else "Applying theme…",
                          "dim")
         # via fw13.wallpaper: colours from the original picture, not the desktop image with its effect
-        background(lambda: wp.set_theme(source, mode=mode, scheme_type=scheme_type), self.theme_set)
+        background(lambda: wp.set_theme(source, mode=mode, scheme_type=scheme_type, pick=pick), self.theme_set)
         GLib.idle_add(self.refresh_if_open)  # grey out the controls (not from inside their own signal)
 
     def set_font(self, name):
@@ -524,7 +568,7 @@ class AppearancePage(HyprPage):
         def work():
             store.set(theme.FONT, theme.DEFAULT_FONT)  # written with the theme files just below
             errs = [e for e in (hs.reset(), wp.set_theme("tokyo-night", mode="dark",
-                                                         scheme_type=theme.DEFAULT_TYPE)) if e]
+                                                         scheme_type=theme.DEFAULT_TYPE, pick="colourful")) if e]
             return "; ".join(errs) or None
 
         background(work, self.written_reset)

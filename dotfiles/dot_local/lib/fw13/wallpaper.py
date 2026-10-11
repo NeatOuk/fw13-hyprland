@@ -434,7 +434,7 @@ def _theme_from(src, base=None, apply=True):
     except (OSError, ValueError) as e:
         return f"Could not read colours from the wallpaper: {e}"
     try:
-        p = _theme.from_wallpaper(tmp, s["mode"], s["type"])
+        p = _theme.from_wallpaper(tmp, s["mode"], s["type"], s["pick"])
     except RuntimeError as e:
         return f"Could not read colours from the wallpaper: {e}"
     finally:
@@ -524,19 +524,19 @@ def set_effects(desktop=None, lock=None, restart=True):
     return None
 
 
-def set_theme(source, mode=None, scheme_type=None):
+def set_theme(source, mode=None, scheme_type=None, pick=None):
     """theme.set_source(), but colours come from (a small copy of) the original wallpaper, not the desktop image
     with its effect. Falls back to ~/.config/hypr/wallpaper.jpg when no original is known."""
     with _lock:  # a wallpaper set() running meanwhile would overwrite the theme entry with its own palette
         src = current()
         if source != "wallpaper" or not src:
-            return _theme.set_source(source, mode=mode, scheme_type=scheme_type)
+            return _theme.set_source(source, mode=mode, scheme_type=scheme_type, pick=pick)
         try:
             tmp = _palette_copy(src)
         except (OSError, ValueError) as e:
             return f"Could not read colours from the wallpaper: {e}"
         try:
-            err = _theme.set_source(source, mode=mode, scheme_type=scheme_type, wallpaper=tmp)
+            err = _theme.set_source(source, mode=mode, scheme_type=scheme_type, wallpaper=tmp, pick=pick)
         finally:
             os.unlink(tmp)
         if not err:  # remember the original, not the temp copy
@@ -548,6 +548,28 @@ def set_theme(source, mode=None, scheme_type=None):
                 except OSError:
                     pass
         return err
+
+
+_candidates = {}  # (path, mtime) → source_colors(); matugen takes ~1 s
+
+
+def candidates(src=None):
+    """matugen's candidate source colours of the current (or given) original wallpaper, cached."""
+    src = src or current()
+    try:
+        key = (src, os.path.getmtime(src))
+    except (OSError, TypeError):
+        return []
+    if key not in _candidates:
+        try:
+            tmp = _palette_copy(src)
+        except (OSError, ValueError):
+            return []
+        try:
+            _candidates[key] = _theme.source_colors(tmp)
+        finally:
+            os.unlink(tmp)
+    return _candidates[key]
 
 
 def init():
