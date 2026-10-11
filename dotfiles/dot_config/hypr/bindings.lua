@@ -3,7 +3,7 @@ local term    = "uwsm app -- fw-term"  -- kitty or Ghostty, Settings → My Fram
 local browser = "uwsm app -- chromium-browser"
 local files   = "uwsm app -- thunar"
 local editor  = "uwsm app -- code"
-local menu    = [[fuzzel --lines 20 --launch-prefix="uwsm app -- "]]  -- 20 apps tall
+local menu    = [[fw-launcher --launch-prefix="uwsm app -- "]]  -- fuzzel, ~80 % of the screen tall
 
 local exec = hl.dsp.exec_cmd
 

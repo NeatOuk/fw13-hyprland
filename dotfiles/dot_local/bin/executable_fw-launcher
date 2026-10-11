@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# App launcher (SUPER+Space, the bar's gear): fuzzel about 80 % of the focused screen tall. fuzzel only takes a line
+# count, so it is worked out from that screen's logical height and fuzzel's row height there, and fuzzel is put on
+# that screen. Extra arguments go to fuzzel.
+set -euo pipefail
+read -r out h row < <(hyprctl -j monitors | python3 -c '
+import json, sys
+m = next((m for m in json.load(sys.stdin) if m["focused"]), None)
+# shortcut: row heights measured at the theme font size 12 (~22.4 logical px on the scaled eDP, 17.2 on scale-1
+# monitors, prompt + padding ~30 px); a different font size makes the list a little shorter or taller than 80 %
+print(m["name"], int(m["height"] / m["scale"]), 224 if m["scale"] > 1 else 172) if m else print("", 1080, 172)' 2>/dev/null \
+  || echo " 1080 172")
+lines=$(( (h * 8 / 10 - 30) * 10 / row ))  # row in tenths of a px
+(( lines < 10 )) && lines=10
+exec fuzzel ${out:+--output "$out"} --lines "$lines" "$@"
