@@ -11,6 +11,9 @@ qalculate
 RemoteDesktopManager
 # Fedora official: Secret Service for RDM's saved passwords (libsecret); Workstation has it, Minimal does not
 gnome-keyring
+# Fedora official (user decision): SSH agent (gcr-ssh-agent; moved out of gnome-keyring): keys unlock once, passphrase in the
+# login keyring; started from uwsm/env-hyprland, Settings → Security → SSH keys. Workstation has it, Minimal does not
+gcr
 # Fedora official (user decision): IPsec VPN client for the FortiGate (IKEv2, PSK + EAP user/password);
 # connections in /etc/strongswan/swanctl/conf.d (Settings → Network → VPN form, fw-vpn-config), started with swanctl (NetworkManager's plugins can't do PSK + EAP)
 strongswan
