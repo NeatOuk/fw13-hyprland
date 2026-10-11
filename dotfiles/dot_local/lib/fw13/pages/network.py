@@ -12,8 +12,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 from .. import bar as waybar, net, vpn  # noqa: E402
 from ..ui_theme import button  # noqa: E402
 from . import vpn_edit  # noqa: E402
-from .common import Page, label, launch, wrap  # noqa: E402
-from .system import bg  # noqa: E402
+from .common import Page, bg, label, launch, wrap  # noqa: E402
 
 VPN_POLICY = "/usr/share/polkit-1/actions/org.fw13.vpn.policy"
 WIFI_ICON, LOCK_ICON, ETH_ICON, VPN_ICON = "", "", "", ""

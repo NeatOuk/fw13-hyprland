@@ -17,8 +17,7 @@ from gi.repository import Gtk  # noqa: E402
 
 from .. import health, notify, setup, system  # noqa: E402
 from ..ui_theme import button  # noqa: E402
-from .common import Page, label, launch  # noqa: E402
-from .system import bg  # noqa: E402
+from .common import Page, bg, label, launch  # noqa: E402
 
 UNLOCK = (("password", "Password only"), ("tpm-pin", "TPM + PIN"), ("tpm", "TPM automatic"))
 REMOVE_SH = 'read -rp "Delete every enrolled finger? [y/N] " a; [[ $a == [yY]* ]] && fprintd-delete "$USER"'

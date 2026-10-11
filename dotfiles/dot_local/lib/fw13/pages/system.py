@@ -1,6 +1,5 @@
 """System: date & time, time zone, device name, weather (bar), software updates (dnf), firmware updates (fwupd), About this laptop."""
 import os
-import threading
 
 import gi
 
@@ -9,22 +8,11 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 from .. import store, system, timezone, weather  # noqa: E402
-from .common import Page, label, launch  # noqa: E402
+from .common import Page, bg, label, launch  # noqa: E402
 
 BUSY_NOTE = {"tz": "Setting the time zone…", "ntp": "Changing time sync…", "host": "Saving…",
              "weather": "Looking up the city…"}
 UNITS = (("c", "°C"), ("f", "°F"))
-
-
-def bg(fn, done, *args, fail=lambda e: (False, str(e))):
-    """Run fn(*args) in a worker thread, then done(result) on the GTK main loop; done(fail(exc)) if it raises."""
-    def work():
-        try:
-            res = fn(*args)
-        except Exception as e:  # noqa: BLE001 — the UI must always get an answer
-            res = fail(e)
-        GLib.idle_add(done, res)
-    threading.Thread(target=work, daemon=True).start()
 
 
 def _load_state():

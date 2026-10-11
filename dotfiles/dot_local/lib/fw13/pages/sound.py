@@ -6,8 +6,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
 from .. import sound, speakers, store  # noqa: E402
-from .common import Page, label  # noqa: E402
-from .system import bg  # noqa: E402
+from .common import Page, bg, label  # noqa: E402
 
 
 class SoundPage(Page):

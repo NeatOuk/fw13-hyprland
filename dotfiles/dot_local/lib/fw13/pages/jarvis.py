@@ -7,8 +7,7 @@ from gi.repository import Gtk  # noqa: E402
 
 from .. import agents, jarvis, ollama, store  # noqa: E402
 from ..ui_theme import button, label  # noqa: E402
-from .common import Page, launch  # noqa: E402
-from .system import bg  # noqa: E402
+from .common import Page, bg, launch  # noqa: E402
 
 
 class JarvisPage(Page):

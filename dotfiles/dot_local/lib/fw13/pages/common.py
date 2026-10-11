@@ -1,10 +1,11 @@
 """Small building blocks for fw-settings pages."""
 import subprocess
+import threading
 
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import GLib, Gtk, Pango  # noqa: E402
+from gi.repository import Gio, GLib, Gtk, Pango  # noqa: E402
 
 from ..ui_theme import label  # noqa: E402,F401  (re-export for pages)
 
@@ -14,6 +15,44 @@ def wrap(lbl):
     lbl.set_line_wrap(True)
     lbl.set_line_wrap_mode(Pango.WrapMode.WORD)
     return lbl
+
+
+def bg(fn, done, *args, fail=lambda e: (False, str(e))):
+    """Run fn(*args) in a worker thread, then done(result) on the GTK main loop; done(fail(exc)) if it raises."""
+    def work():
+        try:
+            res = fn(*args)
+        except Exception as e:  # noqa: BLE001 — the UI must always get an answer
+            res = fail(e)
+        GLib.idle_add(done, res)
+    threading.Thread(target=work, daemon=True).start()
+
+
+def background(work, done):
+    """Run work() in a thread, then done(result) on the GTK main loop.
+
+    The app is held until done() ran, and the thread is not a daemon: closing the window never cuts a save short.
+    An exception in work() reaches done() as an error string.
+    """
+    app = Gio.Application.get_default()
+    if app:
+        app.hold()
+
+    def finish(result):
+        try:
+            done(result)
+        finally:
+            if app:
+                app.release()
+        return False
+
+    def run():
+        try:
+            result = work()
+        except Exception as e:  # noqa: BLE001 — shown on the page instead of a silently dead thread
+            result = f"Error: {e}"
+        GLib.idle_add(finish, result)
+    threading.Thread(target=run).start()
 
 
 NARROW = 620  # page width (px) below which rows put their control under the text (Settings at half a screen)

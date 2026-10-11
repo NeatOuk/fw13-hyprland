@@ -13,41 +13,14 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
-from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 from .. import hyprsettings as hs  # noqa: E402
 from .. import store  # noqa: E402
 from .. import theme  # noqa: E402
 from .. import wallpaper as wp  # noqa: E402
 from ..ui_theme import button, current, rgb, sync, watch  # noqa: E402
-from .common import Page, label, launch  # noqa: E402
-
-
-def background(work, done):
-    """Run work() in a thread, then done(result) on the GTK main loop.
-
-    The app is held until done() ran, and the thread is not a daemon: closing the window never cuts a save short.
-    An exception in work() reaches done() as an error string.
-    """
-    app = Gio.Application.get_default()
-    if app:
-        app.hold()
-
-    def finish(result):
-        try:
-            done(result)
-        finally:
-            if app:
-                app.release()
-        return False
-
-    def run():
-        try:
-            result = work()
-        except Exception as e:  # noqa: BLE001 — shown on the page instead of a silently dead thread
-            result = f"Error: {e}"
-        GLib.idle_add(finish, result)
-    threading.Thread(target=run).start()
+from .common import Page, background, label, launch  # noqa: E402
 
 
 class HyprPage(Page):

@@ -7,8 +7,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 from .. import nightlight as nl  # noqa: E402
 from .. import store  # noqa: E402
 from ..ui_display import DisplayEditor  # noqa: E402
-from .common import Page, label  # noqa: E402
-from .system import bg  # noqa: E402
+from .common import Page, bg, label  # noqa: E402
 
 
 class DisplayPage(Page):

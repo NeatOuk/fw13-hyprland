@@ -16,9 +16,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 from .. import setup, store, terminal  # noqa: E402
 from ..ui_theme import button  # noqa: E402
 from . import framework  # noqa: E402
-from .appearance import background  # noqa: E402
-from .common import Page, label, launch, wrap  # noqa: E402
-from .system import bg  # noqa: E402
+from .common import Page, background, bg, label, launch, wrap  # noqa: E402
 
 OK_DOT = "●"
 # Typed into a bash -c of the restore terminal (no secrets: the env file is sourced, never put in argv).

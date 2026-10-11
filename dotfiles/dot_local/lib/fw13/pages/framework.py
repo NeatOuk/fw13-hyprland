@@ -13,8 +13,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from .common import label, launch  # noqa: E402
-from .system import bg  # noqa: E402
+from .common import bg, label, launch  # noqa: E402
 
 TOOL = "framework_tool"
 KBD_LED = "chromeos::kbd_backlight"
