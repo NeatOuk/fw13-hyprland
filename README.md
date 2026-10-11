@@ -2,6 +2,20 @@
 
 A Hyprland desktop installer made for one machine: the **Framework Laptop 13 (AMD Ryzen AI 300, tested on the HX 370)** running **Fedora 44 or newer**. It adds a tuned Hyprland session on top of your Fedora install and removes nothing.
 
+## Screenshots
+
+![Bar: launcher and workspace dots, keep-awake, profile, clock, weather, tray and status icons](docs/screenshots/bar.png)
+
+| Settings → Appearance | Settings → Power |
+|---|---|
+| ![Settings, Appearance page: theme from the wallpaper, palette, wallpaper gallery](docs/screenshots/settings-appearance.png) | ![Settings, Power page: battery, charge limit, power profile, tuning](docs/screenshots/settings-power.png) |
+
+| Jarvis (SUPER+A) | Shortcut cheat sheet (SUPER+K) |
+|---|---|
+| ![Jarvis panel with starter questions](docs/screenshots/jarvis.png) | ![Searchable list of keyboard shortcuts](docs/screenshots/shortcuts.png) |
+
+![Lock screen styled like the tuigreet text login](docs/screenshots/lock.png)
+
 ## Supported
 
 | | Status |
