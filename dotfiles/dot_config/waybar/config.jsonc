@@ -4,11 +4,13 @@
   "position": "top",
   "height": 26,
   "spacing": 0,
-  "modules-left": ["custom/menu", "custom/ws1", "custom/ws2", "custom/ws3", "custom/ws4", "custom/ws5", "custom/ws6", "custom/ws7", "custom/ws8", "custom/ws9"],
+  "modules-left": ["custom/menu", "custom/app", "custom/ws1", "custom/ws2", "custom/ws3", "custom/ws4", "custom/ws5", "custom/ws6", "custom/ws7", "custom/ws8", "custom/ws9"],
   "modules-center": ["custom/caffeine", "custom/profile", "clock", "custom/weather", "custom/recording"],
   "modules-right": ["tray", "bluetooth", "network", "custom/warp", "custom/vpn", "pulseaudio", "custom/display", "custom/claude", "custom/opencode", "cpu", "battery", "custom/notifications", "custom/control", "custom/power"],
 
   "custom/menu": { "format": " ", "on-click": "fw-menu-anchor launcher >/dev/null && fw-launcher --anchor top-left --keyboard-focus=on-demand --no-exit-on-keyboard-focus-loss --launch-prefix='uwsm app -- '", "on-click-right": "uwsm app -- fw-term", "tooltip": false },
+  // Focused app's name (fw-active-app: Hyprland events → launcher name; hidden on an empty workspace)
+  "custom/app": { "exec": "fw-active-app", "return-type": "json", "max-length": 32, "escape": true },
   // Workspace dots for THIS bar's screen (fw-workspaces). Waybar's own hyprland/workspaces click sends a
   // hyprlang dispatch that the Lua Hyprland config rejects (fixed in waybar git, not released yet).
   "custom/ws1": { "exec": "fw-workspaces dot 1", "return-type": "json", "interval": "once", "signal": 10, "on-click": "fw-workspaces click 1" },

@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""Bar: the focused app's name next to the launcher gear (custom/app, a long-running waybar exec).
+
+Listens to Hyprland's event socket (activewindow>>class,title) and prints one waybar JSON line per change: the app's
+launcher name (desktop entry whose StartupWMClass or id matches the window class, e.g. chromium-browser →
+"Chromium Web Browser"), else the class tidied up; empty (hidden) on an empty workspace. Tooltip = window title.
+  fw-active-app test   self-check
+"""
+import json
+import os
+import socket
+import sys
+
+sys.path.insert(0, os.path.expanduser("~/.local/lib"))
+
+from fw13 import apps  # noqa: E402
+
+
+def names():
+    """{lower-case window class or desktop id stem: Name} from the launcher's entries."""
+    out = {}
+    for did, _path, keys in apps.launcher_entries():
+        name = keys.get("Name")
+        if not name:
+            continue
+        stem = did[:-len(".desktop")].lower()
+        out.setdefault(stem, name)
+        out.setdefault(stem.rsplit(".", 1)[-1], name)  # org.telegram.desktop → "desktop" is harmless; com.mitchellh.ghostty → ghostty
+        if keys.get("StartupWMClass"):
+            out[keys["StartupWMClass"].lower()] = name
+    return out
+
+
+def label(cls, table):
+    if not cls:
+        return ""
+    c = cls.lower()
+    return table.get(c) or table.get(c.rsplit(".", 1)[-1]) or cls.rsplit(".", 1)[-1].replace("-", " ").title()
+
+
+def emit(cls, title, table):
+    text = label(cls, table)
+    print(json.dumps({"text": text, "tooltip": title or text, "class": "app" if text else "empty"}), flush=True)
+
+
+def main():
+    if sys.argv[1:] == ["test"]:
+        t = {"chromium-browser": "Chromium Web Browser", "ghostty": "Ghostty", "code": "Visual Studio Code"}
+        assert label("chromium-browser", t) == "Chromium Web Browser"
+        assert label("com.mitchellh.ghostty", t) == "Ghostty"
+        assert label("fw13.btop", t) == "Btop"
+        assert label("", t) == ""
+        print("ok")
+        return 0
+    table = names()
+    sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
+    path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "hypr", sig, ".socket2.sock")
+    try:
+        from fw13.hypr import hj
+        w = hj("activewindow") or {}
+        emit(w.get("class", ""), w.get("title", ""), table)
+    except Exception:  # noqa: BLE001 — the first line is a nicety; events follow anyway
+        emit("", "", table)
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.connect(path)
+    buf = b""
+    while True:
+        chunk = s.recv(4096)
+        if not chunk:
+            return 1  # Hyprland went away: waybar restarts us with the session
+        buf += chunk
+        *lines, buf = buf.split(b"\n")
+        for line in lines:
+            ev, _, data = line.decode(errors="replace").partition(">>")
+            if ev == "activewindow":
+                cls, _, title = data.partition(",")
+                emit(cls, title, table)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -37,3 +37,4 @@ tooltip { background: @bg; border: 1px solid @accent; }
 #custom-profile.focus, #custom-profile.zen { color: @accent; }
 /* Weather: last cached value dimmed when offline */
 #custom-weather.stale { color: @muted; }
+#custom-app { padding: 0 10px 0 2px; color: @fg; }
