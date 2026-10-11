@@ -174,8 +174,8 @@ print_plan() {
   on messaging && ! skipped telegram-desktop-official && echo "  build telegram-desktop-official RPM"
   on ghostty && ! skipped ghostty-official && echo "  build ghostty-official $GHOSTTY_VERSION RPM"
   echo "  framework_tool $FWTOOL_VERSION download (if not current)"
-  on android && echo "  scrcpy $SCRCPY_VERSION download into /opt/scrcpy (if not current)"
-  on ai && echo "  enable ollama.service"
+  on android && ! skipped android-tools && echo "  scrcpy $SCRCPY_VERSION download into /opt/scrcpy (if not current)"
+  on ai && ! skipped ollama && echo "  enable ollama.service"
   on warp && ! skipped cloudflare-warp && echo "  enable warp-svc.service"
   on localsend && ! skipped org.localsend.localsend_app && echo "  flatpak install --user LocalSend"
   echo "saved choice: $GROUPS_FILE ($([[ -r $GROUPS_FILE ]] && echo "$(grep -vc '^\s*\(#\|$\)' "$GROUPS_FILE" || true) groups" || echo "absent = all"))"
@@ -389,7 +389,7 @@ system_phase() {
       && echo "$FWTOOL_SHA256  $fwt" | sha256sum -c --status || { rm -f "$fwt"; die "framework_tool download failed or checksum mismatch"; }
     $SUDO install -m 0755 "$fwt" /usr/local/bin/framework_tool; rm -f "$fwt"
   fi
-  if on android && [[ $(cat /opt/scrcpy/.version 2>/dev/null) != "$SCRCPY_VERSION" ]]; then
+  if on android && ! skipped android-tools && [[ $(cat /opt/scrcpy/.version 2>/dev/null) != "$SCRCPY_VERSION" ]]; then
     say "scrcpy $SCRCPY_VERSION (Android screen mirroring, official release)"
     local sct; sct="$(mktemp -d)"
     curl -fsSL -o "$sct/s.tgz" "https://github.com/Genymobile/scrcpy/releases/download/$SCRCPY_VERSION/scrcpy-linux-x86_64-$SCRCPY_VERSION.tar.gz" \
@@ -468,7 +468,7 @@ EOF
     has_ppd || $SUDO systemctl enable --now tuned.service
     $SUDO systemctl enable --now fw-power-profile.service  # performance on AC, balanced on battery (+ udev rule)
     $SUDO systemctl enable fw-charge-limit.service  # Settings' charge limit into the Framework EC at boot (+ udev rule)
-    if on ai; then $SUDO systemctl enable --now ollama.service; fi   # local models for OpenCode (fw-opencode)
+    if on ai && ! skipped ollama; then $SUDO systemctl enable --now ollama.service; fi   # local models for OpenCode (fw-opencode)
     if on warp && ! skipped cloudflare-warp; then $SUDO systemctl enable --now warp-svc.service; fi  # Cloudflare WARP daemon; register/connect from the bar panel
   fi
 

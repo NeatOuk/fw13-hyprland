@@ -33,7 +33,12 @@ OPTIONAL = {
     "cloudflare-warp": ((), "the bar's cloud icon hides itself"),
     "easyeffects": (("lsp-plugins-lv2", "lv2-calf-plugins"), "Settings → Sound loses Speaker sound"),
     "org.localsend.localsend_app": ((), ""),
+    # no launcher entry: listed by entryless() when installed
+    "ollama": ((), "removing it stops and disables ollama.service; Jarvis' offline fallback and the laptop's OpenCode "
+                    "server go with it; downloaded models stay in /var/lib/ollama (sudo rm -rf it to free the space)"),
+    "android-tools": ((), "scrcpy (installed by the installer) needs its adb and stops working"),
 }
+NAMES = {"ollama": "Ollama (local AI models)", "android-tools": "adb and fastboot (Android tools)"}  # entryless rows
 OPTIONAL_LC = {k.lower(): k for k in OPTIONAL}  # rpm names come back as packaged; dnf matches case-insensitively
 SKIP_FILE = os.path.join(HOME, ".config/fw13/skip-packages")
 GNOME_NEEDS = {"gnome-software", "nautilus", "gnome-control-center", "ptyxis", "loupe", "papers",
@@ -208,6 +213,14 @@ def classify(entries, owners, fps, ours):
     return apps
 
 
+def entryless(apps, have):
+    """Rows for the installed OPTIONAL packages (`have`) that no launcher entry showed, e.g. ollama, android-tools."""
+    shown = {(a.get("package") or "").lower() for a in apps}
+    return [{"id": k, "name": NAMES.get(k, k), "icon": "", "package": k, "kind": "rpm", "installation": None,
+             "flatpak": None, "source": f"Package {k}", "protected": None, "optional": k}
+            for k in OPTIONAL if "." not in k and k in have and k.lower() not in shown]
+
+
 def needed_by(pkg):
     """Installed packages that require `pkg` directly (`rpm -e --test`: read-only, no root)."""
     try:
@@ -244,7 +257,8 @@ def installed():
     entries = launcher_entries()
     owners = rpm_owners([p for _d, p, _k in entries if "/flatpak/exports/" not in p])
     ours = installer_packages()
-    apps = guard_deps(classify(entries, owners, flatpaks(), ours), ours)
+    apps = classify(entries, owners, flatpaks(), ours)
+    apps = guard_deps(apps + entryless(apps, rpm_installed(sorted(k for k in OPTIONAL if "." not in k))), ours)
     have = rpm_installed(sorted({x for e, _n in OPTIONAL.values() for x in e}))
     return [{**a, "extras": [x for x in OPTIONAL[a["optional"]][0] if x in have]} if a.get("optional") else a
             for a in apps]
@@ -373,6 +387,11 @@ def test():
     assert classify(entries, {"/usr/share/applications/gimp.desktop": "Thunar"}, [], {"thunar"})[1]["protected"]
     assert "-y" not in sum((uninstall_argv(x) or [] for x in a.values()), [])
     test_optional(a)
+    bare = {x["id"]: x for x in entryless(list(a.values()), {"chromium", "ollama", "android-tools"})}
+    assert set(bare) == {"ollama", "android-tools"}, bare  # chromium has its launcher row already
+    assert bare["ollama"]["name"] == "Ollama (local AI models)" and bare["ollama"]["optional"] == "ollama"
+    assert uninstall_argv(bare["android-tools"])[:2] == ["bash", "-c"]
+    assert "sudo dnf remove ollama" in remove_all_script(list(bare.values()))
     real = installer_packages()
     assert {"chromium", "code"} <= real or not any(os.path.isdir(d) for d in PACKAGE_LISTS), "package lists not read"
     assert not any(w.startswith("#") for w in real)

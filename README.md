@@ -57,7 +57,7 @@ The core desktop (Hyprland, bar, login, fonts, theme, Framework tools, backup, c
 ./install.sh --print-plan --minimal      # show the packages and steps, change nothing
 ```
 
-`--yes` uses your saved choice (or all groups); `--ci` always installs everything. Leaving a group out never removes what's already installed, and never reinstalls it either (also not from **Removed apps**). To remove an app use Settings → Apps → Uninstall… for the apps listed there; Ollama and adb/fastboot with `sudo dnf remove ollama android-tools`, scrcpy by deleting `/opt/scrcpy`, `/usr/local/bin/scrcpy`, `/usr/local/share/applications/scrcpy.desktop` and `/usr/local/share/man/man1/scrcpy.1`.
+`--yes` uses your saved choice (or all groups); `--ci` always installs everything. Leaving a group out never removes what's already installed, and never reinstalls it either (also not from **Removed apps**). To remove an app use Settings → Apps → Uninstall… for the apps listed there (Ollama and adb/fastboot included); scrcpy by deleting `/opt/scrcpy`, `/usr/local/bin/scrcpy`, `/usr/local/share/applications/scrcpy.desktop` and `/usr/local/share/man/man1/scrcpy.1`.
 
 ## Fresh install on the Framework (Wi-Fi only)
 
