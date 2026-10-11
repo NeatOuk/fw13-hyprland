@@ -19,6 +19,8 @@ left alone. A default the user picks themselves (Thunar "Open With → Set as de
 import os
 import sys
 
+from .apps import parse_entry
+
 MARK = "X-FW13-Generated=true"
 HEAD = "# Written by fw13.defaultapps at Hyprland login (GNOME apps hidden in Hyprland only). Do not edit:"
 SYSTEM_DIRS = ["/usr/local/share/applications", "/usr/share/applications"]
@@ -67,14 +69,7 @@ def read(path):
 
 def entry_value(text, key):
     """Value of `key` in the [Desktop Entry] group (not Desktop Action groups)."""
-    group = None
-    for line in text.splitlines():
-        s = line.strip()
-        if s.startswith("["):
-            group = s
-        elif group == "[Desktop Entry]" and s.startswith(key + "="):
-            return s.split("=", 1)[1]
-    return None
+    return parse_entry(text).get(key)
 
 
 def ours(path):
