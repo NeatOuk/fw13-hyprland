@@ -136,7 +136,7 @@ def bar():
     st = load_state()
     active = st.get("active") or (servers()[0][0] if servers() else "none")
     model = st.get("model", {}).get(active, "no model chosen")
-    print(json.dumps({"text": "", "tooltip": f"{agents.name()} · {active} · {model}"}))
+    print(json.dumps({"text": "\uf120", "tooltip": f"{agents.name()} · {active} · {model}"}))
 
 
 def listing():
