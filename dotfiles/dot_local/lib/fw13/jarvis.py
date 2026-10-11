@@ -6,6 +6,7 @@ import re
 import subprocess
 import tempfile
 import time
+import urllib.error
 import urllib.request
 
 from . import agents as coding, store
@@ -85,6 +86,147 @@ def server_up(target):
 def fallback(targets):
     """The first (label, target) of the coding-agent ones whose server answers, or None."""
     return next(((lbl, t) for lbl, t in targets if t not in ("claude", "opencode") and server_up(t)), None)
+
+
+RISK = {"risk": ["safe", "risky", "destructive"]}  # the panel's action-card badge
+
+
+def check_laya_url(text):
+    """(value, error): '' is allowed (unset); anything else is http(s)://host[:port], trailing '/' stripped."""
+    text = text.strip().rstrip("/")
+    if text and not coding.URL_RE.fullmatch(text):
+        return None, "The address is http(s)://host[:port], such as http://laya:8000"
+    return text, None
+
+
+def laya_on():
+    """Settings → Jarvis → Use Laya decision model (off unless switched on)."""
+    return store.get("jarvis_laya") is True
+
+
+def laya_url():
+    return check_laya_url(str(store.get("jarvis_laya_url") or ""))[0] or ""
+
+
+def laya_token():
+    """The Bearer token from GNOME Keyring (service=laya), '' without one. Never stored or logged anywhere else."""
+    try:
+        r = subprocess.run(["secret-tool", "lookup", "service", "laya"], capture_output=True, text=True, timeout=3)
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def laya_save_token(token):
+    """Error text or None. The token goes on stdin, never argv."""
+    try:
+        r = subprocess.run(["secret-tool", "store", "--label=Jarvis Laya token", "service", "laya"],
+                           input=token, capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return f"Couldn't save the token: {e}"
+    return None if r.returncode == 0 else "Couldn't save the token (is GNOME Keyring unlocked?)"
+
+
+def laya_clear_token():
+    try:
+        subprocess.run(["secret-tool", "clear", "service", "laya"], capture_output=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def _laya_post(url, token, text, schema, timeout):
+    """The reply restricted to the schema's fields; raises on HTTP errors, bad JSON or an off-schema answer."""
+    req = urllib.request.Request(url + "/classify", data=json.dumps({"text": text, "schema": schema}).encode(),
+                                 headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        reply = json.loads(r.read())
+    out = {k: reply[k] for k in schema}
+    if any(out[k] not in choices for k, choices in schema.items()):
+        raise ValueError("answer not in the schema")
+    return out
+
+
+def laya(text, schema, timeout=1.0):
+    """{field: choice} from the Laya classifier, or None on any failure (off, no URL/token, error, timeout,
+    off-schema answer): callers then behave exactly as without Laya. Advice only, never a gate."""
+    if not laya_on() or not laya_url():
+        return None
+    token = laya_token()
+    if not token:
+        return None
+    try:
+        return _laya_post(laya_url(), token, text, schema, timeout)
+    except Exception:  # noqa: BLE001 — any failure = no advice
+        return None
+
+
+def laya_test(url):
+    """Settings → Jarvis → Test: 'OK · N ms' / 'Unauthorized' / 'Unreachable' / 'Server error' / 'No token'."""
+    try:
+        with urllib.request.urlopen(url + "/health", timeout=3) as r:
+            if json.loads(r.read()).get("ok") is not True:
+                return "Server error"
+    except (urllib.error.HTTPError, ValueError, AttributeError):
+        return "Server error"
+    except OSError:
+        return "Unreachable"
+    token = laya_token()
+    if not token:
+        return "No token"
+    t = time.monotonic()
+    try:
+        _laya_post(url, token, "ls -l", RISK, 3)
+    except urllib.error.HTTPError as e:
+        return "Unauthorized" if e.code in (401, 403) else "Server error"
+    except OSError:
+        return "Unreachable"
+    except (ValueError, KeyError, TypeError):
+        return "Server error"
+    return f"OK · {int((time.monotonic() - t) * 1000)} ms"
+
+
+def _laya_selftest():
+    """laya() with HTTP and secret-tool mocked, in a throwaway store."""
+    import io
+    global laya_token
+    real_open, real_token, real_path = urllib.request.urlopen, laya_token, store.PATH
+    store.PATH = os.path.join(tempfile.mkdtemp(), "settings.json")
+    schema = RISK
+
+    def http(reply=b'{"risk": "safe"}', code=None, exc=None):
+        def fake(req, timeout):
+            if exc:
+                raise exc
+            if code:
+                raise urllib.error.HTTPError(req.full_url, code, "x", {}, None)
+            assert req.headers["Authorization"] == "Bearer t0k" and json.loads(req.data)["schema"] == schema
+            return io.BytesIO(reply)
+        urllib.request.urlopen = fake
+
+    try:
+        laya_token = lambda: "t0k"  # noqa: E731
+        http()
+        assert laya_on() is False and laya("ls", schema) is None  # off by default
+        store.set("jarvis_laya", True)
+        assert laya_on() is True and laya("ls", schema) is None  # no URL
+        store.set("jarvis_laya_url", "http://laya:8000")
+        assert laya("ls", schema) == {"risk": "safe"}
+        laya_token = lambda: ""  # noqa: E731
+        assert laya("ls", schema) is None  # no token
+        laya_token = lambda: "t0k"  # noqa: E731
+        for kw in ({"code": 401}, {"code": 500}, {"exc": TimeoutError()}, {"exc": urllib.error.URLError("down")},
+                   {"reply": b'{"risk": "maybe"}'}, {"reply": b'{"other": "safe"}'}, {"reply": b"not json"},
+                   {"reply": b'["safe"]'}):
+            http(**kw)
+            assert laya("ls", schema) is None, kw
+        store.set("jarvis_laya", False)
+        assert laya_on() is False
+    finally:
+        urllib.request.urlopen, laya_token, store.PATH = real_open, real_token, real_path
+    assert check_laya_url(" https://laya.lan:8000/ ") == ("https://laya.lan:8000", None)
+    assert check_laya_url("") == ("", None)
+    for bad in ("laya:8000", "ftp://laya", "http://laya/classify", "http://a b", "http://laya:8000?x"):
+        assert check_laya_url(bad)[1], bad
 
 
 def check_note(text):
@@ -299,6 +441,7 @@ def selftest():
     assert online()
     assert not server_up("no-such-provider/model") and fallback([("Claude", "claude")]) is None
     print(f"fallback: {fallback(agents())}")
+    _laya_selftest()
     print(f"fw13.jarvis: self-check OK ({took:.2f} s)")
 
 

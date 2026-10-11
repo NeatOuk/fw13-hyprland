@@ -48,6 +48,7 @@ BOTTOM_GAP = 20    # space left under the panel
 MIN_ANSWER = 80    # the answer keeps at least this much, even when a card fills the rest
 OUTPUT_MAX = 160   # a Run card's command output scrolls past this
 SELECTION_MAX = 20000
+RISK_CLASS = {"safe": "ok", "risky": "warn", "destructive": "bad"}  # Laya's badge colour per jcfg.RISK answer
 
 # What the inline agent may do without asking (one-shot mode can't ask): read anywhere (--add-dir /) except the
 # secret files below, search, and read-only commands, including a few read-only ones as root through passwordless
@@ -706,6 +707,8 @@ class Panel(Gtk.Window):
                 val.set_markup(f"<tt>{GLib.markup_escape_text(v)}</tt>")
             grid.attach(val, 1, i, 1, 1)
         card.pack_start(grid, False, False, 0)
+        threading.Thread(target=lambda: GLib.idle_add(self.risk_badge, card, jcfg.laya(a["command"], jcfg.RISK)),
+                         daemon=True).start()
         notes = []
         if a["root"]:
             notes.append("Runs as root: asks you to authenticate (password or fingerprint).")
@@ -735,6 +738,16 @@ class Panel(Gtk.Window):
         card.show_all()        # the output stays hidden (no_show_all) until there is some
         self.card_box.show()   # show_all() does nothing on a no_show_all widget, so show it directly
         self.fit()
+
+    def risk_badge(self, card, res):
+        """Laya's rating under What/Why/How (Settings → Jarvis). Advice only: the card never waits for it."""
+        if res and card.get_parent() is self.card_box:  # still the card on screen
+            w = label(f"Laya: {res['risk']}", RISK_CLASS[res["risk"]], xalign=0)
+            card.pack_start(w, False, False, 0)
+            card.reorder_child(w, 2)  # after the title and the grid
+            w.show()
+            self.fit()
+        return False
 
     def settings_card(self, card, a):
         """A setting to change by hand: only a button that opens that Settings page, nothing runs."""
@@ -872,6 +885,7 @@ def selftest():
     assert parse_remember(note.format('"just text"')) is None
     assert UNREACHABLE_RE.search("API Error: Connection error.") and UNREACHABLE_RE.search("Please run /login")
     assert not UNREACHABLE_RE.search("Error: max turns reached")
+    assert sorted(RISK_CLASS) == sorted(jcfg.RISK["risk"])
     print("fw-jarvis-panel: self-check OK")
     return 0
 

@@ -49,6 +49,7 @@ class JarvisPage(Page):
                  hint=(f"Without internet, or when Claude can't be reached, the panel answers with {others[0]} "
                        f"(the first server that answers, through {agents.name()})") if others else
                  "No Ollama server with a model yet: add one in Settings → Coding agent")
+        self.laya_section()
         self.heading("Local models (Ollama)")
         self.local = self.add_widget(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8))
         name = Gtk.Entry(placeholder_text="e.g. qwen3:8b", width_chars=22)
@@ -66,6 +67,64 @@ class JarvisPage(Page):
         self.add_widget(button("Open file", self.open_memory)).set_halign(Gtk.Align.START)
         self.fill_memory()
         self.show_all()
+
+    def laya_section(self):
+        self.heading("Laya decision model")
+        sw = Gtk.Switch(active=jarvis.laya_on())
+        sw.connect("notify::active", lambda w, _p: self.save("jarvis_laya", w.get_active()))
+        self.row("Use Laya decision model", sw, hint="A self-hosted classifier rates each action card safe, risky or "
+                 "destructive. Advice only: nothing runs without your Run click")
+        self.laya_url = Gtk.Entry(text=jarvis.laya_url(), placeholder_text="http://host:port", width_chars=22)
+        self.laya_url.connect("activate", lambda _e: self.apply_laya_url())
+        box = Gtk.Box(spacing=8)
+        box.pack_start(self.laya_url, False, False, 0)
+        box.pack_start(button("Apply", self.apply_laya_url), False, False, 0)
+        self.laya_result = label("", "dim")
+        box.pack_start(button("Test", self.test_laya), False, False, 0)
+        box.pack_start(self.laya_result, False, False, 0)
+        self.row("Laya server URL", box, hint="http(s)://host[:port]; Test checks /health and one classification")
+        self.laya_token = Gtk.Entry(visibility=False, placeholder_text="Paste token", width_chars=22)
+        self.laya_token.connect("activate", lambda _e: self.save_laya_token())
+        self.token_state = label("", "dim")
+        box = Gtk.Box(spacing=8)
+        box.pack_start(self.laya_token, False, False, 0)
+        box.pack_start(button("Save", self.save_laya_token), False, False, 0)
+        box.pack_start(button("Remove", self.clear_laya_token), False, False, 0)
+        box.pack_start(self.token_state, False, False, 0)
+        self.row("Laya token", box, hint="Kept in GNOME Keyring (service laya), never shown or written to a file")
+        self.fill_token()
+
+    def fill_token(self):
+        bg(lambda: bool(jarvis.laya_token()),
+           lambda has: (self.token_state.set_text("Token saved" if has else "No token"), False)[1], fail=lambda e: False)
+
+    def apply_laya_url(self):
+        value, err = jarvis.check_laya_url(self.laya_url.get_text())
+        if err:
+            self.status.set_text(err)
+            return
+        self.laya_url.set_text(value)
+        self.save("jarvis_laya_url", value)
+
+    def test_laya(self):
+        value, err = jarvis.check_laya_url(self.laya_url.get_text())
+        if err or not value:
+            self.status.set_text(err or "Type the Laya server URL first")
+            return
+        self.laya_result.set_text("Testing…")
+        bg(jarvis.laya_test, lambda res: (self.laya_result.set_text(res), False)[1], value, fail=lambda e: "Unreachable")
+
+    def save_laya_token(self):
+        token = self.laya_token.get_text().strip()
+        if not token:
+            self.status.set_text("Paste the token first")
+            return
+        self.laya_token.set_text("")
+        bg(jarvis.laya_save_token, lambda err: (self.status.set_text(err or "Token saved"), self.fill_token(), False)[2],
+           token, fail=str)
+
+    def clear_laya_token(self):
+        bg(jarvis.laya_clear_token, lambda _r: (self.status.set_text("Token removed"), self.fill_token(), False)[2])
 
     def refresh(self):  # notes saved in the panel since the page was built; models pulled meanwhile
         self.fill_memory()
