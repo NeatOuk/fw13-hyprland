@@ -1,5 +1,7 @@
 """Jarvis: which Claude model and effort the panel (SUPER+A) and fw-jarvis sessions use, the Ollama fallback, the
 laptop's own Ollama models (fw13.ollama) and Jarvis's memory."""
+import shutil
+
 import gi
 
 gi.require_version("Gtk", "3.0")
@@ -76,8 +78,9 @@ class JarvisPage(Page):
         for c in self.local.get_children():
             self.local.remove(c)
         if not st["up"]:
-            self.local.pack_start(label("The Ollama service isn't running (sudo systemctl start ollama)", "warn",
-                                        wrap=True), False, False, 0)
+            msg = ("The Ollama service isn't running (sudo systemctl start ollama)" if shutil.which("ollama") else
+                   "Ollama isn't installed: re-run install.sh --with=ai (remote servers still work)")
+            self.local.pack_start(label(msg, "warn", wrap=True), False, False, 0)
         elif not st["models"]:
             self.local.pack_start(label("No models on this laptop yet", "dim"), False, False, 0)
         for m in st["models"]:
