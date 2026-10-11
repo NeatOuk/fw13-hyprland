@@ -1,6 +1,6 @@
 # Contributing / continuing development
 
-How to pick up work on fw13-hyprland. The full rules and file map are in [CLAUDE.md](CLAUDE.md); this is the quick start.
+How to pick up work on fw13-hyprland. The full rules are in [CLAUDE.md](CLAUDE.md), the component map in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); this is the quick start.
 
 ## Set up
 
@@ -58,7 +58,7 @@ Local dotfile edits are **not** what `chezmoi update` applies: it pulls the push
 ## Commits
 
 - One feature or fix per commit, conventional prefix: `feat(area):`, `fix(area):`, `chore:`, `docs:`.
-- Update README (user-facing) and CLAUDE.md (rules, layout) in the same change.
+- Update README (user-facing) and CLAUDE.md (rules) and docs/ARCHITECTURE.md (component details) in the same change.
 - Hardware-only behaviour (Framework 13 AMD) goes on the checklist in [docs/FIRST-INSTALL.md](docs/FIRST-INSTALL.md) until verified.
 
 ## Roadmap
