@@ -22,6 +22,7 @@ SYNONYMS = [
     ("input", "Touchpad", "", None, "touchpad trackpad mouse"),
     ("input", "Keyboard", "Keyboard shortcuts", "SUPER+K or SUPER+/ lists every shortcut",
      "hotkeys shortcuts keybindings keys"),
+    ("apps", "Installed apps", "", None, "uninstall remove delete software programs applications"),
 ]
 
 
@@ -69,7 +70,7 @@ def find(page, section, text):
 
 CASES = [("hibernate", "power"), ("night light", "display"), ("noise", "sound"), ("vpn", "network"),
          ("ssh", "security"), ("warn at", "power"), ("weather", "system"), ("colour from", "appearance"),
-         ("jarvis memory", "jarvis"), ("wifi", "network"), ("shortcuts", None)]
+         ("jarvis memory", "jarvis"), ("wifi", "network"), ("shortcuts", None), ("uninstall", "apps")]
 
 
 def test():

@@ -91,17 +91,24 @@ def set_hostname(name):
 
 # --- software updates --------------------------------------------------------
 
-def package_updates():
-    """(count, message); count None when the check failed. Read-only and offline: `dnf5 --cacheonly
-    check-upgrade` (exit 100 = updates) on the cache dnf-makecache.timer keeps fresh."""
+def package_upgrades():
+    """([(name, new version)], message); the list is None when the check failed. Read-only and offline: `dnf5
+    --cacheonly check-upgrade` (exit 100 = updates) on the cache dnf-makecache.timer keeps fresh."""
     rc, out, err = _run("dnf5", "-q", "--cacheonly", "check-upgrade", timeout=120)
     if rc == 0:
-        return 0, "Everything is up to date"
+        return [], "Everything is up to date"
     if rc != 100:
         return None, _err(rc, err, "Checking for updates")[1]
     # package lines are "name.arch  version  repo" at column 0; headers have one word, obsoleted lines are indented
-    n = sum(1 for line in out.splitlines() if line[:1].strip() and len(line.split()) == 3)
-    return n, f"{n} package update{'s' if n != 1 else ''}"
+    ups = [(p[0].rsplit(".", 1)[0], p[1]) for line in out.splitlines()
+           if line[:1].strip() and len(p := line.split()) == 3]
+    return ups, f"{len(ups)} package update{'s' if len(ups) != 1 else ''}"
+
+
+def package_updates():
+    """(count, message); count None when the check failed."""
+    ups, msg = package_upgrades()
+    return (None if ups is None else len(ups)), msg
 
 
 # --- firmware ----------------------------------------------------------------

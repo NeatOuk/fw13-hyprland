@@ -8,8 +8,8 @@
                        now. What fw-updates.timer runs.
   fw-updates run       open `fw-updates apply` in a terminal
   fw-updates apply     in a terminal: Timeshift snapshot (fw-timeshift-setup if Timeshift isn't set up yet; a failed
-                       snapshot stops here unless you type y), then dnf upgrade --refresh, flatpak update --user, and
-                       whether a reboot is needed; firmware is left to Settings → System → Firmware updates.
+                       snapshot stops here unless you type y), then dnf upgrade --refresh, flatpak update (user,
+                       and system when it has apps), and whether a reboot is needed; firmware is left to Settings → System → Firmware updates.
 State: ~/.local/state/fw13/updates.json
 """
 import json
@@ -137,6 +137,11 @@ def apply():
     if shutil.which("flatpak"):
         print("\n== flatpak update (user) ==")
         failed |= subprocess.run(["flatpak", "update", "--user", "-y"]).returncode != 0
+        system_apps = subprocess.run(["flatpak", "list", "--system", "--app", "--columns=application"],
+                                     capture_output=True, text=True).stdout.strip()
+        if system_apps:  # Workstation's Fedora/Flathub system apps; flatpak asks polkit
+            print("\n== flatpak update (system) ==")
+            failed |= subprocess.run(["flatpak", "update", "--system", "-y"]).returncode != 0
     rc = subprocess.run(["dnf5", "-q", "--disablerepo=*", "needs-restarting", "-r"], capture_output=True).returncode
     print("\nA reboot is needed to finish the update." if rc == 1 else "\nNo reboot needed.")
     fw = firmware()

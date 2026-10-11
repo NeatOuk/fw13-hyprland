@@ -13,5 +13,6 @@ PAGES = [
     ("jarvis",     "", "Jarvis",     "jarvis"),
     ("security",   "", "Security",   "security"),
     ("system",     "", "System",     "system"),
+    ("apps",       "\uf009", "Apps",       "apps"),
     ("fw13",       "", "My Framework", "fw13"),
 ]
