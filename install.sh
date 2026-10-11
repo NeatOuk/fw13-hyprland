@@ -124,7 +124,9 @@ choose_groups() {
     [[ " ${base[*]} ${add[*]} " == *" $g "* && " ${drop[*]} " != *" $g "* ]] && SELECTED+=("$g")
   done
   CHOSEN=("${SELECTED[@]}")
-  [[ $GHOSTTY == 0 ]] && mapfile -t SELECTED < <(printf '%s\n' "${SELECTED[@]}" | grep -vx ghostty)   # GHOSTTY=0: this run only
+  if [[ $GHOSTTY == 0 ]]; then   # GHOSTTY=0: this run only (a loop, not printf | grep: an empty list must stay empty)
+    SELECTED=(); for g in "${CHOSEN[@]}"; do [[ $g == ghostty ]] || SELECTED+=("$g"); done
+  fi
   return 0
 }
 save_groups() {
@@ -323,6 +325,7 @@ system_phase() {
   echo "optional groups: ${SELECTED[*]:-none (core only)}"
   local lists main gaming=() codecs
   mapfile -t lists < <(package_lists)
+  (( ${#lists[@]} )) || die "no package lists (package_lists failed)"   # pkgs with no files would read stdin
   mapfile -t main   < <(cd packages && pkgs "${lists[@]}")
   on games && mapfile -t gaming < <(cd packages && pkgs 40-gaming.txt)
   mapfile -t codecs < <(cd packages && pkgs 50-codecs.txt)
