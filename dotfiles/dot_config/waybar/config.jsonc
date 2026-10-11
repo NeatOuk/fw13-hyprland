@@ -77,7 +77,7 @@
   "cpu": { "format": "", "tooltip": true, "on-click": "uwsm app -- fw-term --class fw13.btop -e btop" },
   "battery": {
     "states": { "warning": 20, "critical": 10 },
-    "format": "{icon}",
+    "format": "{icon} {capacity}%",
     "format-charging": " {capacity}%",
     "format-icons": ["", "", "", "", ""],
     "tooltip-format": "{capacity}% · {timeTo} · {power:.1f} W",
