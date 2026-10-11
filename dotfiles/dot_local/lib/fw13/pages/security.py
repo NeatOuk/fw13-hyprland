@@ -15,7 +15,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk  # noqa: E402
 
-from .. import health, setup, system  # noqa: E402
+from .. import health, notify, setup, system  # noqa: E402
 from ..ui_theme import button  # noqa: E402
 from .common import Page, label, launch  # noqa: E402
 from .system import bg  # noqa: E402
@@ -34,13 +34,19 @@ def _fingerprints(text):
     return [f for line in text.splitlines() for f in line.split()[1:2] if f.startswith("SHA256:")]
 
 
+def ssh_sock():
+    """The agent ssh uses: the session's SSH_AUTH_SOCK (the user's own agent wins in env-hyprland), else gcr's."""
+    return notify.session_env("SSH_AUTH_SOCK") or SSH_SOCK
+
+
 def ssh_state():
     """Agent status and the keys in ~/.ssh: {"agent": None (not installed) / False (not running) / [fingerprints],
     "keys": [(pub path, fingerprint, 'ssh-keygen -lf' line)]}."""
     agent = None
-    if os.path.exists(SSH_AGENT):
+    sock = ssh_sock()
+    if os.path.exists(SSH_AGENT) or sock != SSH_SOCK:
         r = subprocess.run(["ssh-add", "-l"], capture_output=True, text=True, timeout=5,
-                           env={**os.environ, "SSH_AUTH_SOCK": SSH_SOCK})
+                           env={**os.environ, "SSH_AUTH_SOCK": sock})
         agent = _fingerprints(r.stdout) if r.returncode in (0, 1) else False  # 1 = no keys, 2 = no agent
     keys = []
     for pub in sorted(glob.glob(os.path.join(SSH_DIR, "*.pub"))):
@@ -48,7 +54,7 @@ def ssh_state():
         fp = _fingerprints(r.stdout)
         if fp:
             keys.append((pub, fp[0], r.stdout.strip()))
-    return {"agent": agent, "keys": keys}
+    return {"agent": agent, "keys": keys, "sock": sock}
 
 
 def _load():
@@ -187,8 +193,10 @@ class SecurityPage(Page):
             status = label("Not running", "warn")
         else:
             status = label(f"Running \u00b7 {len(agent)} key{'s' if len(agent) != 1 else ''} loaded", "ok")
-        self.row("SSH agent", status, hint="gcr-ssh-agent: keys in ~/.ssh are offered too (passphrase asked on first use); added keys last until logout")
-        sock = ["env", f"SSH_AUTH_SOCK={SSH_SOCK}"]
+        hint = ("gcr-ssh-agent: keys in ~/.ssh are offered too (passphrase asked on first use); added keys last until logout"
+                if st["sock"] == SSH_SOCK else f"Your own agent (SSH_AUTH_SOCK={st['sock']})")
+        self.row("SSH agent", status, hint=hint)
+        sock = ["env", f"SSH_AUTH_SOCK={st['sock']}"]
         for pub, fp, line in st["keys"]:
             add = button("Add to agent", lambda p=pub: _term(*sock, "ssh-add", p[:-4]))
             add.set_sensitive(isinstance(agent, list) and fp not in agent)
