@@ -12,7 +12,7 @@
 #   --user-only     only the per-user part (dotfiles, mise, shell)
 #   --minimal       core desktop only, no optional groups (see GROUP_INFO below)
 #   --with=a,b      add optional groups;  --without=a,b  leave them out (the choice is saved, re-runs keep it)
-#   --print-plan    print the groups, package lists and steps this run would do, then exit (changes nothing)
+#   --print-plan    print the groups, package lists and steps this run would do, then exit (changes nothing; needs a checkout)
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/NeatOuk/fw13-hyprland}"
@@ -192,6 +192,7 @@ FEDORA="$(rpm -E %fedora)"
 # Locate the repo: run from a checkout, or clone one.
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)"
 if [[ ! -f "$SRC/packages/00-core.txt" ]]; then
+  [[ $PLAN == 0 ]] || die "--print-plan changes nothing, so it needs a checkout: git clone $REPO_URL && cd fw13-hyprland && ./install.sh --print-plan"
   say "Fetching $REPO_URL"
   command -v git >/dev/null || $SUDO dnf -y install git
   if [[ -d "$CHECKOUT/.git" ]]; then git -C "$CHECKOUT" pull --ff-only; else git clone --depth 1 "$REPO_URL" "$CHECKOUT"; fi
