@@ -85,7 +85,7 @@ class PowerPage(Page):
                 combo.set_active_id(power.hibernate_delay())
                 combo.connect("changed", lambda c: _term("sudo", "fw-hibernate-setup", "delay", c.get_active_id()))
                 self.row("Then hibernate after", combo,
-                         hint="suspend, then save to disk and power off; also when the lid closes")
+                         hint="on battery: suspend, then save to disk and power off; also when the lid closes")
             if suffix:
                 combo = Gtk.ComboBoxText()
                 for value, text in power.WARN_CHOICES:

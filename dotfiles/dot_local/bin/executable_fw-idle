@@ -29,8 +29,8 @@ case ${1:-} in
   lock)       loginctl lock-session ;;
   screen-off) fw-autobrightness pause || true; dpms off; touch "$RUN/fw-idle-off" ;;
   screen-on)  dpms on; [[ -e $RUN/fw-idle-off ]] || exit 0; rm -f "$RUN/fw-idle-off"; fw-autobrightness resume || true ;;
-  suspend)    # suspend-then-hibernate when chosen in Settings → Power (sudo fw-hibernate-setup delay <h>)
-              if [[ -e /etc/systemd/sleep.conf.d/fw13-hibernate.conf ]]; then systemctl suspend-then-hibernate
+  suspend)    # suspend-then-hibernate on battery when chosen in Settings → Power (sudo fw-hibernate-setup delay <h>)
+              if [[ -e /etc/systemd/sleep.conf.d/fw13-hibernate.conf ]] && ! on_ac; then systemctl suspend-then-hibernate
               else systemctl suspend; fi ;;
   *) echo "usage: fw-idle dim|undim|lock|screen-off|screen-on|suspend [ac|battery]" >&2; exit 2 ;;
 esac

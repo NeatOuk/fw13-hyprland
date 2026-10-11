@@ -7,8 +7,9 @@
 #           device + offset into the HibernateLocation EFI variable and the initrd reads it, so on UEFI no resume=
 #           kernel argument is needed; without EFI resume=/resume_offset= are added via grubby.
 #   undo    reverse all of it (also the delay drop-ins)
-#   delay   suspend-then-hibernate: /etc/systemd/sleep.conf.d/fw13-hibernate.conf HibernateDelaySec + the lid
-#           (logind.conf.d HandleLidSwitch=suspend-then-hibernate); fw-idle's suspend follows the sleep drop-in.
+#   delay   suspend-then-hibernate on battery: /etc/systemd/sleep.conf.d/fw13-hibernate.conf HibernateDelaySec +
+#           HibernateOnACPower=no, the lid (logind.conf.d HandleLidSwitch=suspend-then-hibernate, ExternalPower=suspend);
+#           fw-idle's battery suspend follows the sleep drop-in.
 #           never = remove both. Nothing else.
 # --dry-run prints the plan and changes nothing. Root only; run in a terminal (it prompts).
 set -euo pipefail
@@ -49,8 +50,9 @@ if [[ $cmd == delay ]]; then
     echo "Suspend, then hibernate after $h h (idle suspend and lid): writing $SLEEP_CONF and $LID_CONF."
     if (( ! DRY )); then
       mkdir -p "${SLEEP_CONF%/*}" "${LID_CONF%/*}"
-      printf '# fw-hibernate-setup delay (Settings → Power)\n[Sleep]\nHibernateDelaySec=%sh\n' "$h" > "$SLEEP_CONF"
-      printf '# fw-hibernate-setup delay (Settings → Power)\n[Login]\nHandleLidSwitch=suspend-then-hibernate\n' > "$LID_CONF"
+      # battery only: plugged in, a suspend stays a suspend (the countdown starts when unplugged), the lid too
+      printf '# fw-hibernate-setup delay (Settings → Power)\n[Sleep]\nHibernateDelaySec=%sh\nHibernateOnACPower=no\n' "$h" > "$SLEEP_CONF"
+      printf '# fw-hibernate-setup delay (Settings → Power)\n[Login]\nHandleLidSwitch=suspend-then-hibernate\nHandleLidSwitchExternalPower=suspend\n' > "$LID_CONF"
     fi
   fi
   (( DRY )) || systemctl reload systemd-logind   # sleep.conf.d is read at each sleep
