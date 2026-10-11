@@ -17,6 +17,7 @@ from gi.repository import Gio, GLib  # noqa: E402
 from . import notify, store, weather  # noqa: E402
 
 APP = "fw-timezone"
+DESKTOP_ID = "fw13-timezone"  # the section name in /etc/geoclue/conf.d/90-fw13-timezone.conf
 GC = "org.freedesktop.GeoClue2"
 TD = "org.freedesktop.timedate1"
 CITY = 4  # GClueAccuracyLevel: the zone needs no more than the city
@@ -35,7 +36,7 @@ def locate(timeout=30):
     client = bus.call_sync(GC, "/org/freedesktop/GeoClue2/Manager", GC + ".Manager", "CreateClient", None,
                            GLib.VariantType("(o)"), Gio.DBusCallFlags.NONE, 10000, None).unpack()[0]
     iface = GC + ".Client"
-    for name, value in (("DesktopId", GLib.Variant("s", APP)), ("RequestedAccuracyLevel", GLib.Variant("u", CITY))):
+    for name, value in (("DesktopId", GLib.Variant("s", DESKTOP_ID)), ("RequestedAccuracyLevel", GLib.Variant("u", CITY))):
         bus.call_sync(GC, client, "org.freedesktop.DBus.Properties", "Set", GLib.Variant("(ssv)", (iface, name, value)),
                       None, Gio.DBusCallFlags.NONE, 5000, None)
     found, loop = [], GLib.MainLoop()
