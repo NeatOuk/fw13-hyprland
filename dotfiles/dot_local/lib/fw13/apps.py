@@ -285,6 +285,34 @@ def optional_script(app):
             f"echo {q('Removed. install.sh will skip ' + ', '.join(names) + ' from now on (Settings → Apps → Removed apps undoes that).')}")
 
 
+def remove_all_script(apps):
+    """bash: "Remove pre-installed apps" = every OPTIONAL app still installed, in one dnf transaction (one y/N) plus a
+    flatpak uninstall each; every app's names are recorded in SKIP_FILE only once that app is really gone. None if
+    nothing is left to remove."""
+    q, f = shlex.quote, shlex.quote(SKIP_FILE)
+    opt = {a["optional"]: a for a in apps if a.get("optional")}
+    rpms = [a for a in opt.values() if a["kind"] == "rpm"]
+    fps = [a for a in opt.values() if a["kind"] == "flatpak"]
+    if not (rpms or fps):
+        return None
+
+    def record(key, gone):
+        names = " ".join(map(q, [key, *OPTIONAL[key][0]]))
+        return (f"if {gone}; then for n in {names}; do grep -qxF -- \"$n\" {f} 2>/dev/null || echo \"$n\" >> {f}; "
+                f"done; fi")
+    steps = [f"mkdir -p {q(os.path.dirname(SKIP_FILE))}"]
+    if rpms:
+        pkgs = [x for a in rpms for x in (a["package"], *a.get("extras", ()))]
+        steps.append(f"{shlex.join(['sudo', 'dnf', 'remove', *pkgs])} || true")
+        steps += [record(a["optional"], f"! rpm -q --quiet {q(a['package'])}") for a in rpms]
+    for a in fps:
+        inst = f"--{a['installation']}"
+        steps.append(f"{shlex.join(['flatpak', 'uninstall', inst, a['flatpak']])} || true")
+        steps.append(record(a["optional"], f"! flatpak info {inst} {q(a['flatpak'])} >/dev/null 2>&1"))
+    steps.append(f"echo {q('Done. What was removed is skipped by install.sh from now on (Settings → Apps → Removed apps undoes that).')}")
+    return "; ".join(steps)
+
+
 def uninstall_argv(app):
     """Terminal command that removes the app (dnf/flatpak ask y/N themselves), or None."""
     if app["protected"]:
@@ -299,6 +327,7 @@ def uninstall_argv(app):
 
 
 def test():
+    test_remove_all()
     lo = "#\n# This file is part of the LibreOffice project.\n#\n[Desktop Entry]\nType=Application\nName=Writer\n" \
          "Name[fr]=Writer FR\nExec=libreoffice --writer\n\n[Desktop Action new]\nName=New\nExec=other\n"
     k = parse_entry(lo)
@@ -348,6 +377,17 @@ def test():
     assert {"chromium", "code"} <= real or not any(os.path.isdir(d) for d in PACKAGE_LISTS), "package lists not read"
     assert not any(w.startswith("#") for w in real)
     print("ok")
+
+
+def test_remove_all():
+    rpm = {"optional": "steam", "kind": "rpm", "package": "steam", "extras": ["steam-devices"]}
+    fp = {"optional": "org.localsend.localsend_app", "kind": "flatpak", "installation": "user",
+          "flatpak": "org.localsend.localsend_app"}
+    core = {"kind": "rpm", "package": "thunar", "protected": "part of this desktop"}
+    sc = remove_all_script([rpm, fp, core, dict(rpm)])
+    assert sc.count("sudo dnf remove") == 1 and "steam steam-devices" in sc and "thunar" not in sc and " -y" not in sc
+    assert "flatpak uninstall --user org.localsend.localsend_app" in sc
+    assert remove_all_script([core]) is None
 
 
 def test_optional(a):

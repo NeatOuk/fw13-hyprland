@@ -95,6 +95,13 @@ class AppsPage(Page):
         self.heading("Updates")
         self.render_updates()
         self.heading("Installed apps")
+        script = apps.remove_all_script(self.list) if self.list else None
+        if script:
+            names = sorted({a["name"] for a in self.list if a.get("optional")})
+            self.row("Remove pre-installed apps…", button("Remove all…", lambda: launch(
+                "fw-term", "--hold", "-e", "bash", "-c", script), "danger"),
+                hint="The optional apps this desktop installed: " + ", ".join(names) + ". One dnf list to confirm; "
+                     "the installer won't put them back")
         if self.list is None:
             self.add_widget(label("Loading…", "dim"))
         else:
