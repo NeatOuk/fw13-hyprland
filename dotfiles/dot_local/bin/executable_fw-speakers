@@ -5,7 +5,7 @@
 # Bluetooth stay untouched), then becomes the EasyEffects background service. Without easyeffects it does nothing.
 set -euo pipefail
 command -v easyeffects >/dev/null || exit 0
-PRESET=fw13-speakers
+PRESET=fw13-clear  # user decision: soft, clear voices, no bass or loudness (fw13-speakers = Framework's original, louder)
 auto="${XDG_DATA_HOME:-$HOME/.local/share}/easyeffects/autoload/output"
 mkdir -p "$auto"
 # The speaker sink(s) PipeWire knows now (ALSA UCM names it …__Speaker__sink on the FW13's Realtek codec).
@@ -18,7 +18,7 @@ for o in json.load(sys.stdin):
 for line in "${sinks[@]}"; do
   name="${line%%$'\t'*}" desc="${line#*$'\t'}"
   f="$auto/$name:[Out] Speaker.json"
-  [[ -e $f ]] || printf '{\n    "device": "%s",\n    "device-description": "%s",\n    "device-profile": "[Out] Speaker",\n    "preset-name": "%s"\n}\n' \
+  printf '{\n    "device": "%s",\n    "device-description": "%s",\n    "device-profile": "[Out] Speaker",\n    "preset-name": "%s"\n}\n' \
     "$name" "$desc" "$PRESET" > "$f"
 done
 # Outputs without an autoload file (headphones, HDMI, Bluetooth) get the empty "flat" preset, not the speaker tuning.
