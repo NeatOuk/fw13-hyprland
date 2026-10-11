@@ -1,5 +1,6 @@
 """Network: Wi-Fi (switch, networks, connect/forget, hidden), Ethernet via nmcli, and every VPN (fw13.vpn:
 NetworkManager's + strongSwan's): connect/disconnect, edit (nm-connection-editor / pages/vpn_edit.py), add."""
+import os
 import subprocess
 import threading
 import time
@@ -15,6 +16,7 @@ from . import vpn_edit  # noqa: E402
 from .common import Page, label, launch, wrap  # noqa: E402
 from .system import bg  # noqa: E402
 
+VPN_POLICY = "/usr/share/polkit-1/actions/org.fw13.vpn.policy"
 WIFI_ICON, LOCK_ICON, ETH_ICON, VPN_ICON = "", "", "", ""
 
 
@@ -164,6 +166,7 @@ class NetworkPage(Page):
     def render_vpns(self):
         self.heading("VPN")
         vs = vpn.vpns()
+        free = os.path.exists(vpn.CTL) and os.path.exists(VPN_POLICY)  # strongSwan toggle via fw-vpn-ctl + polkit rule
         if not vs:
             self.add_widget(label("No VPN yet: add one below", "dim"))
         for v in vs:
@@ -175,7 +178,8 @@ class NetworkPage(Page):
                              "primary")
             edit = button("Edit…", lambda v=v: self.swan_edit(v["id"]) if v["backend"] == "swan"
                           else launch("nm-connection-editor", "-e", v["id"]))
-            self.item(f"{VPN_ICON}  {v['name']}", v["kind"], [act, edit],
+            hint = v["kind"] + (" · no password (wheel at the laptop)" if v["backend"] == "swan" and free else "")
+            self.item(f"{VPN_ICON}  {v['name']}", hint, [act, edit],
                       lead="Connected" if v["active"] else None, lead_cls="ok")
         adds = [button("+ OpenVPN, OpenConnect, Cisco… or import a file",
                        lambda: launch("nm-connection-editor", "-c", "-t", "vpn")),

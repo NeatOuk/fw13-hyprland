@@ -1,5 +1,5 @@
-"""Security: fingerprint, lock screen, disk encryption unlock (LUKS + TPM), Secure Boot, Citadel firewall, VPN
-(strongSwan toggle note, pointer to Network → VPN), SSH keys (gcr-ssh-agent) and the login screen.
+"""Security: fingerprint, lock screen, disk encryption unlock (LUKS + TPM), Secure Boot, Citadel firewall,
+SSH keys (gcr-ssh-agent) and the login screen.
 
 Root-only facts (LUKS tokens, Secure Boot) come from /var/lib/fw13/health-root.json (fw-health-root, hourly), so
 opening the page never asks for a password. Changing how the disk unlocks runs `sudo fw-disk-unlock <mode>` in a
@@ -22,8 +22,6 @@ from .system import bg  # noqa: E402
 
 UNLOCK = (("password", "Password only"), ("tpm-pin", "TPM + PIN"), ("tpm", "TPM automatic"))
 REMOVE_SH = 'read -rp "Delete every enrolled finger? [y/N] " a; [[ $a == [yY]* ]] && fprintd-delete "$USER"'
-VPN_CTL = "/usr/local/bin/fw-vpn-ctl"
-VPN_POLICY = "/usr/share/polkit-1/actions/org.fw13.vpn.policy"
 SSH_AGENT = "/usr/libexec/gcr-ssh-agent"
 SSH_SOCK = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "gcr", "ssh")
 SSH_DIR = os.path.expanduser("~/.ssh")
@@ -61,7 +59,7 @@ def _load():
     """Everything the page shows; runs in a worker thread."""
     return {"fingers": setup.fingerprints(), "root": health.root_facts(), "citadel": system.citadel_status(),
             "citadel_app": shutil.which("citadel-app"), "login": setup.login_screen(),
-            "vpn": bool(glob.glob("/etc/strongswan/swanctl/conf.d/*.conf")), "ssh": ssh_state()}
+            "ssh": ssh_state()}
 
 
 def unlock_mode(luks):
@@ -117,7 +115,6 @@ class SecurityPage(Page):
                                       {True: "ok", False: "warn"}.get(sb, "dim")),
                  hint="Changed in the BIOS (F2 at power-on), not from here")
         self.render_citadel(st["citadel"], st["citadel_app"])
-        self.render_vpn(st["vpn"])
         self.render_ssh(st["ssh"])
         self.heading("Login screen")
         self.row("Login", label(st["login"], "dim"))
@@ -173,16 +170,6 @@ class SecurityPage(Page):
         else:
             combo.set_active(-1)
         combo.handler_unblock_by_func(self.on_unlock)
-
-    def render_vpn(self, have):
-        self.heading("VPN")
-        if have:
-            free = os.path.exists(VPN_CTL) and os.path.exists(VPN_POLICY)
-            self.row("strongSwan connect / disconnect", label("No password" if free else "Asks for the password", "dim"),
-                     hint="Bar shield menu · admins (wheel) at the laptop, these connections only" if free
-                     else "Re-run the installer's system phase for the passwordless toggle")
-        self.row("Your VPNs", button("Network settings", lambda: launch("fw-settings", "network")),
-                 hint="Add, edit and connect every VPN in Network → VPN")
 
     def render_ssh(self, st):
         self.heading("SSH keys")
