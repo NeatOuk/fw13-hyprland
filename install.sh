@@ -29,6 +29,11 @@ GHOSTTY_SHA256="${GHOSTTY_SHA256:-3349d25600ffbda281197a18314f7d18791969cffe9474
 # the release binary → /usr/local/bin, sha256 pinned per version (GitHub's asset digest). Bump both together.
 FWTOOL_VERSION="${FWTOOL_VERSION:-v0.6.6}"
 FWTOOL_SHA256="${FWTOOL_SHA256:-ebc2f3ca300dac6f484c02d058833372ff8dd3c23f2a74b63c774f8dc2f86171}"
+# scrcpy (Android screen mirroring; user decision: Genymobile's official Linux release, not a COPR): the tarball →
+# /opt/scrcpy, sha256 pinned (GitHub's asset digest), a /usr/local/bin/scrcpy wrapper that uses Fedora's adb
+# (android-tools, 70-dev.txt) instead of the bundled one, so two adb versions never fight over the phone.
+SCRCPY_VERSION="${SCRCPY_VERSION:-v5.0.1}"
+SCRCPY_SHA256="${SCRCPY_SHA256:-9f969d30cc574816077edecda65719c1c70b0aee1df1ba5fa00779ac07b8fd6e}"
 STATE_DIR="$HOME/.local/state/fw13-hypr"
 
 YES=0 CI=0 DO_SYSTEM=1 DO_USER=1
@@ -259,6 +264,26 @@ system_phase() {
     curl -fsSL -o "$fwt" "https://github.com/FrameworkComputer/framework-system/releases/download/$FWTOOL_VERSION/framework_tool" \
       && echo "$FWTOOL_SHA256  $fwt" | sha256sum -c --status || { rm -f "$fwt"; die "framework_tool download failed or checksum mismatch"; }
     $SUDO install -m 0755 "$fwt" /usr/local/bin/framework_tool; rm -f "$fwt"
+  fi
+  if [[ $(cat /opt/scrcpy/.version 2>/dev/null) != "$SCRCPY_VERSION" ]]; then
+    say "scrcpy $SCRCPY_VERSION (Android screen mirroring, official release)"
+    local sct; sct="$(mktemp -d)"
+    curl -fsSL -o "$sct/s.tgz" "https://github.com/Genymobile/scrcpy/releases/download/$SCRCPY_VERSION/scrcpy-linux-x86_64-$SCRCPY_VERSION.tar.gz" \
+      && echo "$SCRCPY_SHA256  $sct/s.tgz" | sha256sum -c --status || { rm -rf "$sct"; die "scrcpy download failed or checksum mismatch"; }
+    tar -xzf "$sct/s.tgz" -C "$sct" --strip-components=1
+    $SUDO install -d /opt/scrcpy
+    for f in scrcpy scrcpy-server scrcpy.png disconnected.png LICENSE; do
+      $SUDO install -m "$([[ $f == scrcpy ]] && echo 0755 || echo 0644)" "$sct/$f" "/opt/scrcpy/$f"
+    done
+    $SUDO install -D -m 0644 "$sct/scrcpy.1" /usr/local/share/man/man1/scrcpy.1
+    $SUDO install -d /usr/local/share/applications
+    printf '#!/bin/sh\n# scrcpy from /opt/scrcpy (install.sh), with Fedora'"'"'s adb\nexport ADB=/usr/bin/adb SCRCPY_SERVER_PATH=/opt/scrcpy/scrcpy-server SCRCPY_ICON_PATH=/opt/scrcpy/scrcpy.png\nexec /opt/scrcpy/scrcpy "$@"\n' \
+      | $SUDO tee /usr/local/bin/scrcpy >/dev/null
+    $SUDO chmod 0755 /usr/local/bin/scrcpy
+    printf '[Desktop Entry]\nType=Application\nName=scrcpy\nComment=Show and control an Android phone (USB debugging on)\nExec=scrcpy\nIcon=/opt/scrcpy/scrcpy.png\nTerminal=false\nCategories=Utility;\n' \
+      | $SUDO tee /usr/local/share/applications/scrcpy.desktop >/dev/null
+    echo "$SCRCPY_VERSION" | $SUDO tee /opt/scrcpy/.version >/dev/null
+    rm -rf "$sct"
   fi
   # Timeshift schedules itself (its own /etc/cron.d jobs); our old fw-timeshift timer ran every check a second time.
   if [[ -e /etc/systemd/system/fw-timeshift.timer ]]; then
