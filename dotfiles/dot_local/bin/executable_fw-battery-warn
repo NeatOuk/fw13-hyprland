@@ -4,7 +4,7 @@
 Watches the battery over UPower D-Bus (PropertiesChanged, plus a 60 s check) and notifies once per discharge at
 each level of store `battery_warn` (Settings → Power → On battery → Warn at; read on every check): 20 % normal,
 10 and 5 % critical (stay until dismissed, shown under do-not-disturb: mako [app-name=fw-battery
-urgency=critical]). Plugging in resets them.
+urgency=critical]). Plugging in resets them. The 20 and 10 % notices offer Ask Jarvis (what's draining it).
   fw-battery-warn            run
   fw-battery-warn enabled    exit 0 when the service should run (Hyprland, a battery)
   fw-battery-warn test       self-check of the threshold logic
@@ -32,6 +32,11 @@ def step(pct, on_battery, levels, warned):
     return (min(hit) if hit else None), warned | hit
 
 
+def jarvis_argv(pct, left):
+    q = f"What's draining my battery? Battery at {pct} %" + (f", about {power.duration(left)} left" if left else "")
+    return ["fw-jarvis-panel", "--ask", q + "."]
+
+
 def action_text():
     act = power._call(power.UP, "/org/freedesktop/UPower", power.UP, "GetCriticalAction", None, "(s)")
     pct = 2
@@ -48,6 +53,8 @@ def action_text():
 class Watcher:
     def __init__(self):
         self.warned = frozenset()
+        self.asks = {}  # notification id → Ask Jarvis argv
+        notify.on_action(Gio.bus_get_sync(Gio.BusType.SESSION), self.acted)
         self.bus = Gio.bus_get_sync(Gio.BusType.SYSTEM)
         for path in ("/org/freedesktop/UPower", power.battery_path()):
             self.bus.signal_subscribe(power.UP, "org.freedesktop.DBus.Properties", "PropertiesChanged", path,
@@ -71,8 +78,15 @@ class Watcher:
             title, body = f"Plug in now: {pct} %", action_text()
         else:
             title, body = f"Battery low: {pct} %", f"about {power.duration(left)} left" if left else ""
-        notify.send(APP, title, body, urgency=notify.NORMAL if level > 10 else notify.CRITICAL,
-                    icon="battery-low" if level > 10 else "battery-caution")
+        actions = [("jarvis", "Ask Jarvis")] if level > 5 else []  # at 5 % the only advice is to plug in
+        nid = notify.send(APP, title, body, actions, urgency=notify.NORMAL if level > 10 else notify.CRITICAL,
+                          icon="battery-low" if level > 10 else "battery-caution")
+        if nid and actions:
+            self.asks[nid] = jarvis_argv(pct, left)
+
+    def acted(self, nid, action):
+        if action == "jarvis" and nid in self.asks:
+            notify.launch(self.asks.pop(nid))
 
 
 def selftest():
@@ -86,6 +100,8 @@ def selftest():
     assert step(15, False, lv, w) == (None, frozenset())  # plugged in: reset
     assert step(7, True, lv, frozenset()) == (10, frozenset({20, 10}))  # unplugged low: one warning
     assert step(3, True, (), frozenset()) == (None, frozenset())  # Off
+    assert jarvis_argv(18, 0) == ["fw-jarvis-panel", "--ask", "What's draining my battery? Battery at 18 %."]
+    assert jarvis_argv(9, 1800)[2].endswith(f"9 %, about {power.duration(1800)} left.")
     print("ok")
 
 

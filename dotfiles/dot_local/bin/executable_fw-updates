@@ -4,7 +4,8 @@
   fw-updates --check   count pending dnf updates from the local cache (no root, no network: dnf-makecache.timer
                        keeps it fresh) and fwupd firmware updates (fwupdmgr get-updates, metadata from
                        fwupd-refresh.timer) and print them; in Hyprland, notify (Update now / Later) when either
-                       count changed or a day after the last notice. What fw-updates.timer runs.
+                       count changed or a day after the last notice; Ask Jarvis asks whether it's safe to update
+                       now. What fw-updates.timer runs.
   fw-updates run       open `fw-updates apply` in a terminal
   fw-updates apply     in a terminal: Timeshift snapshot (fw-timeshift-setup if Timeshift isn't set up yet; a failed
                        snapshot stops here unless you type y), then dnf upgrade --refresh, flatpak update --user, and
@@ -66,6 +67,10 @@ def summary(n, fw):
     return " · ".join(parts) or "Everything is up to date"
 
 
+def jarvis_argv(n, fw):
+    return ["fw-jarvis-panel", "--ask", f"Is it safe to update now? {summary(n, fw)}."]
+
+
 def check():
     n, msg = system.package_updates()
     if n is None:
@@ -88,7 +93,7 @@ def check():
         body = "A Timeshift snapshot is taken before updating."
         if fw:
             body += " Firmware: Settings → System → Firmware updates."
-        actions = [("default", "Update now"), ("update", "Update now"), ("later", "Later")]
+        actions = [("default", "Update now"), ("update", "Update now"), ("jarvis", "Ask Jarvis"), ("later", "Later")]
     else:
         body = "Installed from Settings → System → Firmware updates (needs AC power and a reboot)."
         actions = [("default", "Open Settings"), ("firmware", "Open Settings"), ("later", "Later")]
@@ -100,6 +105,8 @@ def check():
     action = notify.wait(nid, limit=600)
     if action in ("default", "update", "firmware"):
         notify.launch(APPLY if n else FIRMWARE_PAGE)
+    elif action == "jarvis":
+        notify.launch(jarvis_argv(n, fw))
     return 0
 
 
@@ -145,6 +152,7 @@ def selftest():
     assert summary(33, [fp]) == "33 package updates · 1 firmware update (Fingerprint Sensor 01000334)"
     assert summary(0, [fp, {"device": "BIOS", "new": "3.05"}]) == \
         "2 firmware updates (Fingerprint Sensor 01000334, BIOS 3.05)"
+    assert jarvis_argv(33, []) == ["fw-jarvis-panel", "--ask", "Is it safe to update now? 33 package updates."]
     print("ok")
     return 0
 
