@@ -6,7 +6,7 @@ from gi.repository import Gtk  # noqa: E402
 
 from .. import jarvis, store  # noqa: E402
 from ..ui_theme import button, label  # noqa: E402
-from .common import Page  # noqa: E402
+from .common import Page, launch  # noqa: E402
 
 
 class JarvisPage(Page):
@@ -37,7 +37,38 @@ class JarvisPage(Page):
         self.add_widget(label("Used for the panel's answers, Continue in terminal and Work on repo, from the next "
                               "question on. OpenCode sessions use the model chosen in the OpenCode panel.",
                               "dim", wrap=True))
+        self.heading("Memory")
+        self.add_widget(label("Notes Jarvis reads before every answer. Jarvis proposes them (Save / Skip in the "
+                              "panel); say \"remember …\" to add one.", "dim", wrap=True))
+        self.mem = self.add_widget(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8))
+        self.add_widget(button("Open file", self.open_memory)).set_halign(Gtk.Align.START)
+        self.fill_memory()
         self.show_all()
+
+    def refresh(self):  # notes saved in the panel since the page was built
+        self.fill_memory()
+
+    def fill_memory(self):
+        for c in self.mem.get_children():
+            self.mem.remove(c)
+        lines = jarvis.notes()
+        if not lines:
+            self.mem.pack_start(label("No notes yet", "dim", xalign=0), False, False, 0)
+        for line in lines:
+            r = Gtk.Box(spacing=12)
+            r.get_style_context().add_class("item")
+            r.pack_start(label(line[2:], wrap=True, xalign=0), True, True, 0)
+            r.pack_end(button("Remove", lambda line=line: self.forget(line)), False, False, 0)
+            self.mem.pack_start(r, False, False, 0)
+        self.mem.show_all()
+
+    def forget(self, line):
+        jarvis.forget(line)
+        self.fill_memory()
+
+    def open_memory(self):
+        jarvis.ensure_memory()
+        launch("xdg-open", jarvis.MEMORY)
 
     def picked(self, combo):
         key = combo.get_active_id()  # a list pick (typing leaves it None until Apply)

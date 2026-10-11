@@ -4,6 +4,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 import time
 
 from . import store
@@ -13,6 +14,11 @@ MODELS = [("", "Default (Claude Code's choice)"), ("fable", "Fable"), ("opus", "
 EFFORTS = [("", "Default"), ("low", "Low"), ("medium", "Medium"), ("high", "High"), ("xhigh", "Extra high"),
            ("max", "Max")]
 _MODEL_OK = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:\[\]-]*")
+JDIR = os.path.expanduser("~/jarvis")
+MEMORY = os.path.join(JDIR, "MEMORY.md")  # not a chezmoi target: the owner's notes, read by every run via CLAUDE.md
+NOTE_MAX = 300
+# Claude Code keeps each conversation in ~/.claude/projects/<cwd with every other character as '-'>/<id>.jsonl
+SESSIONS = os.path.expanduser("~/.claude/projects/" + re.sub(r"[^A-Za-z0-9]", "-", JDIR))
 
 
 def check_model(text):
@@ -39,6 +45,93 @@ def claude_args():
         out += ["--model", model()]
     if effort():
         out += ["--effort", effort()]
+    return out
+
+
+def check_note(text):
+    """(note, error): one line, at most NOTE_MAX characters, no code fences."""
+    multiline = "\n" in str(text).strip()
+    text = " ".join(str(text).split())
+    if not text:
+        return None, "Empty note"
+    if multiline or len(text) > NOTE_MAX or "```" in text:
+        return None, f"A note is one line of at most {NOTE_MAX} characters, without code blocks"
+    return text, None
+
+
+def ensure_memory():
+    os.makedirs(JDIR, exist_ok=True)
+    if not os.path.exists(MEMORY):
+        with open(MEMORY, "w") as f:
+            f.write("")
+
+
+def notes():
+    """The memory's '- ' lines, in file order."""
+    try:
+        return [line.rstrip("\n") for line in open(MEMORY) if line.startswith("- ")]
+    except OSError:
+        return []
+
+
+def remember(note):
+    """Append '- YYYY-MM-DD note'; returns an error string or None."""
+    note, err = check_note(note)
+    if err:
+        return err
+    ensure_memory()
+    with open(MEMORY, "a") as f:
+        f.write(f"- {time.strftime('%Y-%m-%d')} {note}\n")
+    return None
+
+
+def forget(line):
+    """Remove one note line (as notes() returned it); the rest of the file stays as it is."""
+    try:
+        lines = open(MEMORY).readlines()
+    except OSError:
+        return
+    if line + "\n" in lines:
+        lines.remove(line + "\n")
+        tmp = MEMORY + ".tmp"
+        with open(tmp, "w") as f:
+            f.writelines(lines)
+        os.replace(tmp, MEMORY)
+
+
+def _first_prompt(path):
+    with open(path) as f:
+        for line in f:
+            try:
+                e = json.loads(line)
+            except ValueError:
+                continue
+            if e.get("type") != "user" or e.get("isMeta"):
+                continue
+            c = (e.get("message") or {}).get("content")
+            if isinstance(c, list):
+                c = " ".join(b.get("text", "") for b in c if isinstance(b, dict) and b.get("type") == "text")
+            if isinstance(c, str) and c.strip() and not c.lstrip().startswith("<"):  # <bash-input> etc.
+                return " ".join(c.rsplit("Question: ", 1)[-1].split())  # the owner's words, not the attachment
+    return None
+
+
+def sessions(limit=20):
+    """[(session id, mtime, first question)] of Jarvis' Claude conversations, newest first."""
+    try:
+        files = [os.path.join(SESSIONS, f) for f in os.listdir(SESSIONS) if f.endswith(".jsonl")]
+    except OSError:
+        return []
+    out = []
+    for path in sorted(files, key=os.path.getmtime, reverse=True):
+        try:
+            q = _first_prompt(path)
+        except OSError:
+            continue
+        if q:
+            out.append((os.path.basename(path)[:-6], os.path.getmtime(path), q))
+        if len(out) >= limit:
+            break
     return out
 
 
@@ -146,6 +239,21 @@ def selftest():
     assert took < 1, f"snapshot took {took:.2f} s"
     assert len(snap.splitlines()) <= 15
     assert not SECRET_WORDS.search(snap), "secret-looking word in the snapshot"
+    assert check_note("  restic repo is on the NAS  ") == ("restic repo is on the NAS", None)
+    assert check_note("")[1] and check_note("x" * 301)[1] and check_note("a ```rm``` b")[1]
+    assert check_note("two\nlines")[1]
+    global MEMORY
+    real, MEMORY = MEMORY, os.path.join(tempfile.mkdtemp(), "MEMORY.md")
+    try:
+        assert remember("uses the NAS") is None and remember("x" * 400)
+        assert notes() == [f"- {time.strftime('%Y-%m-%d')} uses the NAS"]
+        forget(notes()[0])
+        assert notes() == [] and os.path.exists(MEMORY)
+    finally:
+        MEMORY = real
+    for sid, when, q in sessions(5):
+        assert len(sid) == 36 and when > 0 and q and "\n" not in q, (sid, q)
+    print(f"sessions: {len(sessions())}")
     print(f"fw13.jarvis: self-check OK ({took:.2f} s)")
 
 

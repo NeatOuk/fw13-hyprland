@@ -42,6 +42,7 @@ RUNTIME = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
 PIDFILE = os.path.join(RUNTIME, "fw-jarvis-panel.pid")
 JDIR = os.path.expanduser("~/jarvis")
 os.makedirs(JDIR, exist_ok=True)  # the working folder of every Jarvis agent run; chezmoi adds its AGENTS.md/CLAUDE.md
+jcfg.ensure_memory()  # CLAUDE.md imports it
 PANEL_W = 680
 TOP_MARGIN = 60    # below the bar's exclusive zone
 BOTTOM_GAP = 20    # space left under the panel
@@ -99,9 +100,15 @@ INLINE_NOTE = ("You are answering inline in Jarvis's small panel. Be brief and p
                "```jarvis-followups\n"
                "[\"first question?\", \"second question?\"]\n"
                "```\n"
-               "Leave it out when nothing useful comes next.")
+               "Leave it out when nothing useful comes next.\n"
+               "When the owner says \"remember …\", or a fix worked that is worth knowing next time, propose one "
+               "short note (one line) for Jarvis's memory (MEMORY.md); the owner sees Save / Skip:\n"
+               "```jarvis-remember\n"
+               "{\"note\": \"the fact, in one line\"}\n"
+               "```")
 ACTION_RE = re.compile(r"```jarvis-action[ \t]*\n(.*?)(?:\n```|\Z)", re.S)
 FOLLOWUPS_RE = re.compile(r"```jarvis-followups[ \t]*\n(.*?)(?:\n```|\Z)", re.S)
+REMEMBER_RE = re.compile(r"```jarvis-remember[ \t]*\n(.*?)(?:\n```|\Z)", re.S)
 MAX_CHIPS = 3
 STARTERS = ["What's using my battery?", "Why is it slow?", "Free up disk space", "What changed since yesterday?",
             "Check my laptop's health"]  # buttons of an empty panel
@@ -224,6 +231,22 @@ def parse_followups(text):
     return []
 
 
+def parse_remember(text):
+    """The note of the first complete, valid jarvis-remember block in `text`, or None."""
+    for m in REMEMBER_RE.finditer(text):
+        if not m.group(0).rstrip().endswith("```"):
+            continue
+        try:
+            a = json.loads(m.group(1))
+        except ValueError:
+            continue
+        if isinstance(a, dict):
+            note, err = jcfg.check_note(a.get("note") or "")
+            if not err:
+                return note
+    return None
+
+
 def parse_actions(text):
     """Complete jarvis-action blocks in `text` → [{title, command, why, how, root}] or, for a settings card,
     [{title, settings, why}] (malformed ones and unknown pages skipped)."""
@@ -341,6 +364,10 @@ class Panel(Gtk.Window):
         self.card_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.card_box.set_no_show_all(True)
         box.pack_start(self.card_box, False, False, 0)
+        self.mem_box = Gtk.Box(spacing=8)  # "Remember: …" Save / Skip
+        self.mem_box.get_style_context().add_class("item")
+        self.mem_box.set_no_show_all(True)
+        box.pack_start(self.mem_box, False, False, 0)
         self.turn_start = 0
 
         self.chips = Gtk.FlowBox()  # suggested follow-up questions of the last answer, or the starters
@@ -369,6 +396,7 @@ class Panel(Gtk.Window):
         more.pack_start(button("Diagnose last crash", lambda: self.jarvis("crash")), False, False, 0)
         more.pack_start(button("Open Claude", lambda: self.jarvis("open", "claude")), False, False, 0)
         more.pack_start(button("Open OpenCode", lambda: self.jarvis("open", "opencode")), False, False, 0)
+        more.pack_start(button("History", self.history), False, False, 0)
         box.pack_start(more, False, False, 0)
         self.hint = label("Enter asks (a follow-up while an answer is open) · proposed changes run only when you press Run · Esc closes", "dim")
         box.pack_start(self.hint, False, False, 0)
@@ -432,6 +460,7 @@ class Panel(Gtk.Window):
         target = self.last_target
         self.clear_card()
         self.clear_chips()
+        self.clear_memory()
         state = "" if follow_up else self.system_note()
         if self.context and not follow_up:
             prompt = f"{self.context[0]}\n\nQuestion: {prompt}"
@@ -511,7 +540,7 @@ class Panel(Gtk.Window):
         return False
 
     def show_answer(self, md):
-        md = FOLLOWUPS_RE.sub("", ACTION_RE.sub("", md)).rstrip()  # action blocks become cards, chips buttons
+        md = REMEMBER_RE.sub("", FOLLOWUPS_RE.sub("", ACTION_RE.sub("", md))).rstrip()  # blocks become cards/buttons
         self.view.set_markup(markdown_to_pango(md) if md else "")
         self.scroll.set_visible(bool(md))
         self.view.show()
@@ -553,6 +582,9 @@ class Panel(Gtk.Window):
             self.set_status(f"The agent stopped: {msg[0][:200]}", "bad")
         self.cont.set_visible(bool(self.session) or self.last_target != "claude")
         self.again.show()
+        note = parse_remember(self.answer[self.turn_start:])
+        if note:
+            self.show_memory(note)
         actions = parse_actions(self.answer[self.turn_start:])
         if actions:
             self.show_card(actions[0])
@@ -583,6 +615,68 @@ class Panel(Gtk.Window):
                 c.show_all()
             self.chips.show()  # no_show_all: show_all() would skip it
         self.fit()
+
+    # ---- memory -------------------------------------------------------------------------------------------------
+    def clear_memory(self):
+        for c in self.mem_box.get_children():
+            self.mem_box.remove(c)
+        self.mem_box.hide()
+
+    def show_memory(self, note):
+        self.clear_memory()
+        text = label(f"Remember: {note}", xalign=0)
+        text.set_line_wrap(True)
+        text.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+        self.mem_box.pack_start(text, True, True, 0)
+        self.mem_box.pack_end(button("Skip", self.clear_memory), False, False, 0)
+        self.mem_box.pack_end(button("Save", lambda: self.save_memory(note), "primary"), False, False, 0)
+        for c in self.mem_box.get_children():
+            c.show_all()
+        self.mem_box.show()  # no_show_all: show_all() would skip it
+        self.fit()
+
+    def save_memory(self, note):
+        err = jcfg.remember(note)
+        self.clear_memory()
+        self.set_status(err or "Saved to Jarvis's memory (Settings → Jarvis → Memory)", "bad" if err else "dim")
+
+    # ---- history ------------------------------------------------------------------------------------------------
+    def history(self):
+        """Pick one of the last Claude conversations (fuzzel); Enter then asks a follow-up in it."""
+        if self.proc:
+            return
+        past = jcfg.sessions()
+        if not past:
+            self.set_status("No earlier conversations yet")
+            return
+        rows = [f"{time.strftime('%a %d %b %H:%M', time.localtime(when))}  {q[:90]}" for _sid, when, q in past]
+
+        def work():
+            r = subprocess.run(["fuzzel", "--dmenu", "--index", "--layer", "overlay", "--prompt", "History › ",
+                                "--width", "80", "--lines", str(len(rows))],
+                               input="\n".join(rows), capture_output=True, text=True)
+            try:
+                pick = int(r.stdout.strip()) if r.returncode == 0 else -1
+            except ValueError:
+                pick = -1
+            if 0 <= pick < len(past):
+                GLib.idle_add(self.resume, past[pick])
+        threading.Thread(target=work, daemon=True).start()
+
+    def resume(self, past):
+        sid, _when, q = past
+        self.new_question()
+        self.clear_chips()
+        self.session, self.last_target = sid, "claude"
+        self.agent.set_active_id("claude")
+        self.answer = f"**Resumed:** {q}"
+        self.turn_start = len(self.answer)
+        self.show_answer(self.answer)
+        self.set_status("Enter asks a follow-up in this conversation")
+        self.entry.set_placeholder_text("Ask a follow-up…")
+        self.cont.show()
+        self.again.show()
+        return False
 
     # ---- action cards -------------------------------------------------------------------------------------------
     def clear_card(self):
@@ -723,6 +817,7 @@ class Panel(Gtk.Window):
         self.entry.set_sensitive(True)
         self.answer, self.session, self.context = "", None, None
         self.context_line.hide()
+        self.clear_memory()
         self.clear_card()
         self.clear_chips()
         self.entry.set_placeholder_text("Ask anything about this computer…")
@@ -767,6 +862,11 @@ def selftest():
     a = parse_actions(block.format('{"title": "t", "command": "sudo dnf upgrade", "why": "w", "how": "h"}'))
     assert a[0]["root"] and a[0]["command"] == "sudo dnf upgrade", a
     assert "power (Power)" in INLINE_NOTE
+    note = "```jarvis-remember\n{}\n```"
+    assert parse_remember(note.format('{"note": "restic repo is on the NAS"}')) == "restic repo is on the NAS"
+    assert parse_remember(note.format('{"note": "' + "x" * 400 + '"}')) is None
+    assert parse_remember(note.format('{"note": "a"}')[:-3]) is None  # cut off
+    assert parse_remember(note.format('"just text"')) is None
     print("fw-jarvis-panel: self-check OK")
     return 0
 
