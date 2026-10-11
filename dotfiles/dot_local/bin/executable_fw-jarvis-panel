@@ -54,6 +54,7 @@ READ_ONLY_TOOLS = ["Read", "Grep", "Glob", "LS",
                    "Bash(journalctl:*)", "Bash(coredumpctl:*)", "Bash(systemctl status:*)",
                    "Bash(systemctl --user status:*)", "Bash(systemctl list-units:*)", "Bash(systemctl list-timers:*)",
                    "Bash(systemctl is-active:*)", "Bash(rpm -q:*)", "Bash(dnf list:*)", "Bash(dnf info:*)",
+                   "Bash(dnf history list:*)", "Bash(dnf history info:*)",
                    "Bash(ls:*)", "Bash(uname:*)", "Bash(lsblk:*)", "Bash(df:*)", "Bash(du:*)", "Bash(free:*)",
                    "Bash(ip addr:*)", "Bash(nmcli:*)", "Bash(hyprctl:*)", "Bash(fwupdmgr get-:*)", "Bash(sensors:*)",
                    "Bash(upower:*)", "Bash(lspci:*)", "Bash(lsusb:*)", "Bash(git -C:*)", "Bash(flatpak list:*)",
@@ -99,6 +100,8 @@ INLINE_NOTE = ("You are answering inline in Jarvis's small panel. Be brief and p
 ACTION_RE = re.compile(r"```jarvis-action[ \t]*\n(.*?)(?:\n```|\Z)", re.S)
 FOLLOWUPS_RE = re.compile(r"```jarvis-followups[ \t]*\n(.*?)(?:\n```|\Z)", re.S)
 MAX_CHIPS = 3
+STARTERS = ["What's using my battery?", "Why is it slow?", "Free up disk space", "What changed since yesterday?",
+            "Check my laptop's health"]  # buttons of an empty panel
 DANGER_RE = re.compile(r"\brm\s+-[a-zA-Z]*[rf]|\bdd\b|\bmkfs|\bwipefs\b|--force\b|\bshred\b|>\s*/dev/sd|\bfdisk\b"
                        r"|\bparted\b|\bchmod\s+-R\b|\bchown\s+-R\b|\bdnf\s+(remove|erase)\b")
 RUN_TIMEOUT = 120
@@ -303,7 +306,7 @@ class Panel(Gtk.Window):
         box.pack_start(self.card_box, False, False, 0)
         self.turn_start = 0
 
-        self.chips = Gtk.FlowBox()  # suggested follow-up questions of the last answer
+        self.chips = Gtk.FlowBox()  # suggested follow-up questions of the last answer, or the starters
         self.chips.set_selection_mode(Gtk.SelectionMode.NONE)
         self.chips.set_min_children_per_line(1)
         self.chips.set_max_children_per_line(3)
@@ -333,6 +336,7 @@ class Panel(Gtk.Window):
         self.hint = label("Enter asks (a follow-up while an answer is open) · proposed changes run only when you press Run · Esc closes", "dim")
         box.pack_start(self.hint, False, False, 0)
         self.add(box)
+        self.show_chips(STARTERS, fresh=True)
 
     # ---- keys ---------------------------------------------------------------------------------------------------
     def on_key(self, _w, e):
@@ -356,6 +360,10 @@ class Panel(Gtk.Window):
             return
         self.last_target, self.session, self.answer = target, None, ""
         self.start(q)
+
+    def ask_new(self, q):
+        self.entry.set_text(q)
+        self.ask()
 
     def follow(self, q):
         """Ask `q` as a follow-up: same conversation, shown under the previous answer."""
@@ -505,10 +513,11 @@ class Panel(Gtk.Window):
             self.chips.remove(c)
         self.chips.hide()
 
-    def show_chips(self, questions):
+    def show_chips(self, questions, fresh=False):
+        """Buttons that ask a follow-up, or (fresh) a new question: the starters of an empty panel."""
         self.clear_chips()
         for q in questions:
-            b = button(q, lambda q=q: self.follow(q))
+            b = button(q, (lambda q=q: self.ask_new(q)) if fresh else (lambda q=q: self.follow(q)))
             b.set_halign(Gtk.Align.START)
             self.chips.add(b)
         if questions:
@@ -662,6 +671,7 @@ class Panel(Gtk.Window):
         self.set_status("")
         self.cont.hide()
         self.again.hide()
+        self.show_chips(STARTERS, fresh=True)
         self.entry.grab_focus()
 
     # ---- the terminal side --------------------------------------------------------------------------------------
