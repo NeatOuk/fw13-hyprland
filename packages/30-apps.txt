@@ -8,6 +8,9 @@ swappy
 qalculate
 # Fedora official: Secret Service (libsecret) for saved passwords (Remote Desktop Manager, Chromium, VS Code); Workstation has it, Minimal does not
 gnome-keyring
+# Fedora official (user decision): libsecret's secret-tool, the keyring CLI Jarvis uses for the Laya token
+# (Settings → Jarvis); before, only Remote Desktop Manager (optional group) pulled it in
+libsecret
 # Fedora official (user decision): SSH agent (gcr-ssh-agent; moved out of gnome-keyring): keys unlock once, passphrase in the
 # login keyring; started from uwsm/env-hyprland, Settings → Security → SSH keys. Workstation has it, Minimal does not
 gcr
