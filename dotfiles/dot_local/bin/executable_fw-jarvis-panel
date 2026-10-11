@@ -373,7 +373,8 @@ class Panel(Gtk.Window):
         self.hint = label("Enter asks (a follow-up while an answer is open) · proposed changes run only when you press Run · Esc closes", "dim")
         box.pack_start(self.hint, False, False, 0)
         self.add(box)
-        self.show_chips(STARTERS, fresh=True)
+        if not context:  # the starters are about the laptop, not about a screenshot or selection
+            self.show_chips(STARTERS, fresh=True)
 
     def take_snapshot(self):
         """jcfg.snapshot() in the background, so the first question doesn't wait for it."""
