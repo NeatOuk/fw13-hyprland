@@ -58,7 +58,7 @@ Local dotfile edits are **not** what `chezmoi update` applies: it pulls the push
 ## Commits
 
 - One feature or fix per commit, conventional prefix: `feat(area):`, `fix(area):`, `chore:`, `docs:`.
-- Update README (user-facing) and CLAUDE.md (rules) and docs/ARCHITECTURE.md (component details) in the same change.
+- Update README (install/update) or docs/APPS.md (features, Settings, keys) (user-facing) and CLAUDE.md (rules) and docs/ARCHITECTURE.md (component details) in the same change.
 - Hardware-only behaviour (Framework 13 AMD) goes on the checklist in [docs/FIRST-INSTALL.md](docs/FIRST-INSTALL.md) until verified.
 
 ## Roadmap

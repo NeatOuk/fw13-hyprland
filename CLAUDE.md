@@ -29,7 +29,7 @@ dotfiles/                    chezmoi source (.chezmoiroot); .chezmoi.toml.tmpl =
   dot_config/hypr/*.lua      Hyprland Lua config (hyprland.lua require()s the rest); hyprlock/hypridle/hyprpaper keep .conf
   dot_local/lib/fw13/        shared Python library; pages/ = Settings pages (PAGES in pages/__init__.py)
   dot_local/bin/executable_fw-*  bar modules, panels, menus, user daemons, Settings app (fw-settings)
-docs/                        ARCHITECTURE.md, FIRST-INSTALL.md (hardware checklist), screenshots/
+docs/                        APPS.md (user guide: apps, Settings, bar, keys, backups), ARCHITECTURE.md, FIRST-INSTALL.md (hardware checklist), screenshots/
 .github/workflows/test.yml   lint → ./install.sh --ci in fedora:44 (+ weekly); no screenshot job (removed, user decision)
 ```
 
@@ -77,7 +77,7 @@ python3 -c 'import ast,sys; [ast.parse(open(f).read(), f) for f in sys.argv[1:]]
 
 Self-checks: `PYTHONPATH=dotfiles/dot_local/lib python3 -m fw13.<module> test` (apps agents jarvis nightlight timezone speakers syncthing pages.search; `fw13.ollama` takes no arg) and `fw-<x> test` (battery-warn updates caffeine usb vpn active-app jarvis-panel).
 
-There is no unit-test suite: verification is lint + dry-run + self-checks + CI install (`.github/workflows/test.yml`) + the hardware checklist in `docs/FIRST-INSTALL.md`. Local dotfile edits are not what `chezmoi update` applies (it pulls the pushed repo), so push before testing on the machine. `CONTRIBUTING.md` has the commit conventions (`feat(area):`, `fix(area):`, `chore:`, `docs:`; update README, this file and docs/ARCHITECTURE.md in the same change) and the roadmap.
+There is no unit-test suite: verification is lint + dry-run + self-checks + CI install (`.github/workflows/test.yml`) + the hardware checklist in `docs/FIRST-INSTALL.md`. Local dotfile edits are not what `chezmoi update` applies (it pulls the pushed repo), so push before testing on the machine. `CONTRIBUTING.md` has the commit conventions (`feat(area):`, `fix(area):`, `chore:`, `docs:`; update README (install/update) or docs/APPS.md (features, Settings, keys), this file and docs/ARCHITECTURE.md in the same change) and the roadmap.
 
 **Commits (user decision):** commit (and push) every change as soon as it is made, one change per commit; never add `Co-Authored-By` or other attribution/session trailers to commit messages.
 
