@@ -38,8 +38,19 @@ wifi() {
   nets="$(nmcli -t -e no -f IN-USE,SIGNAL,SSID dev wifi list --rescan no 2>/dev/null \
     | awk -F: '{ s = substr($0, length($1) + length($2) + 3) } s != "" && !seen[s]++ {
         printf "%s %3s%%  %s\n", ($1 == "*" ? "●" : " "), $2, s }')"
-  pick="$(printf '%s\n%s\n%s' "$toggle" "Settings…" "$nets" | sed '/^$/d' | menu Wi-Fi 12)" || return 0
+  # The network in use goes first, spelled out, and in the prompt; the list below has the others.
+  # The scan list's IN-USE flag is often missing, so the name comes from the Wi-Fi device's connection.
+  local cur sig top=""
+  cur="$(nmcli -t -e no -f TYPE,STATE,CONNECTION dev | awk -F: '$1 == "wifi" && $2 == "connected" { print substr($0, length($1) + length($2) + 3); exit }')"
+  if [[ -n $cur ]]; then
+    sig="$(printf '%s\n' "$nets" | awk -v s="$cur" '{ n = $0; sub(/^. +[0-9]+%  /, "", n) } n == s { sub(/%.*/, ""); print $NF; exit }')"
+    top="✓  Connected: $cur${sig:+  ($sig%)}"
+    nets="$(printf '%s\n' "$nets" | awk -v s="$cur" '{ n = $0; sub(/^. +[0-9]+%  /, "", n) } n != s')"
+  fi
+  pick="$(printf '%s\n%s\n%s\n%s' "$top" "$toggle" "Settings…" "$nets" | sed '/^$/d' \
+    | menu "Wi-Fi${cur:+ · $cur}" 12)" || return 0
   case $pick in
+    "✓  Connected:"*) return ;;
     "Turn Wi-Fi off") nmcli radio wifi off; return ;;
     "Turn Wi-Fi on")  nmcli radio wifi on; return ;;
     Sett*)            fw-settings network; return ;;
