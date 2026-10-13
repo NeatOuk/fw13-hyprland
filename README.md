@@ -48,6 +48,7 @@ The core desktop (Hyprland, bar, login, fonts, theme, Framework tools, backup, c
 | `firewall` | Citadel outbound firewall (built from source) |
 | `messaging` | Telegram Desktop (official build) |
 | `ghostty` | Ghostty terminal (built from the official release) |
+| `database` | DBeaver CE database tool (official RPM, ~120 MB) |
 | `localsend` | LocalSend file sharing (Flathub) |
 
 ```bash

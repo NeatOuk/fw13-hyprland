@@ -37,12 +37,16 @@ FWTOOL_SHA256="${FWTOOL_SHA256:-ebc2f3ca300dac6f484c02d058833372ff8dd3c23f2a74b6
 # (android-tools, 70-dev.txt) instead of the bundled one, so two adb versions never fight over the phone.
 SCRCPY_VERSION="${SCRCPY_VERSION:-v5.0.1}"
 SCRCPY_SHA256="${SCRCPY_SHA256:-9f969d30cc574816077edecda65719c1c70b0aee1df1ba5fa00779ac07b8fd6e}"
+# DBeaver CE (database tool; user decision: the official RPM from github.com/dbeaver/dbeaver releases, not Flathub;
+# not in Fedora). Bundles its own Java, no dependencies. sha256 pinned (GitHub's asset digest); bump both together.
+DBEAVER_VERSION="${DBEAVER_VERSION:-26.2.2}"
+DBEAVER_SHA256="${DBEAVER_SHA256:-ac034c7a0ec44da1231a0a7de844b2b394bc3744ccb0251efb36bb00182c8c76}"
 STATE_DIR="$HOME/.local/state/fw13-hypr"
 
 # Optional groups: everything else is core (what the desktop itself needs). A group owns its packages/*.txt files and
 # the repo, build, download and service steps that test `on <group>` below. An unselected group is skipped, never
 # removed (rule 3a). Order = prompt order. GROUP_INFO[g] = "<packages/*.txt files>|<one-line description>".
-OPT_GROUPS=(games ai android remote warp firewall messaging ghostty localsend)
+OPT_GROUPS=(games ai android remote warp firewall messaging ghostty database localsend)
 declare -A GROUP_INFO=(
   [games]="40-gaming.txt|Steam, Lutris, gamescope, MangoHud, GameMode"
   [ai]="71-ai.txt|Ollama: local models for OpenCode and Jarvis (ollama.service)"
@@ -52,6 +56,7 @@ declare -A GROUP_INFO=(
   [firewall]="94-rpm-build.txt 95-citadel.txt|Citadel outbound firewall, built from source"
   [messaging]="94-rpm-build.txt|Telegram Desktop, official telegram.org build as an RPM"
   [ghostty]="94-rpm-build.txt 98-ghostty.txt|Ghostty terminal, built from the official release (kitty stays)"
+  [database]="|DBeaver CE database tool (official RPM, ~120 MB)"
   [localsend]="|LocalSend file sharing (Flathub, send only)"
 )
 # The saved choice: the groups LEFT OUT, one per line, so a group added later is on. Absent = every group.
@@ -184,6 +189,7 @@ print_plan() {
   on ghostty && ! skipped ghostty-official && echo "  build ghostty-official $GHOSTTY_VERSION RPM"
   echo "  framework_tool $FWTOOL_VERSION download (if not current)"
   on android && ! skipped android-tools && echo "  scrcpy $SCRCPY_VERSION download into /opt/scrcpy (if not current)"
+  on database && ! skipped dbeaver-ce && echo "  dbeaver-ce $DBEAVER_VERSION RPM download (if not current)"
   on ai && ! skipped ollama && echo "  enable ollama.service"
   on warp && ! skipped cloudflare-warp && echo "  enable warp-svc.service"
   on localsend && ! skipped org.localsend.localsend_app && echo "  flatpak install --user LocalSend"
@@ -378,6 +384,18 @@ system_phase() {
     local gt
     gt="$(build_ghostty_rpm)" || die "Ghostty RPM build failed (see above)"
     if [[ -n $gt ]]; then $DNF install "$gt"; else echo "ghostty-official is current"; fi
+  fi
+
+  if ! on database; then :
+  elif skipped dbeaver-ce; then echo "DBeaver: skipped (removed by you)"
+  elif [[ $(rpm -q --qf '%{VERSION}' dbeaver-ce 2>/dev/null) == "$DBEAVER_VERSION" ]]; then echo "dbeaver-ce is current"
+  else
+    say "DBeaver CE $DBEAVER_VERSION (database tool, official RPM)"
+    local db="$STATE_DIR/dbeaver/dbeaver-ce-$DBEAVER_VERSION.rpm"
+    mkdir -p "${db%/*}"
+    curl -fsSL -o "$db" "https://github.com/dbeaver/dbeaver/releases/download/$DBEAVER_VERSION/dbeaver-ce-$DBEAVER_VERSION-linux-x86_64.rpm" \
+      && echo "$DBEAVER_SHA256  $db" | sha256sum -c --status || { rm -f "$db"; die "DBeaver download failed or checksum mismatch"; }
+    $DNF install "$db"; rm -f "$db"
   fi
 
   say "System files"

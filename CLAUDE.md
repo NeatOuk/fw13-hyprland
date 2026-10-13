@@ -47,7 +47,7 @@ Build/download mechanics for the non-repo sources: docs/ARCHITECTURE.md → Inst
 | Built as RPMs (owner's repos) | **Citadel** outbound firewall: `citadel` (NeatOuk/citadel-app `main`) + `citadel-helper` (`v1.3.2`); user phase enables `citadel.service` + `citadel enforce on` (user decision); helper's polkit rule lets wheel in without a password (by design) |
 | Official binary repackaged | **Telegram Desktop** (user decision: official build as RPM `telegram-desktop-official`, self-updater off) |
 | Official release, built | **Ghostty** (user decision: official source, not a COPR) → `ghostty-official`, pinned sha256; group `ghostty` (`GHOSTTY=0` skips for one run) |
-| Upstream release binaries | **framework_tool** (user decision; not in Fedora), **scrcpy** (user decision: official release, not a COPR; uses Fedora's adb); both sha256-pinned |
+| Upstream release binaries | **framework_tool** (user decision; not in Fedora), **scrcpy** (user decision: official release, not a COPR; uses Fedora's adb), **DBeaver CE** (user decision: official RPM from GitHub releases, not Flathub; group `database`; bundles its JRE, no deps); all sha256-pinned |
 | Flathub (user remote) | **LocalSend** only (user decision; `--user`; port 53317 not opened (user decision): send only) |
 | Upstream installer | Claude Code (`claude.ai/install.sh` → `~/.local/bin/claude`, self-updating; mise npm skipped its postinstall) |
 
