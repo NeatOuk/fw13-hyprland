@@ -15,6 +15,8 @@ systemctl --user daemon-reload
 systemctl --user enable fw-crash-watch.service mako.service fw-theme-session.service fw-autobrightness.service \
   fw-battery-warn.service fw-usb.service fw-timezone.service
 systemctl --user enable --now fw-health.timer fw-updates.timer fw-nightlight.timer
+# Syncthing (packages/30-apps.txt; not when the user removed it): its own user unit from the Fedora package
+command -v syncthing >/dev/null && systemctl --user enable --now syncthing.service 2>/dev/null || true
 systemctl --user reset-failed mako.service 2>/dev/null || true
 systemctl --user restart fw-crash-watch.service 2>/dev/null || true
 systemctl --user restart fw-battery-warn.service 2>/dev/null || true

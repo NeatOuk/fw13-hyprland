@@ -28,3 +28,6 @@ NetworkManager-vpnc-gnome
 easyeffects
 lsp-plugins-lv2
 lv2-calf-plugins
+# Fedora official (user decision): file sync between your devices; user service enabled by the dotfiles, web UI
+# on 127.0.0.1:8384 (launcher: Syncthing Web UI); no firewall port opened, so peers connect out or through relays
+syncthing
