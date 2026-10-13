@@ -6,15 +6,20 @@ each level of store `battery_warn` (Settings → Power → On battery → Warn a
 10 and 5 % critical (stay until dismissed, shown under do-not-disturb: mako [app-name=fw-battery
 urgency=critical]). Plugging in resets them. The 20 and 10 % notices offer Ask Jarvis (what's draining it).
 On the same checks it puts the built-in panel at 60 Hz on battery and back when plugged in (displays.battery_rate).
+Sleep report (store `sleep_report`, default on): logind's PrepareForSleep marks the battery % before and after a
+sleep on battery; 10 s after waking (UPower catches up) it notifies "Asleep 7 h: used 4 %", and when the drain was
+high while the hardware's deep-sleep time (/sys/power/suspend_stats/total_hw_sleep, readable without root) covers
+under 80 % of it, says something kept the laptop from deep sleep.
   fw-battery-warn            run
   fw-battery-warn enabled    exit 0 when the service should run (Hyprland, a battery)
   fw-battery-warn test       self-check of the threshold logic
 """
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
-from fw13 import displays, notify, power  # noqa: E402
+from fw13 import displays, notify, power, store  # noqa: E402
 from gi.repository import Gio, GLib  # noqa: E402  (versions pinned by fw13.notify / fw13.power)
 
 APP = "fw-battery"
@@ -31,6 +36,30 @@ def step(pct, on_battery, levels, warned):
         return None, frozenset()
     hit = {t for t in levels if pct <= t and t not in warned}
     return (min(hit) if hit else None), warned | hit
+
+
+HW_SLEEP = "/sys/power/suspend_stats/total_hw_sleep"  # µs in the deepest state, summed since boot
+
+
+def sleep_report(pct0, pct1, secs, hw_usec):
+    """(title, body) after a sleep of `secs` that went from pct0 to pct1 %, or None (short, or it charged)."""
+    if secs < 1800 or pct1 > pct0:
+        return None
+    used, hours = pct0 - pct1, secs / 3600
+    title = f"Asleep {power.duration(secs)}: used {used:.0f} %"
+    body = f"{used / hours:.1f} % per hour"
+    if hw_usec is not None and used / hours > 1 and hw_usec / 1e6 < 0.8 * secs:
+        body += (f"; deep sleep only {hw_usec / 1e6 / secs:.0%} of the time: something kept the laptop awake "
+                 "(a USB device, an app holding a wake lock)")
+    return title, body
+
+
+def read_hw_sleep():
+    try:
+        with open(HW_SLEEP) as f:
+            return int(f.read())
+    except (OSError, ValueError):
+        return None
 
 
 def jarvis_argv(pct, left):
@@ -61,6 +90,10 @@ class Watcher:
         for path in ("/org/freedesktop/UPower", power.battery_path()):
             self.bus.signal_subscribe(power.UP, "org.freedesktop.DBus.Properties", "PropertiesChanged", path,
                                       None, Gio.DBusSignalFlags.NONE, lambda *_: self.check())
+        self.before = None  # (time, %, total_hw_sleep) when a sleep on battery began
+        self.bus.signal_subscribe("org.freedesktop.login1", "org.freedesktop.login1.Manager", "PrepareForSleep",
+                                  "/org/freedesktop/login1", None, Gio.DBusSignalFlags.NONE,
+                                  lambda _c, _s, _p, _i, _n, args: self.sleeping(args[0]))
         GLib.timeout_add_seconds(60, self.check)
         self.check()
 
@@ -75,6 +108,29 @@ class Watcher:
                 self.warn(level, round(b["Percentage"]), b.get("TimeToEmpty", 0))
             self.lowered = displays.battery_rate(on[0], self.lowered)
         return True
+
+    def on_battery(self):
+        on = power._call(power.UP, "/org/freedesktop/UPower", "org.freedesktop.DBus.Properties", "Get",
+                         GLib.Variant("(ss)", (power.UP, "OnBattery")), "(v)")
+        return bool(on and on[0])
+
+    def sleeping(self, going):
+        b = power.battery()
+        if going:
+            self.before = (time.time(), b["Percentage"], read_hw_sleep()) if b and self.on_battery() else None
+        elif self.before:
+            GLib.timeout_add_seconds(10, self.woke, self.before)
+            self.before = None
+
+    def woke(self, before):
+        t0, pct0, hw0 = before
+        b, hw1 = power.battery(), read_hw_sleep()
+        if b and self.on_battery() and store.get("sleep_report") is not False:
+            hw = hw1 - hw0 if None not in (hw0, hw1) else None
+            msg = sleep_report(pct0, b["Percentage"], time.time() - t0, hw)
+            if msg:
+                notify.send(APP, *msg, [], urgency=notify.NORMAL, icon="battery")
+        return False
 
     def warn(self, level, pct, left):
         if level <= 5:
@@ -110,6 +166,12 @@ def selftest():
     assert plan(rates, 60.0, True, False, 120.0) == (120.0, None)       # setting turned off on battery: back
     assert plan(rates, 60.0, False, True, None) == (None, None)         # 60 Hz picked by hand: left alone
     assert plan([60.0], 60.0, True, True, None) == (None, None)         # 60 Hz-only panel
+    assert sleep_report(80, 79, 600, 0) is None                          # short nap
+    assert sleep_report(70, 75, 7200, 0) is None                         # charged meanwhile
+    t, b = sleep_report(80, 76, 7 * 3600, 7 * 3600 * 1e6)
+    assert t.startswith(f"Asleep {power.duration(7 * 3600)}: used 4 %") and "deep sleep" not in b
+    assert "deep sleep only 25%" in sleep_report(80, 60, 4 * 3600, 3600 * 1e6)[1]   # high drain, little deep sleep
+    assert "deep sleep" not in sleep_report(80, 79, 8 * 3600, 3600 * 1e6)[1]   # hibernated: low drain, no blame
     assert jarvis_argv(18, 0) == ["fw-jarvis-panel", "--ask", "What's draining my battery? Battery at 18 %."]
     assert jarvis_argv(9, 1800)[2].endswith(f"9 %, about {power.duration(1800)} left.")
     print("ok")

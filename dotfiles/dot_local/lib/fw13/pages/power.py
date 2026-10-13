@@ -105,6 +105,10 @@ class PowerPage(Page):
                 combo.set_active_id(store.get("battery_warn") or power.WARN_CHOICES[0][0])
                 combo.connect("changed", lambda c: store.set("battery_warn", c.get_active_id()))
                 self.row("Warn at", combo, hint="low-battery notifications; 10 and 5 % stay up, even in Focus and Zen")
+                sw = Gtk.Switch(active=store.get("sleep_report") is not False, valign=Gtk.Align.CENTER)
+                sw.connect("notify::active", lambda s, _p: store.set("sleep_report", s.get_active()))
+                self.row("Sleep report", sw, hint="after 30 min or more asleep: how much battery it used, "
+                                                   "and whether something kept it from deep sleep")
                 if any(m.name.startswith("eDP") and max(m.rates) > 61 for m in displays.read_monitors()):
                     sw = Gtk.Switch(active=store.get("battery_60hz") is not False, valign=Gtk.Align.CENTER)
                     sw.connect("notify::active", lambda s, _p: store.set("battery_60hz", s.get_active()))
