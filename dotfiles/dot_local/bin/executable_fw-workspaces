@@ -9,9 +9,12 @@ monitors (sorted by connector name) 11–19, 21–29, … Each bar shows its own
   fw-workspaces move N   SUPER+Shift+N: move the active window there
   fw-workspaces daemon   exec-once: binds the ranges to their screens, opens the login layout
                          (the terminal on the laptop's 1, Chromium on the monitor's 1), and re-binds on hotplug —
-                         an unplugged monitor's workspaces move to the laptop and go back when it returns.
+                         an unplugged monitor's windows move into free workspaces of the screen they land on (rehome).
   fw-workspaces layout   just the login layout (testing)
   fw-workspaces apply    re-bind the ranges and redraw the dots (after Settings changes the count)
+  fw-workspaces test     self-check
+On unplug, windows left on a workspace no screen owns move into the first empty workspaces of the screen they land
+on (rehome), so its dots and SUPER+N reach them; a replugged monitor starts with empty workspaces.
   fw-workspaces dot N    waybar: JSON for workspace N's dot on this bar's screen (WAYBAR_OUTPUT_NAME)
   fw-workspaces click N  waybar: switch the screen under the pointer to its workspace N
                          (waybar's own hyprland/workspaces click sends a hyprlang dispatch, which the Lua
@@ -150,9 +153,35 @@ def setup(previous=None):
         home = owner(ws["id"], base_of)
         if home and ws["monitor"] != home:
             dispatch(f"hl.dsp.workspace.move({{ workspace = {q(ws['id'])}, monitor = {q(home)} }})")
+    rehome(base_of)
     if was:
         dispatch(f"hl.dsp.focus({{ monitor = {q(was['name'])} }})")
     return base_of
+
+
+def free_slots(base, used):
+    """Empty workspace ids of the range base+1…base+9, lowest first (the last one if all are taken)."""
+    free = [base + i for i in range(1, MAX_WS + 1) if base + i not in used]
+    return free or [base + MAX_WS]
+
+
+def rehome(base_of):
+    """Windows on a workspace no screen owns (an unplugged monitor's 21–29 ended up on another screen, whose dots and
+    SUPER+N only reach its own range) move into the first empty workspaces of the screen they are on now
+    (user decision: a replugged monitor starts empty)."""
+    wss = hj("workspaces")
+    used = {w["id"] for w in wss if w["windows"]}
+    target = {}
+    for w in sorted(wss, key=lambda w: w["id"]):
+        if w["windows"] and w["id"] > 0 and owner(w["id"], base_of) is None and w["monitor"] in base_of:
+            slot = free_slots(base_of[w["monitor"]], used)[0]
+            used.add(slot)
+            target[w["id"]] = slot
+    for c in hj("clients"):
+        dest = target.get(c["workspace"]["id"])
+        if dest:
+            dispatch(f"hl.dsp.window.move({{ workspace = {q(dest)}, window = {q('address:' + c['address'])}, "
+                     "follow = false })")
 
 
 # --- login layout -------------------------------------------------------------------------------
@@ -231,6 +260,11 @@ def main():
         daemon()
     elif cmd == "layout":
         layout()
+    elif cmd == "test":
+        assert free_slots(10, {11, 12}) == [13, 14, 15, 16, 17, 18, 19]
+        assert free_slots(10, set(range(11, 20)))[0] == 19
+        assert owner(23, {"eDP-1": 0, "DP-2": 10}) is None and owner(13, {"eDP-1": 0, "DP-2": 10}) == "DP-2"
+        print("ok")
     elif cmd == "apply":
         setup()
         refresh_dots()
