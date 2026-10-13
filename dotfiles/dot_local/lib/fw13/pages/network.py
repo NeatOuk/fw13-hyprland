@@ -182,11 +182,10 @@ class NetworkPage(Page):
                           else launch("nm-connection-editor", "-e", v["id"]))
             hint = v["kind"] + (" · no password (wheel at the laptop)" if v["backend"] == "swan" and free else "")
             buttons = [act, edit]
+            if v["backend"] == "nm" or vpn_edit.installed():
+                buttons.append(button("Delete", lambda v=v: self.delete_vpn(v), "danger"))
             if v["id"] in secrets:
                 buttons.append(button("Save password…", lambda v=v: self.save_secrets(v, secrets[v["id"]])))
-            if v["backend"] == "nm":  # strongSwan ones are deleted in their Edit form
-                buttons.append(self.confirm_button("Delete", "Delete this VPN?", f"Deleting {v['name']}…",
-                                                   net.forget, v["id"]))
             self.item(f"{VPN_ICON}  {v['name']}", hint, buttons,
                       lead="Connected" if v["active"] else None, lead_cls="ok")
         adds = [button("+ OpenVPN file (.ovpn)…", lambda: self.import_file("openvpn", "OpenVPN", "*.ovpn", "*.conf")),
@@ -275,13 +274,26 @@ class NetworkPage(Page):
         self.refresh()
         return False
 
-    def confirm(self, question):
+    def confirm(self, question, detail="The file is kept as a .bak next to it."):
+        """Yes/No pop-up -> True for Yes."""
         dlg = Gtk.MessageDialog(transient_for=self.get_toplevel(), modal=True, message_type=Gtk.MessageType.WARNING,
-                                buttons=Gtk.ButtonsType.OK_CANCEL, text=question)
-        dlg.format_secondary_text("The file is kept as a .bak next to it.")
-        ok = dlg.run() == Gtk.ResponseType.OK
+                                buttons=Gtk.ButtonsType.YES_NO, text=question)
+        dlg.format_secondary_text(detail)
+        dlg.set_default_response(Gtk.ResponseType.NO)
+        ok = dlg.run() == Gtk.ResponseType.YES
         dlg.destroy()
         return ok
+
+    def delete_vpn(self, v):
+        swan = v["backend"] == "swan"
+        if not self.confirm(f"Delete the VPN {v['name']}?", "The file is kept as a .bak next to it." if swan
+                            else "Its saved password and settings go with it."):
+            return
+        if swan:
+            self.set_status(f"Deleting {v['name']}…")
+            bg(vpn_edit.delete, self.swan_saved, v["id"], fail=lambda e: {"error": str(e)})
+        else:
+            self.run_bg(f"Deleting {v['name']}…", net.forget, v["id"])
 
     def item(self, title, hint, buttons, lead=None, lead_cls="ok"):
         """A row: title, a hint line ('lead' coloured, then the dim rest), buttons on the right."""

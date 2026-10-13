@@ -105,7 +105,7 @@ Package-resolution failures are intended to fail loudly — fix the name (and as
 ## Verification before declaring done
 
 - `bash -n` on every script; JSON-parse `waybar/config.jsonc` (strip `//` comments) and TOML-parse mise/starship — the python snippet in the CI `lint` job does both.
-- `Hyprland --verify-config` on the rendered `hyprland.lua`; duplicate-keybind check via `hyprctl -j binds` (83 binds today; every bind carries { description = … } for fw-keys).
+- `Hyprland --verify-config` on the rendered `hyprland.lua`; duplicate-keybind check via `hyprctl -j binds` (84 binds today; every bind carries { description = … } for fw-keys).
 - chezmoi dry-run into a temp HOME, both with secrets blank and filled.
 - CI green on fedora:44; read the install report in the job summary (added count, size, top 25, Hypr provenance).
 - Hardware-only checks (cannot be done in CI/VM): MT7925 Wi-Fi/BT, VA-API (`vainfo` via distrobox), fingerprint, suspend/resume, tuned-ppd profiles, ambient light sensor, Steam + gamescope.
