@@ -6,7 +6,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from .. import idle, power, store  # noqa: E402
+from .. import displays, idle, power, store  # noqa: E402
 from ..ui_theme import button  # noqa: E402
 from .common import Page, label, launch  # noqa: E402
 
@@ -105,6 +105,10 @@ class PowerPage(Page):
                 combo.set_active_id(store.get("battery_warn") or power.WARN_CHOICES[0][0])
                 combo.connect("changed", lambda c: store.set("battery_warn", c.get_active_id()))
                 self.row("Warn at", combo, hint="low-battery notifications; 10 and 5 % stay up, even in Focus and Zen")
+                if any(m.name.startswith("eDP") and max(m.rates) > 61 for m in displays.read_monitors()):
+                    sw = Gtk.Switch(active=store.get("battery_60hz") is not False, valign=Gtk.Align.CENTER)
+                    sw.connect("notify::active", lambda s, _p: store.set("battery_60hz", s.get_active()))
+                    self.row("Screen at 60 Hz", sw, hint="the built-in screen saves power; full rate again when plugged in")
         if b:
             self.heading("When the battery is very low")
             if can_hib:

@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 
+from . import store
 from .hypr import hj, lua, sh
 
 SAVED = os.path.expanduser("~/.config/hypr/displays.lua")
@@ -53,6 +54,30 @@ class Mon:
 
     def snapshot(self):
         return (self.x, self.y, self.scale, self.rr)
+
+
+def rate_plan(rates, rr, on_battery, enabled, lowered):
+    """(rate to switch to or None, new `lowered`) for the built-in panel. lowered = the rate we came down from,
+    None while untouched: plugging in (or turning the setting off) goes back only to a rate we lowered."""
+    if on_battery and enabled:
+        low = min(rates, key=lambda r: abs(r - 60))
+        return (low, lowered or rr) if rr - low >= 1 else (None, lowered)
+    if lowered and abs(rr - lowered) >= 1 and lowered in rates:
+        return lowered, None
+    return None, None
+
+
+def battery_rate(on_battery, lowered):
+    """Built-in panel at 60 Hz on battery (store `battery_60hz`, default on; Settings → Power), its own rate again
+    when plugged in. Called by fw-battery-warn on every check, so a `hyprctl reload` back to 120 Hz is undone."""
+    m = next((m for m in read_monitors() if m.name.startswith("eDP")), None)
+    if not m:
+        return lowered
+    to, lowered = rate_plan(m.rates, m.rr, on_battery, store.get("battery_60hz") is not False, lowered)
+    if to:
+        m.rr = to
+        apply([m])
+    return lowered
 
 
 def read_monitors():

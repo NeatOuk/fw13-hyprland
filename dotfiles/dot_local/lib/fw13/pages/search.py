@@ -26,6 +26,7 @@ SYNONYMS = [
     ("fw13", "Touch screen", "", None, "touchscreen disable touch"),
     ("fw13", "Touchpad", "Haptic feedback", None, "haptics vibration trackpad click feel"),
     ("fw13", "Touchpad", "Click force", None, "trackpad press pressure click sensitivity"),
+    ("power", "Screen & sleep › On battery", "Screen at 60 Hz", None, "refresh rate hz 120hz battery saving"),
     ("apps", "Installed apps", "", None, "uninstall remove delete software programs applications"),
 ]
 
@@ -74,7 +75,7 @@ def find(page, section, text):
 
 CASES = [("hibernate", "power"), ("night light", "display"), ("noise", "sound"), ("vpn", "network"),
          ("ssh", "security"), ("warn at", "power"), ("weather", "system"), ("colour from", "appearance"),
-         ("jarvis memory", "jarvis"), ("wifi", "network"), ("shortcuts", None), ("uninstall", "apps"),
+         ("jarvis memory", "jarvis"), ("refresh rate", "power"), ("wifi", "network"), ("shortcuts", None), ("uninstall", "apps"),
          ("coding agent", "agent"), ("pi", "agent"), ("ollama server", "agent"), ("laya", "jarvis")]
 
 
