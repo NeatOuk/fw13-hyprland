@@ -33,6 +33,7 @@ OPTIONAL = {
     "cloudflare-warp": ((), "the bar's cloud icon hides itself"),
     "easyeffects": (("lsp-plugins-lv2", "lv2-calf-plugins"), "Settings → Sound loses Speaker sound"),
     "org.localsend.localsend_app": ((), ""),
+    "neovim": ((), "LazyVim's config stays in ~/.config/nvim"),
     "syncthing": ((), "file sync stops; its folders and settings stay in ~/.local/state/syncthing"),
     # no launcher entry: listed by entryless() when installed
     "ollama": ((), "removing it stops and disables ollama.service; Jarvis' offline fallback and the laptop's OpenCode "

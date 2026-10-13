@@ -553,6 +553,10 @@ user_phase() {
   fi
   mise install node
   mise install
+  # LazyVim: fetch its plugins now so the first `nvim` opens ready (Mason's language servers still come on first use)
+  if command -v nvim >/dev/null; then
+    nvim --headless "+Lazy! sync" +qa >/dev/null 2>&1 || warn "LazyVim's plugins didn't download — they will the first time you open nvim"
+  fi
 
   # Anthropic's native installer: puts the real binary in ~/.local/bin and keeps it updated itself.
   # (The npm package via mise skipped its postinstall step, leaving no binary.)

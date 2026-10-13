@@ -3,5 +3,11 @@ podman
 distrobox
 # GitHub CLI (gh auth login also sets up git credentials for pushing)
 gh
+# Neovim + what LazyVim uses: grep/file search (ripgrep, fd), syntax parser builds (tree-sitter-cli, gcc) (user decision)
+neovim
+ripgrep
+fd-find
+tree-sitter-cli
+gcc
 # Vendor official (mise.jdx.dev/rpm)
 mise
