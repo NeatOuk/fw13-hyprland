@@ -81,6 +81,10 @@ def test():
         CASES.append(("fan", "fw13"))
     else:
         print(f"skip 'fan': no {TOOL}")
+    if "syncthing" in TITLES:  # listed only when installed (pages/__init__.py NEEDS)
+        CASES.append(("syncthing device id", "syncthing"))
+    else:
+        print("skip 'syncthing': not installed")
     pages, took = {}, {}
     for pid, _icon, _title, mod in PAGES:
         t = time.monotonic()
