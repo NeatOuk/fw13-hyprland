@@ -13,9 +13,12 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
+from .. import hyprsettings as hs  # noqa: E402
+from ..hypr import hj  # noqa: E402
 from .common import bg, label, launch  # noqa: E402
 
 TOOL = "framework_tool"
+TOUCH = "input.touchdevice.enabled"
 KBD_LED = "chromeos::kbd_backlight"
 FAN_MODES = [("auto", "Automatic"), ("25", "25 %"), ("50", "50 %"), ("75", "75 %"), ("100", "100 % (full)")]
 FP_LEVELS = [("auto", "Automatic"), ("high", "High"), ("medium", "Medium"), ("low", "Low"), ("ultra-low", "Ultra low")]
@@ -67,6 +70,11 @@ def ec(*args):
     return False, lines[-1] if lines else "cancelled"
 
 
+def has_touchscreen():
+    d = hj("devices")
+    return isinstance(d, dict) and bool(d.get("touch"))
+
+
 class Hardware:
     """Adds the Framework hardware sections to a page (heading/row/add_widget/set_status); the page calls
     render(page) on each rebuild. Keeps one 2 s timer for the fan speed."""
@@ -82,6 +90,11 @@ class Hardware:
     def render(self):
         page = self.page
         self.rpm = None
+        if has_touchscreen():
+            page.heading("Touch screen")
+            sw = Gtk.Switch(active=bool(hs.get(TOUCH)))
+            sw.connect("notify::active", lambda s, _p: self.set_touch(s.get_active()))
+            page.row("Touch input", sw, hint="Off ignores touches on the screen; the touchpad keeps working")
         if not shutil.which(TOOL):
             return
         page.heading("Fan")
@@ -137,6 +150,15 @@ class Hardware:
             self.run_ec("--autofanctrl")
         else:
             self.run_ec("--fansetduty", mode)
+
+    def set_touch(self, on):
+        # on = back to the default (no override); the first change runs Hyprland --verify-config, so off the UI thread
+        self.page.set_status("Saving…")
+        bg(hs.write, self.touch_done, {TOUCH: None if on else False}, fail=str)
+
+    def touch_done(self, err):
+        self.page.set_status(err or "Done", "bad" if err else "ok")
+        return False
 
     def run_ec(self, *args):
         self.page.set_status("Waiting for authorisation…")

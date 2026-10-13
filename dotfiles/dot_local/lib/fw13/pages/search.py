@@ -23,6 +23,7 @@ SYNONYMS = [
     ("input", "Keyboard", "Keyboard shortcuts", "SUPER+K or SUPER+/ lists every shortcut",
      "hotkeys shortcuts keybindings keys"),
     ("network", "VPN", "", None, "openvpn ovpn wireguard import vpn file delete remove password passphrase"),
+    ("fw13", "Touch screen", "", None, "touchscreen disable touch"),
     ("apps", "Installed apps", "", None, "uninstall remove delete software programs applications"),
 ]
 
@@ -82,6 +83,9 @@ def test():
         CASES.append(("fan", "fw13"))
     else:
         print(f"skip 'fan': no {TOOL}")
+    from .framework import has_touchscreen
+    if has_touchscreen():  # the section is drawn only on a laptop with a touch panel
+        CASES.append(("touchscreen", "fw13"))
     if "syncthing" in TITLES:  # listed only when installed (pages/__init__.py NEEDS)
         CASES.append(("syncthing device id", "syncthing"))
     else:

@@ -32,6 +32,7 @@ KEYS = {
     "input.repeat_rate": int,
     "input.repeat_delay": int,
     "input.kb_layout": str,
+    "input.touchdevice.enabled": bool,  # My Framework → Touch screen
 }
 # Used only when Hyprland can't be asked (not running): the shipped looknfeel.lua / input.lua values.
 FALLBACK = {
@@ -39,6 +40,7 @@ FALLBACK = {
     "input.touchpad.natural_scroll": True, "input.touchpad.tap_to_click": True,
     "input.touchpad.disable_while_typing": True, "input.touchpad.scroll_factor": 0.4,
     "input.sensitivity": 0.0, "input.repeat_rate": 40, "input.repeat_delay": 250, "input.kb_layout": "us",
+    "input.touchdevice.enabled": True,
 }
 _lock = threading.Lock()
 _layouts = None
