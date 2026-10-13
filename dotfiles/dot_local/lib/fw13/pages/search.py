@@ -24,6 +24,7 @@ SYNONYMS = [
      "hotkeys shortcuts keybindings keys"),
     ("network", "VPN", "", None, "openvpn ovpn wireguard import vpn file delete remove password passphrase"),
     ("fw13", "Touch screen", "", None, "touchscreen disable touch"),
+    ("fw13", "Touchpad", "Haptic feedback", None, "haptics vibration trackpad click feel"),
     ("apps", "Installed apps", "", None, "uninstall remove delete software programs applications"),
 ]
 
@@ -83,9 +84,11 @@ def test():
         CASES.append(("fan", "fw13"))
     else:
         print(f"skip 'fan': no {TOOL}")
-    from .framework import has_touchscreen
+    from .framework import haptic_touchpad, has_touchscreen
     if has_touchscreen():  # the section is drawn only on a laptop with a touch panel
         CASES.append(("touchscreen", "fw13"))
+    if shutil.which(TOOL) and haptic_touchpad():
+        CASES.append(("trackpad haptic", "fw13"))
     if "syncthing" in TITLES:  # listed only when installed (pages/__init__.py NEEDS)
         CASES.append(("syncthing device id", "syncthing"))
     else:

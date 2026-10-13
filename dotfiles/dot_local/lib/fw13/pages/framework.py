@@ -21,6 +21,7 @@ TOOL = "framework_tool"
 TOUCH = "input.touchdevice.enabled"
 KBD_LED = "chromeos::kbd_backlight"
 FAN_MODES = [("auto", "Automatic"), ("25", "25 %"), ("50", "50 %"), ("75", "75 %"), ("100", "100 % (full)")]
+HAPTIC_LEVELS = [("0", "Off"), ("25", "25 %"), ("50", "50 %"), ("75", "75 %"), ("100", "100 % (strongest)")]
 FP_LEVELS = [("auto", "Automatic"), ("high", "High"), ("medium", "Medium"), ("low", "Low"), ("ultra-low", "Ultra low")]
 REPORTS = [("--versions", "Firmware versions", "BIOS, EC, USB-C controllers, cards, SSD"),
            ("--power", "Battery and charger", "charge state, cycle count, adapter"),
@@ -70,6 +71,28 @@ def ec(*args):
     return False, lines[-1] if lines else "cancelled"
 
 
+def haptic_touchpad():
+    """True when a touchpad's HID descriptor has the Haptics usage page (0x0E): Framework's haptic touchpad."""
+    for d in glob.glob("/sys/bus/hid/devices/*"):
+        if not any(n.endswith("Touchpad") for n in map(read_text, glob.glob(f"{d}/input/input*/name"))):
+            continue
+        try:
+            with open(f"{d}/report_descriptor", "rb") as f:
+                if b"\x05\x0e" in f.read():
+                    return True
+        except OSError:
+            pass
+    return False
+
+
+def read_text(path):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
 def has_touchscreen():
     d = hj("devices")
     return isinstance(d, dict) and bool(d.get("touch"))
@@ -116,6 +139,11 @@ class Hardware:
             scale.connect("value-changed", lambda s: subprocess.Popen(
                 ["brightnessctl", "-q", "-d", KBD_LED, "set", f"{int(s.get_value())}%"]))
             page.row("Brightness", scale, hint="Fn+Space cycles it too")
+
+        if haptic_touchpad():
+            page.heading("Touchpad")
+            page.row("Haptic feedback", self.combo(HAPTIC_LEVELS, lambda v: self.run_ec("--haptic-intensity", v)),
+                     hint="Strength of the click you feel; Off turns the vibration off")
 
         page.heading("Fingerprint reader")
         page.row("Power button LED", self.combo(FP_LEVELS, lambda v: self.run_ec("--fp-led-level", v)),
