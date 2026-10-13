@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Power profile follows the charger: performance on AC, balanced on battery. Run by fw-power-profile.service at boot
+# Power profile follows the charger: balanced on AC, power-saver on battery (user decision). Run by fw-power-profile.service at boot
 # and, through 90-fw-power-profile.rules, on every plug / unplug. A profile picked by hand (bar, Settings → Power)
 # stays until the next plug / unplug. Same D-Bus API for power-profiles-daemon and tuned-ppd (which has no
 # powerprofilesctl). No charger or no battery (desktop): nothing to do. Tests: FW13_SYS=<dir>, FW13_DRY=1 (print only).
@@ -15,8 +15,8 @@ for d in "$SUPPLIES"/*; do
 done
 if [[ $mains == 0 || $battery == 0 ]]; then echo "no charger or no battery: profile left alone"; exit 0; fi
 
-profile=balanced
-[[ $online == 1 ]] && profile=performance
+profile=power-saver
+[[ $online == 1 ]] && profile=balanced
 if [[ -n ${FW13_DRY:-} ]]; then echo "$profile"; exit 0; fi
 gdbus call --system --dest org.freedesktop.UPower.PowerProfiles --object-path /org/freedesktop/UPower/PowerProfiles \
   --method org.freedesktop.DBus.Properties.Set org.freedesktop.UPower.PowerProfiles ActiveProfile "<'$profile'>" >/dev/null
