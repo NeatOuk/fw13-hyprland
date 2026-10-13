@@ -25,6 +25,7 @@ SYNONYMS = [
     ("network", "VPN", "", None, "openvpn ovpn wireguard import vpn file delete remove password passphrase"),
     ("fw13", "Touch screen", "", None, "touchscreen disable touch"),
     ("fw13", "Touchpad", "Haptic feedback", None, "haptics vibration trackpad click feel"),
+    ("fw13", "Touchpad", "Click force", None, "trackpad press pressure click sensitivity"),
     ("apps", "Installed apps", "", None, "uninstall remove delete software programs applications"),
 ]
 

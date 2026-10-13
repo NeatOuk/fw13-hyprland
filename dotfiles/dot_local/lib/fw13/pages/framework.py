@@ -22,6 +22,7 @@ TOUCH = "input.touchdevice.enabled"
 KBD_LED = "chromeos::kbd_backlight"
 FAN_MODES = [("auto", "Automatic"), ("25", "25 %"), ("50", "50 %"), ("75", "75 %"), ("100", "100 % (full)")]
 HAPTIC_LEVELS = [("0", "Off"), ("25", "25 %"), ("50", "50 %"), ("75", "75 %"), ("100", "100 % (strongest)")]
+CLICK_FORCE = [("low", "Light"), ("medium", "Medium"), ("high", "Firm")]
 FP_LEVELS = [("auto", "Automatic"), ("high", "High"), ("medium", "Medium"), ("low", "Low"), ("ultra-low", "Ultra low")]
 REPORTS = [("--versions", "Firmware versions", "BIOS, EC, USB-C controllers, cards, SSD"),
            ("--power", "Battery and charger", "charge state, cycle count, adapter"),
@@ -144,6 +145,8 @@ class Hardware:
             page.heading("Touchpad")
             page.row("Haptic feedback", self.combo(HAPTIC_LEVELS, lambda v: self.run_ec("--haptic-intensity", v)),
                      hint="Strength of the click you feel; Off turns the vibration off")
+            page.row("Click force", self.combo(CLICK_FORCE, lambda v: self.run_ec("--click-force", v)),
+                     hint="How hard you press for a click")
 
         page.heading("Fingerprint reader")
         page.row("Power button LED", self.combo(FP_LEVELS, lambda v: self.run_ec("--fp-led-level", v)),
