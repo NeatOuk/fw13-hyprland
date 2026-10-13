@@ -1,0 +1,20 @@
+# Replaces DBeaver's own entry (/usr/share/applications/dbeaver-ce.desktop): SWT's native Wayland backend draws
+# dialogs (New Connection…) empty and they hang, so it runs on XWayland; GTK_THEME pins a dark GTK theme so the
+# Eclipse dark theme (seeded in DBeaverData) gets matching widgets instead of fw13's gtk.css. TryExec hides it once
+# DBeaver is uninstalled.
+[Desktop Entry]
+Version=1.0
+Type=Application
+Terminal=false
+Name=DBeaver
+GenericName=Universal Database Manager
+Comment=Universal Database Manager and SQL Client.
+Path=/usr/share/dbeaver-ce/
+TryExec=/usr/share/dbeaver-ce/dbeaver
+Exec=env NO_AT_BRIDGE=1 GDK_BACKEND=x11 GTK_THEME=Adwaita:dark /usr/share/dbeaver-ce/dbeaver %U
+Icon=/usr/share/dbeaver-ce/dbeaver.png
+Categories=IDE;Development;
+StartupWMClass=DBeaver
+StartupNotify=true
+Keywords=Database;SQL;IDE;JDBC;ODBC;MySQL;PostgreSQL;Oracle;DB2;MariaDB;
+MimeType=application/sql;

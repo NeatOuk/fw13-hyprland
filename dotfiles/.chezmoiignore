@@ -13,3 +13,10 @@
 # Python bytecode (created at runtime next to ~/.local/lib/fw13; never part of the source)
 .local/lib/**/__pycache__
 .local/lib/**/__pycache__/**
+
+# DBeaver launcher + first-run dark theme only when it's installed (group `database`)
+{{ if not (lookPath "dbeaver-ce") }}
+.local/share/applications/dbeaver-ce.desktop
+.local/share/DBeaverData
+.local/share/DBeaverData/**
+{{ end }}
