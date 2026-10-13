@@ -93,3 +93,90 @@ def set_active(v, on):
 def needs_secrets(err):
     """nmcli's answer when a VPN's password isn't saved and no agent asked for it."""
     return bool(err) and "secret" in err.lower()
+
+
+# --- OpenVPN secrets: Hyprland has no NetworkManager secret agent (nm-applet is hidden), so a profile that keeps its
+# password "for this user" asks in a terminal on every connect. Saving it in the profile itself (flags 0: the
+# root-only file in /etc/NetworkManager/system-connections) stops that.
+PASSWORD_TYPES = ("password", "password-tls")
+
+
+def _nm():
+    import gi
+    gi.require_version("NM", "1.0")
+    from gi.repository import NM
+    return NM
+
+
+def key_encrypted(path):
+    """A PEM private key protected by a passphrase (traditional `Proc-Type: 4,ENCRYPTED` or PKCS#8)."""
+    try:
+        with open(path) as f:
+            head = f.read(4096)
+    except (OSError, UnicodeDecodeError):
+        return False
+    return "ENCRYPTED" in head
+
+
+def needs(data):
+    """What an OpenVPN profile's vpn.data asks for: {"username": str, "password": bool, "passphrase": bool}."""
+    return {"username": data.get("username", ""),
+            "password": data.get("connection-type", "tls") in PASSWORD_TYPES,
+            "passphrase": key_encrypted(data.get("key", ""))}
+
+
+def openvpn_needs(uuids):
+    """{uuid: needs()} for the OpenVPN profiles among uuids that ask for a password or key passphrase."""
+    try:
+        client = _nm().Client.new(None)
+    except Exception:  # noqa: BLE001 — no libnm / NetworkManager: no Save password buttons, nothing else breaks
+        return {}
+    out = {}
+    for u in uuids:
+        c = client.get_connection_by_uuid(u)
+        s = c.get_setting_vpn() if c else None
+        if s and s.get_service_type().endswith(".openvpn"):
+            n = needs({k: s.get_data_item(k) for k in s.get_data_keys()})
+            if n["password"] or n["passphrase"]:
+                out[u] = n
+    return out
+
+
+def save_openvpn_secrets(uuid, username=None, password=None, passphrase=None):
+    """Store the given secrets in the profile (flags 0) through libnm over D-Bus, so they never appear on a command
+    line; None leaves that one as it is. Error string or None."""
+    NM = _nm()
+    from gi.repository import GLib
+    try:
+        client = NM.Client.new(None)  # keep a reference: the connection lives in the client's cache
+        c = client.get_connection_by_uuid(uuid)
+        if c is None:
+            return "VPN not found"
+        s = c.get_setting_vpn()
+        if username is not None:
+            s.add_data_item("username", username)
+        for key, value in (("password", password), ("cert-pass", passphrase)):
+            if value is not None:
+                s.add_secret(key, value)
+                s.add_data_item(f"{key}-flags", "0")
+        c.commit_changes(True, None)
+    except GLib.Error as e:
+        return e.message
+    return None
+
+
+def _test():
+    import tempfile
+    with tempfile.NamedTemporaryFile("w", suffix=".pem") as k:
+        k.write("-----BEGIN ENCRYPTED PRIVATE KEY-----\nx\n")
+        k.flush()
+        assert needs({"connection-type": "password-tls", "username": "neat", "key": k.name}) == \
+            {"username": "neat", "password": True, "passphrase": True}
+    assert needs({"connection-type": "tls", "key": "/nonexistent"}) == \
+        {"username": "", "password": False, "passphrase": False}
+    assert needs_secrets("Error: Connection activation failed: No valid secrets") and not needs_secrets(None)
+    print("ok")
+
+
+if __name__ == "__main__":
+    _test()

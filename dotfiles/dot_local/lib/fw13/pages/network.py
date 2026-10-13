@@ -77,6 +77,9 @@ class NetworkPage(Page):
         self.busy = False
         self.set_status(err or "", "bad" if err else "dim")
         self.refresh()
+        then, self.then = getattr(self, "then", None), None  # a follow-up the worker asked for (imported())
+        if then:
+            then()
         return False
 
     def _quiet_scan(self):
@@ -167,6 +170,7 @@ class NetworkPage(Page):
         free = os.path.exists(vpn.CTL) and os.path.exists(VPN_POLICY)  # strongSwan toggle via fw-vpn-ctl + polkit rule
         if not vs:
             self.add_widget(label("No VPN yet: add one below", "dim"))
+        secrets = vpn.openvpn_needs([v["id"] for v in vs if v["backend"] == "nm"])
         for v in vs:
             if v["active"]:
                 act = button("Disconnect",
@@ -177,7 +181,13 @@ class NetworkPage(Page):
             edit = button("Edit…", lambda v=v: self.swan_edit(v["id"]) if v["backend"] == "swan"
                           else launch("nm-connection-editor", "-e", v["id"]))
             hint = v["kind"] + (" · no password (wheel at the laptop)" if v["backend"] == "swan" and free else "")
-            self.item(f"{VPN_ICON}  {v['name']}", hint, [act, edit],
+            buttons = [act, edit]
+            if v["id"] in secrets:
+                buttons.append(button("Save password…", lambda v=v: self.save_secrets(v, secrets[v["id"]])))
+            if v["backend"] == "nm":  # strongSwan ones are deleted in their Edit form
+                buttons.append(self.confirm_button("Delete", "Delete this VPN?", f"Deleting {v['name']}…",
+                                                   net.forget, v["id"]))
+            self.item(f"{VPN_ICON}  {v['name']}", hint, buttons,
                       lead="Connected" if v["active"] else None, lead_cls="ok")
         adds = [button("+ OpenVPN file (.ovpn)…", lambda: self.import_file("openvpn", "OpenVPN", "*.ovpn", "*.conf")),
                 button("+ WireGuard file…", lambda: self.import_file("wireguard", "WireGuard", "*.conf")),
@@ -213,7 +223,24 @@ class NetworkPage(Page):
         path = dlg.get_filename() if dlg.run() == Gtk.ResponseType.OK else None
         dlg.destroy()
         if path:
-            self.run_bg("Importing…", net.import_vpn, kind, path)
+            before = {v["id"] for v in vpn.vpns()}
+            self.run_bg("Importing…", self.imported, kind, path, before)
+
+    def imported(self, kind, path, before):
+        """Import in the worker thread; a new OpenVPN profile that needs a password or key passphrase then asks for
+        it once (Save password…) instead of on every connect."""
+        err = net.import_vpn(kind, path)
+        new = [v for v in vpn.vpns() if v["id"] not in before] if not err else []
+        need = vpn.openvpn_needs([v["id"] for v in new])
+        asks = [v for v in new if v["id"] in need]
+        if asks:  # after _done unlocks the page, so the dialog's own run_bg isn't refused as busy
+            self.then = lambda: self.save_secrets(asks[0], need[asks[0]["id"]])
+        return err
+
+    def save_secrets(self, v, need):
+        got = self.ask_ovpn(v["name"], need)
+        if got:
+            self.run_bg(f"Saving {v['name']}…", vpn.save_openvpn_secrets, v["id"], *got)
 
     # strongSwan: the root helper asks polkit, so it runs in a thread; the form itself is modal on the main loop
     def swan_edit(self, name, typed=None, error=""):
@@ -294,18 +321,21 @@ class NetworkPage(Page):
         return button("Disconnect", lambda: self.run_bg(f"Disconnecting from {ssid}…", net.down, conn["uuid"]))
 
     def forget_button(self, conn):
-        """Forget, with a confirm step in place of the row's buttons."""
-        b = button("Forget", None, "danger")
+        return self.confirm_button("Forget", "Forget this network?", f"Forgetting {conn['name']}…",
+                                   net.forget, conn["uuid"])
+
+    def confirm_button(self, text, question, busy, fn, *args):
+        """A danger button with a confirm step in place of the row's buttons; then run_bg(busy, fn, *args)."""
+        b = button(text, None, "danger")
 
         def ask(_b):
             self.confirming = True
             box = b.get_parent()
             for w in box.get_children():
                 box.remove(w)
-            box.pack_start(wrap(label("Forget this network?", "warn")), False, False, 0)
+            box.pack_start(wrap(label(question, "warn")), False, False, 0)
             box.pack_start(button("Cancel", self.refresh), False, False, 0)
-            box.pack_start(button("Forget", lambda: self.run_bg(f"Forgetting {conn['name']}…", net.forget,
-                                                                conn["uuid"]), "danger"), False, False, 0)
+            box.pack_start(button(text, lambda: self.run_bg(busy, fn, *args), "danger"), False, False, 0)
             box.show_all()
         b.connect("clicked", ask)
         return b
@@ -387,6 +417,57 @@ class NetworkPage(Page):
         result = ((ssid_entry.get_text().strip() if ssid_entry else ""), pw.get_text())
         dlg.destroy()
         return result if resp == Gtk.ResponseType.OK and (ssid_entry is None or result[0]) else None
+
+
+    def ask_ovpn(self, name, need):
+        """Dialog for an OpenVPN profile's username/password and key passphrase -> (username, password, passphrase)
+        with None for what isn't asked, or None when skipped."""
+        dlg = Gtk.Dialog(transient_for=self.get_toplevel(), modal=True, title=f"VPN {name}")
+        dlg.get_style_context().add_class("panel")
+        dlg.set_default_size(380, -1)
+        area = dlg.get_content_area()
+        area.set_spacing(8)
+        for side in ("top", "bottom", "start", "end"):
+            getattr(area, f"set_margin_{side}")(16)
+        area.pack_start(label(f"Save the password for {name}", "title"), False, False, 0)
+        area.pack_start(wrap(label("Kept in the VPN's profile (readable by root only), so connecting doesn't ask "
+                                   "again. Skip = asked on each connect.", "dim")), False, False, 0)
+
+        def secret(placeholder):
+            e = Gtk.Entry(visibility=False, input_purpose=Gtk.InputPurpose.PASSWORD, placeholder_text=placeholder)
+            area.pack_start(e, False, False, 0)
+            return e
+        user = Gtk.Entry(text=need["username"], placeholder_text="Username") if need["password"] else None
+        if user:
+            area.pack_start(user, False, False, 0)
+        pw = secret("Password") if need["password"] else None
+        phrase = secret("Private key passphrase") if need["passphrase"] else None
+        entries = [e for e in (pw, phrase) if e]
+        show = Gtk.CheckButton(label="Show")
+        show.connect("toggled", lambda c: [e.set_visibility(c.get_active()) for e in entries])
+        area.pack_start(show, False, False, 0)
+        dlg.add_button("Skip", Gtk.ResponseType.CANCEL)
+        ok = dlg.add_button("Save", Gtk.ResponseType.OK)
+        ok.get_style_context().add_class("primary")
+        dlg.set_default_response(Gtk.ResponseType.OK)
+
+        def changed(*_):
+            ok.set_sensitive(all(e.get_text() for e in entries) and (user is None or bool(user.get_text().strip())))
+        for e in (user, *entries):
+            if e:
+                e.connect("changed", changed)
+                e.connect("activate", lambda _e: ok.get_sensitive() and dlg.response(Gtk.ResponseType.OK))
+        changed()
+        dlg.show_all()
+        self.confirming = True
+        try:
+            resp = dlg.run()
+        finally:
+            self.confirming = False
+        result = (user.get_text().strip() if user else None, pw.get_text() if pw else None,
+                  phrase.get_text() if phrase else None)
+        dlg.destroy()
+        return result if resp == Gtk.ResponseType.OK else None
 
 
 def build():
