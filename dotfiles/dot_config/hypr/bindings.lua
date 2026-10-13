@@ -25,6 +25,7 @@ hl.bind("SUPER + SHIFT + T", exec("uwsm app -- fw-term --class fw13.btop -e btop
 
 -- Windows
 hl.bind("SUPER + Q",         hl.dsp.window.close(), { description = "Close window" })
+hl.bind("SUPER + SHIFT + Q", hl.dsp.window.kill(), { description = "Force quit window (kill the app, no save prompt)" })
 hl.bind("SUPER + F",         hl.dsp.window.fullscreen({ action = "toggle" }), { description = "Fullscreen" })
 hl.bind("SUPER + T",         hl.dsp.window.float({ action = "toggle" }), { description = "Float / tile window" })
 hl.bind("SUPER + J",         hl.dsp.layout("togglesplit"), { description = "Flip split direction" })

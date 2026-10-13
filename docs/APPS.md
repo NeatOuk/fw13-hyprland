@@ -83,6 +83,7 @@ For an off-laptop copy, **restic** backs up your home folder daily (user systemd
 | SUPER+A / Alt+A / Ctrl+A | Jarvis (AI assistant) / ask about a screen region / ask about the selected text |
 | SUPER+Shift+A / T / B | Claude Code / btop / Timeshift |
 | SUPER+Q / F / T / J / P | Close / fullscreen / float / change split / pseudo-tile |
+| SUPER+Shift+Q | Force quit: kills the app at once (no save prompt; for frozen apps or ones that stay in the tray) |
 | SUPER+S / Shift+S | Scratchpad / send window to scratchpad |
 | SUPER+L / Escape | Lock / power menu |
 | SUPER+Arrows (+Shift / +Ctrl) | Focus / move / resize |
