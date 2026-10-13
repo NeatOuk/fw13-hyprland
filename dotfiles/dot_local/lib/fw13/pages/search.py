@@ -22,6 +22,7 @@ SYNONYMS = [
     ("input", "Touchpad", "", None, "touchpad trackpad mouse"),
     ("input", "Keyboard", "Keyboard shortcuts", "SUPER+K or SUPER+/ lists every shortcut",
      "hotkeys shortcuts keybindings keys"),
+    ("network", "VPN", "", None, "openvpn ovpn wireguard import vpn file"),
     ("apps", "Installed apps", "", None, "uninstall remove delete software programs applications"),
 ]
 

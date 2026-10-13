@@ -179,9 +179,10 @@ class NetworkPage(Page):
             hint = v["kind"] + (" · no password (wheel at the laptop)" if v["backend"] == "swan" and free else "")
             self.item(f"{VPN_ICON}  {v['name']}", hint, [act, edit],
                       lead="Connected" if v["active"] else None, lead_cls="ok")
-        adds = [button("+ OpenVPN, OpenConnect, Cisco… or import a file",
-                       lambda: launch("nm-connection-editor", "-c", "-t", "vpn")),
-                button("+ WireGuard file…", self.import_wireguard)]
+        adds = [button("+ OpenVPN file (.ovpn)…", lambda: self.import_file("openvpn", "OpenVPN", "*.ovpn", "*.conf")),
+                button("+ WireGuard file…", lambda: self.import_file("wireguard", "WireGuard", "*.conf")),
+                button("+ OpenConnect, Cisco… or another file",
+                       lambda: launch("nm-connection-editor", "-c", "-t", "vpn"))]
         if vpn_edit.installed():
             adds.insert(0, button("+ IKEv2 (FortiGate / strongSwan)…", lambda: self.swan_edit(None)))
         for b in adds:
@@ -198,18 +199,21 @@ class NetworkPage(Page):
         waybar.refresh("vpn")  # bar shield (fw-vpn)
         return err
 
-    def import_wireguard(self):
-        dlg = Gtk.FileChooserDialog(title="WireGuard configuration", transient_for=self.get_toplevel(),
+    def import_file(self, kind, name, *patterns):
+        """Pick a VPN file and import it with NetworkManager (`nmcli connection import type <kind>`); certificates and
+        keys inline or next to an .ovpn are copied in by the OpenVPN plugin; a password is asked at first connect."""
+        dlg = Gtk.FileChooserDialog(title=f"{name} configuration", transient_for=self.get_toplevel(),
                                     action=Gtk.FileChooserAction.OPEN)
         dlg.add_buttons("Cancel", Gtk.ResponseType.CANCEL, "Import", Gtk.ResponseType.OK)
         f = Gtk.FileFilter()
-        f.set_name("WireGuard (*.conf)")
-        f.add_pattern("*.conf")
+        f.set_name(f"{name} ({' '.join(patterns)})")
+        for pat in patterns:
+            f.add_pattern(pat)
         dlg.add_filter(f)
         path = dlg.get_filename() if dlg.run() == Gtk.ResponseType.OK else None
         dlg.destroy()
         if path:
-            self.run_bg("Importing…", net.import_vpn, "wireguard", path)
+            self.run_bg("Importing…", net.import_vpn, kind, path)
 
     # strongSwan: the root helper asks polkit, so it runs in a thread; the form itself is modal on the main loop
     def swan_edit(self, name, typed=None, error=""):
