@@ -11,6 +11,14 @@ from ..ui_theme import button  # noqa: E402
 from .common import Page, label, launch  # noqa: E402
 
 
+# What tuned-ppd's profiles do on this laptop (powersave / balanced / throughput-performance); fw-power-profile
+# picks balanced on AC and power-saver on battery
+PROFILE_HINTS = {
+    "power-saver": "Longest battery, quiet · no CPU boost, lowest power limit, screen saves power · used on battery",
+    "balanced": "Full speed when needed, saves power when idle · used when plugged in",
+    "performance": "Always full speed, highest power limit · most heat and fan; for long heavy jobs",
+}
+
 class PowerPage(Page):
     def __init__(self):
         super().__init__("Power")
@@ -55,6 +63,9 @@ class PowerPage(Page):
                 rb.set_active(name == active)
                 rb.connect("toggled", lambda r, n=name: r.get_active() and self.switch_profile(n))
                 self.add_widget(rb)
+                if name in PROFILE_HINTS:
+                    hint = self.add_widget(label(PROFILE_HINTS[name], "dim", wrap=True, xalign=0))
+                    hint.set_margin_start(28)  # under the radio's text, not its dot
         tun = power.tuning_rows()
         if tun:  # read-only: what the profile set (sysfs + tuned); refreshed with the page
             self.heading("Tuning")
