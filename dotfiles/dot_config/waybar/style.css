@@ -12,7 +12,7 @@ window#waybar { background: @bg; color: @fg; }
 #custom-ws1.active, #custom-ws2.active, #custom-ws3.active, #custom-ws4.active, #custom-ws5.active, #custom-ws6.active, #custom-ws7.active, #custom-ws8.active, #custom-ws9.active { color: @accent; }
 #custom-ws1:hover, #custom-ws2:hover, #custom-ws3:hover, #custom-ws4:hover, #custom-ws5:hover, #custom-ws6:hover, #custom-ws7:hover, #custom-ws8:hover, #custom-ws9:hover { color: @fg; }
 #tray, #bluetooth, #network, #custom-warp, #custom-vpn, #pulseaudio, #custom-display, #custom-claude, #custom-opencode, #cpu, #battery { padding: 0 9px; }
-#custom-notifications, #custom-control, #custom-caffeine, #custom-profile, #custom-weather { padding: 0 9px; }
+#custom-notifications, #custom-caffeine, #custom-profile, #custom-weather { padding: 0 9px; }
 #custom-power { padding: 0 14px 0 9px; color: @red; }
 #battery.warning { color: @yellow; }
 #battery.critical { color: @red; }
