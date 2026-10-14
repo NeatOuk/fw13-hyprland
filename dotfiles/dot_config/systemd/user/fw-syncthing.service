@@ -1,0 +1,14 @@
+[Unit]
+Description=fw13 Syncthing watcher: notifications for new devices and shared folders (Hyprland only)
+# The condition skips it (no failure) outside Hyprland or without Syncthing installed.
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecCondition=%h/.local/bin/fw-syncthing enabled
+ExecStart=%h/.local/bin/fw-syncthing
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+"""Syncthing watcher (user service fw-syncthing, Hyprland only, when Syncthing is installed).
+
+Long-polls Syncthing's event API (fw13.syncthing) in a worker thread and notifies on the GTK-free main loop:
+  a new device wants to connect  → Accept (adds it) / Ignore (dismissed, not asked again)
+  a device shares a folder       → Accept (fuzzel asks where, default ~/Sync/<name>) / Ignore (Syncthing's ignoredFolders)
+Each request is notified once per run; Settings → Syncthing lists the same open requests. Syncthing stopped → retries.
+  fw-syncthing            run
+  fw-syncthing enabled    exit 0 when the service should run (Hyprland + syncthing installed)
+  fw-syncthing test       self-check
+"""
+import os
+import subprocess
+import sys
+import threading
+import time
+
+sys.path.insert(0, os.path.expanduser("~/.local/lib"))
+from fw13 import notify, syncthing  # noqa: E402
+from gi.repository import Gio, GLib  # noqa: E402  (versions pinned by fw13.notify)
+
+APP = "fw-syncthing"
+EVENTS = "PendingDevicesChanged,PendingFoldersChanged"
+RETRY = 30      # s, while Syncthing is stopped or unreachable
+NOTE_MS = 120000
+
+
+def key(req):
+    return (req["kind"], req["id"], req.get("device", ""))
+
+
+def fresh(reqs, seen):
+    """Requests not notified yet (pure)."""
+    return [r for r in reqs if key(r) not in seen]
+
+
+def ask_path(label):
+    """fuzzel prompt for where to put an accepted folder; Enter keeps the default. None = cancelled / not absolute."""
+    default = syncthing.default_path(label)
+    try:
+        out = subprocess.run(["fuzzel", "--dmenu", "--lines", "1", "--prompt", f"Save {label} to › "],
+                             input=default + "\n", capture_output=True, text=True, timeout=300).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    path = os.path.expanduser(out)
+    return path if os.path.isabs(path) else None
+
+
+class Watcher:
+    def __init__(self):
+        self.session = Gio.bus_get_sync(Gio.BusType.SESSION)
+        self.seen = set()   # request keys already notified
+        self.notes = {}     # notification id → request
+        notify.on_action(self.session, self.on_action)
+        threading.Thread(target=self.poll, daemon=True).start()
+
+    def poll(self):
+        since = None
+        while True:
+            try:
+                if since is None:  # start (or Syncthing restarted, ids reset): from the newest event on
+                    last = syncthing.api("/rest/events?limit=1&timeout=0") or []
+                    since = last[-1]["id"] if last else 0
+                    GLib.idle_add(self.got, ["start"])
+                events = syncthing.api(f"/rest/events?since={since}&timeout=50&events={EVENTS}", timeout=60) or []
+            except (syncthing.Error, KeyError, ValueError):
+                since = None
+                time.sleep(RETRY)
+                continue
+            if events:
+                since = events[-1]["id"]
+                GLib.idle_add(self.got, [e["type"] for e in events])
+
+    def got(self, types):
+        threading.Thread(target=self.check_pending, daemon=True).start()
+        return False
+
+    def check_pending(self):
+        try:
+            reqs = syncthing.pending()
+        except syncthing.Error:
+            return
+        names = {}
+        if any(r["kind"] == "folder" for r in reqs):
+            try:
+                names = {d["deviceID"]: d.get("name") or syncthing.short_id(d["deviceID"])
+                         for d in syncthing.api("/rest/config/devices")}
+            except syncthing.Error:
+                pass
+        for r in fresh(reqs, self.seen):
+            self.seen.add(key(r))
+            if r["kind"] == "device":
+                title = f"Syncthing: {r['name']} wants to connect"
+                body = f"Device {syncthing.short_id(r['id'])}" + (f" from {r['address']}" if r["address"] else "")
+            else:
+                who = names.get(r["device"], syncthing.short_id(r["device"]))
+                title = f"Syncthing: {who} shares “{r['label']}”"
+                body = f"Accept to sync it here (you pick where; default {syncthing.default_path(r['label'])})"
+            nid = notify.send(APP, title, body, [("accept", "Accept"), ("ignore", "Ignore")], timeout=NOTE_MS,
+                              bus=self.session)
+            if nid:
+                self.notes[nid] = r
+
+    def on_action(self, nid, action):
+        r = self.notes.pop(nid, None)
+        if r and action in ("accept", "ignore"):
+            threading.Thread(target=self.answer, args=(r, action), daemon=True).start()
+
+    def answer(self, r, action):
+        try:
+            if r["kind"] == "device" and action == "accept":
+                syncthing.add_device(r["id"], r["name"])
+                msg = f"{r['name']} added"
+            elif r["kind"] == "device":
+                syncthing.ignore_device(r["id"])
+                msg = f"{r['name']} ignored"
+            elif action == "accept":
+                path = ask_path(r["label"])
+                if not path:
+                    self.seen.discard(key(r))  # still open: asked again on the next change, and listed in Settings
+                    return
+                syncthing.accept_folder(r["id"], r["label"], r["device"], path)
+                msg = f"“{r['label']}” syncs to {path}"
+            else:
+                syncthing.ignore_folder(r["id"], r["label"], r["device"])
+                msg = f"“{r['label']}” ignored"
+        except syncthing.Error as e:
+            msg = f"Failed: {e}"
+        notify.send(APP, "Syncthing", msg, bus=self.session)
+
+
+def selftest():
+    reqs = [{"kind": "device", "id": "A"}, {"kind": "folder", "id": "f", "device": "A"},
+            {"kind": "folder", "id": "f", "device": "B"}]
+    assert fresh(reqs, set()) == reqs
+    assert fresh(reqs, {("folder", "f", "A")}) == [reqs[0], reqs[2]]
+    assert fresh(reqs, {key(r) for r in reqs}) == []
+    print("fw-syncthing: ok")
+
+
+if __name__ == "__main__":
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "run"
+    if cmd == "test":
+        selftest()
+    elif cmd == "enabled":
+        sys.exit(0 if notify.in_hyprland() and syncthing.installed() else 1)
+    else:
+        Watcher()
+        GLib.MainLoop().run()

@@ -23,7 +23,7 @@ def _load():
     if not running:
         return {"running": False, "enabled": enabled}
     try:
-        return {"running": True, "enabled": enabled, **syncthing.snapshot()}
+        return {"running": True, "enabled": enabled, **syncthing.snapshot(), "pending": syncthing.pending()}
     except syncthing.Error as e:
         return {"running": True, "enabled": enabled, "error": str(e)}
 
@@ -104,6 +104,7 @@ class SyncthingPage(Page):
         if "folders" in st:
             self.row("Rescan all folders", button("Rescan all", self.rescan),
                      hint="Looks for changes now instead of waiting for the next scan")
+            self.render_pending(st.get("pending") or [], st["devices"])
             self.render_devices(st["devices"])
             self.render_folders(st["folders"])
         self.show_all()
@@ -114,6 +115,38 @@ class SyncthingPage(Page):
         for spec in specs:
             box.pack_start(button(*spec), False, False, 0)
         return box
+
+    def render_pending(self, reqs, devices):
+        if not reqs:
+            return
+        self.heading("Requests")
+        names = {d["id"]: d["name"] for d in devices}
+        for r in reqs:
+            if r["kind"] == "device":
+                text = f"{r['name']} wants to connect"
+                hint = syncthing.short_id(r["id"]) + (f" · {r['address']}" if r["address"] else "")
+                accept = (lambda r=r: self.act(f"{r['name']} added", syncthing.add_device, r["id"], r["name"]))
+                ignore = (lambda r=r: self.act(f"{r['name']} ignored", syncthing.ignore_device, r["id"]))
+            else:
+                text = f"{names.get(r['device'], syncthing.short_id(r['device']))} shares “{r['label']}”"
+                hint = "Accept to sync it on this laptop"
+                accept = (lambda r=r: self.accept_folder(r))
+                ignore = (lambda r=r: self.act(f"“{r['label']}” ignored", syncthing.ignore_folder, r["id"], r["label"],
+                                               r["device"]))
+            self.row(text, self.buttons(("Accept", accept, "primary"), ("Ignore", ignore)), hint=hint)
+
+    def accept_folder(self, r):
+        dlg, box = self.dialog(f"Accept “{r['label']}”", "Accept")
+        box.pack_start(label("Save it to"), False, False, 0)
+        path = Gtk.Entry(activates_default=True, width_chars=50, text=syncthing.default_path(r["label"]))
+        box.pack_start(path, False, False, 0)
+        dlg.show_all()
+        ok = dlg.run() == Gtk.ResponseType.OK
+        where = path.get_text()
+        dlg.destroy()
+        if ok and where.strip():
+            self.act(f"“{r['label']}” syncs to {where}", syncthing.accept_folder, r["id"], r["label"], r["device"],
+                     os.path.expanduser(where.strip()))
 
     def render_devices(self, devices):
         self.heading("Devices")

@@ -13,10 +13,13 @@ import shutil
 import ssl
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+
+from . import store
 
 UNIT = "syncthing.service"
 CONFIGS = ("$XDG_STATE_HOME/syncthing/config.xml", "~/.local/state/syncthing/config.xml",
@@ -161,6 +164,46 @@ def share(folder_id, device_id, on):
     api(f"/rest/config/folders/{_q(folder_id)}", "PATCH", body={"devices": devices})
 
 
+def default_path(label):
+    """Where an accepted folder goes unless the owner picks another place: ~/Sync/<label>."""
+    safe = label.replace("/", "_").strip(". ") or "folder"
+    return os.path.join(os.path.expanduser("~/Sync"), safe)
+
+
+def pending():
+    """Open requests: [{"kind": "device", "id", "name", "address"} | {"kind": "folder", "id", "label", "device"}]."""
+    out = [{"kind": "device", "id": i, "name": v.get("name") or short_id(i), "address": v.get("address", "")}
+           for i, v in (api("/rest/cluster/pending/devices") or {}).items()
+           if i not in (store.get("syncthing_ignored") or [])]
+    for fid, v in (api("/rest/cluster/pending/folders") or {}).items():
+        out += [{"kind": "folder", "id": fid, "label": o.get("label") or fid, "device": dev}
+                for dev, o in (v.get("offeredBy") or {}).items()]
+    return out
+
+
+def accept_folder(folder_id, label, device_id, path):
+    """Accept a folder a device shares: share ours with it if we already have that folder ID, else add it at `path`."""
+    if any(f["id"] == folder_id for f in api("/rest/config/folders")):
+        share(folder_id, device_id, True)
+    else:
+        add_folder(path, label, [device_id], folder_id=folder_id)
+
+
+def ignore_device(device_id):
+    """Dismiss a device's request; Syncthing lists it again if it keeps asking, so it is also remembered in store
+    `syncthing_ignored` and left out of pending() from then on."""
+    api(f"/rest/cluster/pending/devices?device={_q(device_id)}", "DELETE")
+    store.set("syncthing_ignored", sorted({*(store.get("syncthing_ignored") or []), device_id}))
+
+
+def ignore_folder(folder_id, label, device_id):
+    """Ignore a folder for good: Syncthing's own per-device ignoredFolders list (Remove there to undo)."""
+    dev = api(f"/rest/config/devices/{_q(device_id)}")
+    ignored = [x for x in dev.get("ignoredFolders") or [] if x.get("id") != folder_id]
+    ignored.append({"id": folder_id, "label": label, "time": time.strftime("%Y-%m-%dT%H:%M:%S%z")})
+    api(f"/rest/config/devices/{_q(device_id)}", "PATCH", body={"ignoredFolders": ignored})
+
+
 def short_id(device_id):
     """Syncthing's own short form: the first group of the device ID."""
     return device_id.split("-", 1)[0]
@@ -241,6 +284,8 @@ def test():
     assert seen("1970-01-01T07:00:00+07:00") == "never" and seen("2026-10-13T07:57:31.12+07:00") == "2026-10-13 07:57"
     fid = new_folder_id()
     assert len(fid) == 11 and fid[5] == "-" and fid.replace("-", "").isalnum() and fid != new_folder_id()
+    assert default_path("Photos") == os.path.expanduser("~/Sync/Photos")
+    assert default_path("a/b") == os.path.expanduser("~/Sync/a_b") and default_path("..").endswith("/folder")
     assert _q("a b/c?") == "a%20b%2Fc%3F"
     assert via("relay-client") == "relay" and via("tcp-server") == "direct" and via("quic-client") == "direct"
     assert folder_state({"paused": True}, None) == "paused"
