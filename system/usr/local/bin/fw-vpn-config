@@ -78,15 +78,20 @@ def parse(text):
 
 
 def fields(name, path):
+    """The non-secret fields: what `show` prints. Secrets are only read by secrets(), and never printed."""
     conf = parse(open(path).read())
     c = conf["connections"][name]
     child = c.get("children", {}).get(name, {})
-    sec = conf.get("secrets", {})
-    psk = next((v.get("secret") for k, v in sec.items() if k.startswith("ike")), None)
-    pw = next((v.get("secret") for k, v in sec.items() if k.startswith("eap")), None)
     return {"name": name, "server": c.get("remote_addrs", ""), "remote_id": c.get("remote", {}).get("id", ""),
             "local_id": c.get("local", {}).get("id", ""), "username": c.get("local", {}).get("eap_id", ""),
-            "networks": child.get("remote_ts", ""), "psk": psk, "password": pw}
+            "networks": child.get("remote_ts", "")}
+
+
+def secrets(path):
+    """{psk, password} of a connection file: kept by write() when the form leaves them empty."""
+    sec = parse(open(path).read()).get("secrets", {})
+    return {"psk": next((v.get("secret") for k, v in sec.items() if k.startswith("ike")), None),
+            "password": next((v.get("secret") for k, v in sec.items() if k.startswith("eap")), None)}
 
 
 def _q(s):
@@ -184,7 +189,7 @@ def _reload():
 def write(req):
     name = req.get("old") or None
     path = conf_path(name) if name else None
-    old = fields(name, path) if path else None
+    old = secrets(path) if path else None
     f = validate(req, old)
     if f["name"] != name and os.path.exists(os.path.join(DIR, f["name"] + ".conf")):
         raise ValueError(f"There already is a VPN called {f['name']}")
@@ -214,8 +219,11 @@ def main():
     cmd, arg = (sys.argv[1:] + ["", ""])[:2]
     try:
         if cmd == "show" and arg:
-            out = fields(arg, conf_path(arg))
-            out["has_psk"], out["has_password"] = bool(out.pop("psk")), bool(out.pop("password"))
+            path = conf_path(arg)
+            out = fields(arg, path)
+            sec = secrets(path)
+            out["has_psk"] = sec["psk"] not in (None, "")  # only whether one is set
+            out["has_password"] = sec["password"] not in (None, "")
         elif cmd == "delete" and arg:
             out = delete(arg)
         elif cmd == "write" and not arg:
