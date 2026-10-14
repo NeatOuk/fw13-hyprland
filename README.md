@@ -22,7 +22,8 @@ A Hyprland desktop installer made for one machine: the **Framework Laptop 13 (AM
 |---|---|
 | **Framework Laptop 13, AMD Ryzen AI 300** (HX 370 / 365 / 350) | ✅ The target: everything is tested on an HX 370 (Radeon 890M, MediaTek MT7925 Wi-Fi/BT) |
 | Framework Laptop 13, AMD Ryzen 7040 | ⚠️ Should work (same EC, `framework_tool` and AMD stack), not tested |
-| Framework Laptop 13 Intel, Framework 12/16, other laptops | ❌ Not supported: no Intel tuning, and the Framework-only parts (fan, keyboard backlight, charge limit, fingerprint LED, hardware checks) are hidden or skipped elsewhere |
+| Framework Laptop 13 Intel, Framework 12, Framework 16 | 🤝 Not supported yet: no Intel tuning, and nothing tested on the 12 or 16. **Pull requests are welcome** (see [CONTRIBUTING.md](CONTRIBUTING.md)) |
+| Other laptops | ❌ Not supported: the Framework-only parts (fan, keyboard backlight, charge limit, fingerprint LED, hardware checks) are hidden or skipped |
 | **Fedora 44+**: Workstation (GNOME), KDE Plasma, any spin, or Minimal | ✅ GNOME/KDE stay installed and selectable at login |
 | Fedora Atomic (Silverblue, Kinoite, …), Fedora 43 or older, other distros | ❌ The installer stops: Atomic can't install packages this way, and Hyprland comes from a COPR that only builds for Fedora 44+ |
 
