@@ -77,12 +77,34 @@ wifi() {
 }
 
 bluetooth() {
-  local power pick ok=0 _
+  local power pick ok=0 _ mac name bat label
+  local -A macs=() connected=()
+  local devs=()
   # Bluetooth switched off at the radio (rfkill soft block) removes the adapter: bluetoothctl then has no controller
   # and fails, which under set -e used to end the script before the menu opened. Treat that as "off".
   power="$(bluetoothctl show 2>/dev/null | awk '/Powered:/ {print $2; exit}')" || true
-  pick="$(printf '%s\n' "Turn $([[ $power == yes ]] && echo off || echo on)" "Settings…" "Devices…" | menu Bluetooth 3)" || return 0
+  # Connected devices first (with battery, like the Wi-Fi menu's "Connected" line), then the other paired
+  # devices: picking one connects it. bluetoothctl also prints debug lines, hence the ^Device filter.
+  if [[ $power == yes ]]; then
+    while read -r _ mac name; do
+      bat="$(bluetoothctl info "$mac" 2>/dev/null | awk -F'[()]' '/Battery Percentage/ {print $2; exit}')" || true
+      label="✓  $name${bat:+  ($bat%)}"; connected[$mac]=1; devs+=("$label")
+    done < <(bluetoothctl devices Connected 2>/dev/null | grep '^Device ' || true)
+    while read -r _ mac name; do
+      [[ -n ${connected[$mac]:-} ]] && continue
+      label="    $name"; macs[$label]=$mac; devs+=("$label")
+    done < <(bluetoothctl devices Paired 2>/dev/null | grep '^Device ' || true)
+  fi
+  pick="$(printf '%s\n' "${devs[@]}" "Turn $([[ $power == yes ]] && echo off || echo on)" "Settings…" | sed '/^$/d' \
+    | menu "Bluetooth${connected[*]:+ · ${#connected[@]} connected}" $(( ${#devs[@]} + 2 > 10 ? 10 : ${#devs[@]} + 2 )))" || return 0
+  if [[ -n ${macs[$pick]:-} ]]; then
+    name="${pick#    }"
+    if bluetoothctl connect "${macs[$pick]}" >/dev/null 2>&1; then fw-notify "Bluetooth" "Connected to $name"
+    else fw-notify "Bluetooth" "Could not connect to $name (is it on and nearby?)"; fi
+    return
+  fi
   case $pick in
+    "✓  "*) return ;;
     "Turn off") bluetoothctl power off >/dev/null 2>&1 || true ;;
     "Turn on")
       # Lift the radio block first (/dev/rfkill is writable by the seat user, as in fw13.bt), then power on;
@@ -94,7 +116,6 @@ bluetooth() {
       done
       (( ok )) || fw-notify "Bluetooth" "Couldn't turn Bluetooth on (no adapter found?) — see Settings → Bluetooth" ;;
     Sett*) fw-settings bluetooth ;;
-    Dev*)  uwsm app -- blueman-manager ;;
   esac
 }
 
