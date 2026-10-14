@@ -3,7 +3,7 @@
 
 Watches UDisks2 (InterfacesAdded on its ObjectManager) for a filesystem on a removable/USB drive, mounts it
 (UDisks2 Filesystem.Mount = `udisksctl mount`; polkit allows it for the active local session) unless something
-else already did, and notifies 'USB drive "LABEL" (32 GB)' with Open (Thunar) and Eject (unmount every mounted
+else already did, and notifies 'USB drive "LABEL" (32 GB)' with Open (GNOME Files) and Eject (unmount every mounted
 filesystem of that drive, then power it off → "Safe to unplug"). Drives present at login are left alone.
   fw-usb            run
   fw-usb enabled    exit 0 when the service should run (Hyprland)
@@ -78,7 +78,7 @@ class Watcher:
             try:
                 where = [self.call(path, FS, "Mount", GLib.Variant("(a{sv})", ({},)))[0]]
             except GLib.Error as e:
-                where = mounts(self.props(path, FS))  # Thunar/gvfs may have won the race
+                where = mounts(self.props(path, FS))  # Files/gvfs may have won the race
                 if not where:
                     Gio.DBusError.strip_remote_error(e)
                     notify.send(APP, title(block, drive), f"Could not mount it: {e.message}", bus=self.session)
@@ -97,7 +97,7 @@ class Watcher:
             return
         drive, name, where = item
         if action in ("default", "open"):
-            notify.launch(["thunar", where])
+            notify.launch(["nautilus", "--new-window", where])
         elif action == "eject":
             self.eject(drive, name)
 

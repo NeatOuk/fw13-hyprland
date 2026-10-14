@@ -1,7 +1,7 @@
 -- Simple, conventional keymap.  hl.bind("MODS + key", dispatcher, { options })
 local term    = "uwsm app -- fw-term"  -- kitty or Ghostty, Settings → My Framework
 local browser = "uwsm app -- chromium-browser"
-local files   = "uwsm app -- thunar"
+local files   = "uwsm app -- nautilus --new-window"
 local editor  = "uwsm app -- code"
 local menu    = [[fw-launcher --launch-prefix="uwsm app -- "]]  -- fuzzel, ~80 % of the screen tall
 

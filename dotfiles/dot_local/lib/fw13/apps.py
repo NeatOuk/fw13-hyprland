@@ -423,7 +423,7 @@ def test_optional(a):
         rpm_keys = [k for k in OPTIONAL if "." not in k]
         missing = [n for k in rpm_keys for n in (k, *OPTIONAL[k][0]) if n.lower() not in real]
         assert not missing, f"OPTIONAL names not in packages/*.txt: {missing}"
-        for core in ("thunar", "waybar", "kitty", "fuzzel", "mako", "hyprland", "gamescope", "nss-tools", "gnome-keyring"):
+        for core in ("waybar", "kitty", "fuzzel", "mako", "hyprland", "gamescope", "nss-tools", "gnome-keyring"):
             assert core in real and protected(f"{core}.desktop", "", core, None, real) == "part of this desktop", core
     for k in OPTIONAL:
         fp = k if "." in k else None

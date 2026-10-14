@@ -14,7 +14,7 @@ waybar
 fuzzel
 mako
 kitty
-thunar
+nautilus
 grim
 slurp
 wl-clipboard

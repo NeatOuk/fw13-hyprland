@@ -10,7 +10,7 @@ hl.on("hyprland.start", function()
   -- Per-screen workspace ranges + login layout (the terminal on the laptop's 1, Chromium on the monitor's 1)
   hl.exec_cmd("uwsm app -- fw-workspaces daemon")
   hl.exec_cmd("uwsm app -- fw-speakers")  -- EasyEffects + Framework's FW13 speaker preset (no-op without easyeffects)
-  -- GNOME's apps hidden from the launcher in Hyprland only; Thunar / Chromium / GNOME viewers as defaults
+  -- GNOME's apps hidden from the launcher in Hyprland only (except Files and Software); Files / Chromium / GNOME viewers as defaults
   -- (~/.config/hyprland-mimeapps.list). Rerun at each login so package updates are picked up (fw13.defaultapps).
   hl.exec_cmd("env PYTHONPATH=$HOME/.local/lib python3 -m fw13.defaultapps")
   -- First Hyprland login only (store key hwcheck_shown): hardware check notification, "Open" shows it in the terminal

@@ -36,7 +36,7 @@ Or `git clone` the repo and run `./install.sh`. Run it as your normal user; it a
 
 ### Lean install: optional groups
 
-The core desktop (Hyprland, bar, login, fonts, theme, Framework tools, backup, codecs, VPN, kitty, Thunar, Chromium, VS Code…) is always installed. These groups are optional; the installer lists them once (all marked by default, Enter keeps them) and remembers the groups you left out in `~/.config/fw13/install-groups-off`, so a group added in a later version is installed by default:
+The core desktop (Hyprland, bar, login, fonts, theme, Framework tools, backup, codecs, VPN, kitty, GNOME Files, Chromium, VS Code…) is always installed. These groups are optional; the installer lists them once (all marked by default, Enter keeps them) and remembers the groups you left out in `~/.config/fw13/install-groups-off`, so a group added in a later version is installed by default:
 
 | Group | What it adds |
 |---|---|

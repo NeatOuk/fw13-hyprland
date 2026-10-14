@@ -15,7 +15,6 @@ hl.window_rule({ name = "tearing-gamescope",   match = { class = "^(gamescope)$"
 for _, class in ipairs({ "nm-connection-editor", "org.fcitx.fcitx5-config-qt" }) do
   hl.window_rule({ name = "float-" .. class, match = { class = "^(" .. class .. ")$" }, float = true })
 end
-hl.window_rule({ name = "float-thunar-progress", match = { class = "^(thunar)$", title = "^(File Operation Progress)$" }, float = true })
 hl.window_rule({ name = "float-steam-dialogs", match = { class = "^(steam)$", title = "^(Friends List|Steam Settings)$" }, float = true })
 
 -- Jarvis windows (Ask / Work on repo / crash Diagnose) float in the middle; plain Claude/OpenCode windows tile.

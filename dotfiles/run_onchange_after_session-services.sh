@@ -7,7 +7,7 @@
 #  - fw-battery-warn: low-battery notifications at 20/10/5 % (Hyprland only; levels in Settings → Power)
 #  - fw-bt-agent: Bluetooth pairing prompts (confirm code, PIN; Hyprland only; replaces blueman-applet)
 #  - fw-syncthing: Syncthing requests (new device, shared folder) as notifications (Hyprland + Syncthing only)
-#  - fw-usb: USB drive notice (mount, Open in Thunar, Eject; Hyprland only)
+#  - fw-usb: USB drive notice (mount, Open in Files, Eject; Hyprland only)
 #  - fw-timezone: automatic time zone from GeoClue (Hyprland only, off until Settings → System turns it on)
 #  - fw-health.timer: health report 15 min after login, then daily (fw-health --timer; notifies in Hyprland only)
 #  - fw-updates.timer: dnf update check 20 min after login, then daily (fw-updates --check; Update now = snapshot first)

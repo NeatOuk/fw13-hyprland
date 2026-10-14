@@ -6,11 +6,11 @@ launcher inside Hyprland: each gets a copy of its .desktop entry with NoDisplay=
 Hyprland session only (fuzzel ignores NotShowIn/OnlyShowIn, so entries meant for other desktops, such as
 "GNOME Settings", are hidden the same way). NoDisplay only hides menu entries: the apps still open files. GNOME's viewers
 still open files: defaults go in ~/.config/hyprland-mimeapps.list, which freedesktop/GIO read only when
-XDG_CURRENT_DESKTOP is Hyprland (GNOME keeps its own defaults). Thunar opens folders, Chromium opens web links.
+XDG_CURRENT_DESKTOP is Hyprland (GNOME keeps its own defaults). GNOME Files opens folders, Chromium opens web links.
 
 Run at every Hyprland start (autostart.lua) and by chezmoi when this file changes, so a package update or a newly
 installed GNOME app is picked up; files we wrote carry MARK and are rewritten, anything else is the user's and is
-left alone. A default the user picks themselves (Thunar "Open With → Set as default", written to
+left alone. A default the user picks themselves (Files "Open With…" → "Always use for this file type", written to
 ~/.config/mimeapps.list by GIO) wins: that type is left out of our list from the next run on.
 
   python3 -m fw13.defaultapps          apply (quiet)
@@ -39,13 +39,14 @@ HIDE_IDS = {"org.freedesktop.MalcontentControl.desktop", "rygel-preferences.desk
             "calf.desktop",  # Calf audio effects: used inside Easy Effects (speaker preset), not on their own
             "fcitx5-configtool.desktop",  # opened from Settings → Input → Input methods (Khmer)…
             "kbd-layout-viewer5.desktop"}  # fcitx5's layout viewer
-SHOW_IDS = {"org.gnome.Software.desktop"}  # GNOME apps kept in the launcher (user decision: the app store)
+SHOW_IDS = {"org.gnome.Software.desktop",  # GNOME apps kept in the launcher (user decision: the app store)
+            "org.gnome.Nautilus.desktop"}  # Files, the file manager (user decision: replaced Thunar)
 
 # (desktop id, MIME types or None = the app's own MimeType= list). Earlier entries win a type.
 WEB = ["x-scheme-handler/http", "x-scheme-handler/https", "x-scheme-handler/about", "x-scheme-handler/unknown",
        "text/html", "application/xhtml+xml"]
 DEFAULTS = [
-    ("thunar.desktop", ["inode/directory"]),
+    ("org.gnome.Nautilus.desktop", ["inode/directory"]),
     ("chromium-browser.desktop", WEB),
     ("org.gnome.Loupe.desktop", None),       # pictures
     ("org.gnome.Papers.desktop", None),      # PDF, comics, DjVu
