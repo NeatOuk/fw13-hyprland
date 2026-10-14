@@ -46,7 +46,7 @@ The core desktop (Hyprland, bar, login, fonts, theme, Framework tools, backup, c
 | `remote` | Remote Desktop Manager (Devolutions repo, ~1.2 GB) |
 | `warp` | Cloudflare WARP + the bar's cloud icon |
 | `firewall` | Citadel outbound firewall (built from source) |
-| `messaging` | Telegram Desktop (official build) |
+| `messaging` | Telegram Desktop (official build), Teams for Linux (release RPM) |
 | `ghostty` | Ghostty terminal (built from the official release) |
 | `database` | DBeaver CE database tool (official RPM, ~120 MB) |
 | `localsend` | LocalSend file sharing (Flathub) |
@@ -82,7 +82,7 @@ What you'll see at each step, and the Framework-only checks to do afterwards: [d
 | Fingerprint | Turns on fingerprint for sudo, login and polkit (`authselect … with-fingerprint`) |
 | Dotfiles | chezmoi applies `dotfiles/` to your home folder. It asks once for your Chromium OAuth keys and restic repository, which are never stored in git |
 | Tools | mise installs node LTS, chezmoi, starship, uv, kubectl, lazygit and the coding agents OpenCode and Pi; Claude Code comes from Anthropic's native installer (updates itself) |
-| Apps | Neovim (LazyVim), EasyEffects speaker sound, Syncthing, Telegram, the Citadel firewall, adb + scrcpy, `framework_tool` and more: see **[docs/APPS.md](docs/APPS.md)** |
+| Apps | Neovim (LazyVim), EasyEffects speaker sound, Syncthing, Telegram, Teams for Linux, the Citadel firewall, adb + scrcpy, `framework_tool` and more: see **[docs/APPS.md](docs/APPS.md)** |
 | Shell | Lets you pick zsh, fish or bash |
 | Extras | Adds the Flathub remote (no apps installed), offers fingerprint enrollment, sets up Timeshift, and checks for firmware updates |
 | Report | `~/.local/state/fw13-hypr/install-report.txt`: how many packages it added, their total size, and the largest 25 |
