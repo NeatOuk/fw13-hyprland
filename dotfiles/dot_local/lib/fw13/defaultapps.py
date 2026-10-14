@@ -34,7 +34,8 @@ USER_MIMEAPPS = os.path.join(CONFIG, "mimeapps.list")
 # Hidden in Hyprland: every org.gnome.* app, plus GNOME Workstation helpers that only make sense in GNOME.
 HIDE_PREFIXES = ("org.gnome.",)
 HIDE_IDS = {"org.freedesktop.MalcontentControl.desktop", "rygel-preferences.desktop",
-            "syncthing-start.desktop"}  # Syncthing runs as a user service; its Web UI entry stays
+            "syncthing-start.desktop",  # Syncthing runs as a user service; its Web UI entry stays
+            "qt6ct.desktop"}  # Qt 6 theming, written by fw13.theme: opening it by hand isn't needed
 SHOW_IDS = {"org.gnome.Software.desktop"}  # GNOME apps kept in the launcher (user decision: the app store)
 
 # (desktop id, MIME types or None = the app's own MimeType= list). Earlier entries win a type.
