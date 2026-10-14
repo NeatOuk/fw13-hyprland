@@ -53,7 +53,7 @@ class Agent:
         self.shown = set()     # notification ids that only display a code
         self.prompt = None     # (Gio.Subprocess, invocation) of a fuzzel PIN prompt
         info = Gio.DBusNodeInfo.new_for_xml(XML).interfaces[0]
-        self.bus.register_object(AGENT_PATH, info, self.on_call, None, None)
+        self.bus.register_object_with_closures2(AGENT_PATH, info, self.on_call, None, None)
         notify.on_action(self.session, self.on_action)
         self.session.signal_subscribe(None, notify.NAME, "NotificationClosed", notify.PATH, None,
                                       Gio.DBusSignalFlags.NONE, self.on_closed)
