@@ -5,7 +5,7 @@
   "height": 26,
   "spacing": 0,
   "modules-left": ["custom/menu", "custom/app", "custom/ws1", "custom/ws2", "custom/ws3", "custom/ws4", "custom/ws5", "custom/ws6", "custom/ws7", "custom/ws8", "custom/ws9"],
-  "modules-center": ["custom/caffeine", "custom/profile", "clock", "custom/weather", "custom/recording"],
+  "modules-center": ["hyprland/submap", "custom/caffeine", "custom/profile", "clock", "custom/weather", "custom/recording"],
   "modules-right": ["custom/syncthing", "tray", "bluetooth", "network", "custom/warp", "custom/vpn", "pulseaudio", "custom/display", "custom/claude", "custom/opencode", "cpu", "battery", "custom/notifications", "custom/control", "custom/power"],
 
   "custom/menu": { "format": " ", "on-click": "fw-menu-anchor launcher >/dev/null && fw-launcher --anchor top-left --keyboard-focus=on-demand --no-exit-on-keyboard-focus-loss --launch-prefix='uwsm app -- '", "on-click-right": "uwsm app -- fw-term", "tooltip": false },
@@ -40,6 +40,8 @@
   },
   // Syncthing (fw-syncthing writes it): syncing NN %, problems or paused on battery/metered; hidden when idle
   "custom/syncthing": { "exec": "fw-syncthing bar", "return-type": "json", "signal": 17, "on-click": "fw-settings syncthing" },
+  // Remote mode (SUPER+ALT+R, hypr/bindings.lua): every key goes to the window until SUPER+ALT+R again
+  "hyprland/submap": { "format": "\uf108 REMOTE · Super+Alt+R leaves", "tooltip": false },
   "tray": { "spacing": 12 },
   "bluetooth": {
     "format": "",

@@ -58,6 +58,12 @@ end
 hl.bind("SUPER + TAB",        hl.dsp.focus({ workspace = "previous" }), { description = "Previous workspace" })
 hl.bind("SUPER + mouse_down", hl.dsp.focus({ workspace = "m+1" }), { description = "Next workspace on this screen" })
 hl.bind("SUPER + mouse_up",   hl.dsp.focus({ workspace = "m-1" }), { description = "Previous workspace on this screen" })
+-- Remote mode (submap "remote"): every key, SUPER included, goes to the focused window, e.g. Command on a Mac in a
+-- Remote Desktop Manager session. Only SUPER+ALT+R is still the desktop's, to leave; the bar shows REMOTE meanwhile.
+hl.bind("SUPER + ALT + R", hl.dsp.submap("remote"), { description = "Remote mode: all keys go to the window (again to leave)" })
+hl.define_submap("remote", function()
+  hl.bind("SUPER + ALT + R", hl.dsp.submap("reset"), { description = "Leave remote mode" })
+end)
 -- CTRL+←/→ is taken from apps (word jumps in terminals and text fields; user decision)
 hl.bind("CTRL + right",       hl.dsp.focus({ workspace = "m+1" }), { description = "Next workspace on this screen" })
 hl.bind("CTRL + left",        hl.dsp.focus({ workspace = "m-1" }), { description = "Previous workspace on this screen" })
