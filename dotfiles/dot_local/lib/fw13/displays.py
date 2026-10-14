@@ -13,9 +13,19 @@ from . import store
 from .hypr import hj, lua, sh
 
 SAVED = os.path.expanduser("~/.config/hypr/displays.lua")
-# Only scales that divide the monitor's size evenly are offered (see Mon.scales). On the Framework 13 panel
-# (2880x1920) the even ones near 1.7 / 1.8 / 1.9 are 12/7, 16/9 and 1.875 / 1.92.
-SCALES = [1, 1.2, 1.25, 4 / 3, 1.5, 1.6, 5 / 3, 12 / 7, 1.75, 16 / 9, 1.8, 1.875, 1.92, 2, 2.4, 2.5, 3]
+# Only scales Hyprland accepts are offered (see Mon.scales): a multiple of 1/120 (the fractional-scale protocol's
+# step; Hyprland rounds to it) that also divides the monitor's size evenly. On the Framework 13 panel (2880x1920)
+# that leaves 1, 1.2, 1.25, 4/3, 1.5, 1.6, 5/3, 1.875, 2, 2.4, 2.5, 3 (12/7, 16/9 and 1.92 divide it but aren't
+# 1/120 steps, so Hyprland rejects them).
+SCALES = [1, 1.2, 1.25, 4 / 3, 1.5, 1.6, 5 / 3, 1.75, 1.8, 1.875, 2, 2.4, 2.5, 3]
+
+
+def valid_scale(s, w, h):
+    """True when Hyprland takes scale `s` as is on a w x h mode: s·120 whole, and w/s, h/s whole after that rounding."""
+    s120 = round(s * 120)
+    if abs(s * 120 - s120) > 1e-6:
+        return False
+    return (w * 120) % s120 == 0 and (h * 120) % s120 == 0
 
 
 class Mon:
@@ -39,8 +49,7 @@ class Mon:
         return round((self.w if self.transform % 2 else self.h) / self.scale)
 
     def scales(self):
-        ok = [s for s in SCALES if abs(self.w / s - round(self.w / s)) < 0.01
-              and abs(self.h / s - round(self.h / s)) < 0.01]
+        ok = [s for s in SCALES if valid_scale(s, self.w, self.h)]
         if not any(abs(s - self.scale) < 0.001 for s in ok):
             ok.append(self.scale)
         return sorted(ok)
