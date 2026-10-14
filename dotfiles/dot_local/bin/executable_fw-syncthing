@@ -162,6 +162,7 @@ class Watcher:
                     last = syncthing.api("/rest/events?limit=1&timeout=0") or []
                     since = last[-1]["id"] if last else 0
                     GLib.idle_add(self.got, ["start"])
+                    self.housekeep()
                 events = syncthing.api(f"/rest/events?since={since}&timeout={WAKE}&events={EVENTS}",
                                        timeout=WAKE + 10) or []
                 self.housekeep()
