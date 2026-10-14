@@ -593,15 +593,15 @@ root_theme() {
 # Default wallpapers into the wallpaper library (Settings → Appearance), before chezmoi so its first run picks one.
 # Each file is fetched once: one you delete stays deleted (names done are kept in $STATE_DIR/wallpapers-ml4w).
 fetch_wallpapers() {
-  local pics dir done sum f part
+  local pics dir seen sum f part
   pics="$(xdg-user-dir PICTURES 2>/dev/null || true)"
   [[ -z $pics || $pics == "$HOME" ]] && pics="$HOME/Pictures"
-  dir="$pics/Wallpapers" done="$STATE_DIR/wallpapers-ml4w"
+  dir="$pics/Wallpapers" seen="$STATE_DIR/wallpapers-ml4w"
   mkdir -p "$dir" "$STATE_DIR"
-  touch "$done"
+  touch "$seen"
   while read -r sum f; do
     [[ -z $sum || $sum == \#* ]] && continue
-    grep -qxF -- "$f" "$done" && continue
+    grep -qxF -- "$f" "$seen" && continue
     if [[ ! -e $dir/$f ]]; then
       part="$dir/.$f.part"
       if ! { curl -fsSL --retry 2 -o "$part" \
@@ -613,7 +613,7 @@ fetch_wallpapers() {
       fi
       mv "$part" "$dir/$f"
     fi
-    echo "$f" >> "$done"
+    echo "$f" >> "$seen"
   done < "$SRC/wallpapers/ml4w.txt"
 }
 
