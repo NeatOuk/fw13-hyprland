@@ -32,6 +32,8 @@ A Hyprland desktop installer made for one machine: the **Framework Laptop 13 (AM
 bash <(curl -fsSL https://raw.githubusercontent.com/NeatOuk/fw13-hyprland/main/install.sh)
 ```
 
+Step by step, with what each question means: the **[installation guide](https://github.com/NeatOuk/fw13-hyprland/wiki)** in the wiki.
+
 Or `git clone` the repo and run `./install.sh`. Run it as your normal user; it asks for sudo when it needs it. It's safe to re-run. Reboot when it finishes, then pick **Hyprland (uwsm)** at the login screen.
 
 ### Lean install: optional groups
