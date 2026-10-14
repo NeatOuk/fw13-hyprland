@@ -41,12 +41,17 @@ SCRCPY_SHA256="${SCRCPY_SHA256:-9f969d30cc574816077edecda65719c1c70b0aee1df1ba5f
 # not in Fedora). Bundles its own Java, no dependencies. sha256 pinned (GitHub's asset digest); bump both together.
 DBEAVER_VERSION="${DBEAVER_VERSION:-26.2.2}"
 DBEAVER_SHA256="${DBEAVER_SHA256:-ac034c7a0ec44da1231a0a7de844b2b394bc3744ccb0251efb36bb00182c8c76}"
+# Claude Desktop (user decision: Anthropic's official build, only published as a .deb for Ubuntu/Debian, repackaged as
+# the RPM claude-desktop-official; Cowork's QEMU not installed). Version + sha256 from the apt index
+# (downloads.claude.ai/claude-desktop/apt/stable/dists/stable/main/binary-amd64/Packages); bump both together.
+CLAUDE_DESKTOP_VERSION="${CLAUDE_DESKTOP_VERSION:-2.37337.1}"
+CLAUDE_DESKTOP_SHA256="${CLAUDE_DESKTOP_SHA256:-41745b0914f0ff51631a1ff1bb403b836bf5c995845cca6742dd39bca3a2da14}"
 STATE_DIR="$HOME/.local/state/fw13-hypr"
 
 # Optional groups: everything else is core (what the desktop itself needs). A group owns its packages/*.txt files and
 # the repo, build, download and service steps that test `on <group>` below. An unselected group is skipped, never
 # removed (rule 3a). Order = prompt order. GROUP_INFO[g] = "<packages/*.txt files>|<one-line description>".
-OPT_GROUPS=(games ai android remote warp firewall messaging ghostty database localsend)
+OPT_GROUPS=(games ai android remote warp firewall messaging ghostty database claude-desktop localsend)
 declare -A GROUP_INFO=(
   [games]="40-gaming.txt|Steam, Lutris, gamescope, MangoHud, GameMode"
   [ai]="71-ai.txt|Ollama: local models for OpenCode and Jarvis (ollama.service)"
@@ -57,6 +62,7 @@ declare -A GROUP_INFO=(
   [messaging]="94-rpm-build.txt|Telegram Desktop, official telegram.org build as an RPM"
   [ghostty]="94-rpm-build.txt 98-ghostty.txt|Ghostty terminal, built from the official release (kitty stays)"
   [database]="|DBeaver CE database tool (official RPM, ~120 MB)"
+  [claude-desktop]="94-rpm-build.txt|Claude Desktop app (Anthropic's official .deb repackaged as an RPM, ~600 MB)"
   [localsend]="|LocalSend file sharing (Flathub, send only)"
 )
 # The saved choice: the groups LEFT OUT, one per line, so a group added later is on. Absent = every group.
@@ -190,6 +196,7 @@ print_plan() {
   echo "  framework_tool $FWTOOL_VERSION download (if not current)"
   on android && ! skipped android-tools && echo "  scrcpy $SCRCPY_VERSION download into /opt/scrcpy (if not current)"
   on database && ! skipped dbeaver-ce && echo "  dbeaver-ce $DBEAVER_VERSION RPM download (if not current)"
+  on claude-desktop && ! skipped claude-desktop-official && echo "  build claude-desktop-official $CLAUDE_DESKTOP_VERSION RPM (if not current)"
   on ai && ! skipped ollama && echo "  enable ollama.service"
   on warp && ! skipped cloudflare-warp && echo "  enable warp-svc.service"
   on localsend && ! skipped org.localsend.localsend_app && echo "  flatpak install --user LocalSend"
@@ -290,6 +297,26 @@ build_telegram_rpm() {
 }
 
 # ============================================================================
+# build_claude_desktop_rpm → prints the built RPM's path, or nothing when the installed one is already current.
+# Anthropic's .deb (checked against CLAUDE_DESKTOP_SHA256) repackaged; spec: rpm/claude-desktop-official.spec.
+build_claude_desktop_rpm() {
+  local top="$STATE_DIR/claude-desktop" ver=$CLAUDE_DESKTOP_VERSION have rel deb
+  rel="$(sed -n 's/^Release:[[:space:]]*\([0-9]*\).*/\1/p' rpm/claude-desktop-official.spec)"   # a spec fix rebuilds too
+  have="$(rpm -q --qf '%{VERSION}-%{RELEASE}' claude-desktop-official 2>/dev/null || true)"
+  [[ ${have%%.fc*} == "$ver-$rel" ]] && return 0
+  deb="$top/SOURCES/claude-desktop_${ver}_amd64.deb"
+  mkdir -p "$top"/{SOURCES,RPMS,BUILD,SRPMS,SPECS}
+  if ! echo "$CLAUDE_DESKTOP_SHA256  $deb" | sha256sum -c --status 2>/dev/null; then
+    curl -fsSL -o "$deb" "https://downloads.claude.ai/claude-desktop/apt/stable/pool/main/c/claude-desktop/claude-desktop_${ver}_amd64.deb" \
+      && echo "$CLAUDE_DESKTOP_SHA256  $deb" | sha256sum -c --status || { rm -f "$deb"; warn "Claude Desktop download failed or checksum mismatch" >&2; return 1; }
+  fi
+  rpmbuild -bb --quiet --define "_topdir $top" --define "cd_version $ver" --define "dist .fc$FEDORA" \
+    rpm/claude-desktop-official.spec >&2 || return 1
+  rm -f "$deb"   # 180 MB; the built RPM stays until it is installed
+  ls -t "$top"/RPMS/x86_64/claude-desktop-official-"$ver"-*.rpm 2>/dev/null | head -1
+}
+
+# ============================================================================
 # build_ghostty_rpm → prints the built RPM's path, or nothing when the installed one is already current.
 # The release tarball must match GHOSTTY_SHA256. Ghostty builds with one exact Zig version (minimum_zig_version in
 # build.zig.zon; Fedora's zig is newer), so that Zig comes from ziglang.org, checked against its index.json, and is
@@ -384,6 +411,14 @@ system_phase() {
     local gt
     gt="$(build_ghostty_rpm)" || die "Ghostty RPM build failed (see above)"
     if [[ -n $gt ]]; then $DNF install "$gt"; else echo "ghostty-official is current"; fi
+  fi
+
+  if ! on claude-desktop; then :
+  elif skipped claude-desktop-official; then echo "Claude Desktop: skipped (removed by you)"; else
+    say "Claude Desktop $CLAUDE_DESKTOP_VERSION — Anthropic's official build, repackaged as an RPM"
+    local cd
+    cd="$(build_claude_desktop_rpm)" || die "Claude Desktop RPM build failed (see above)"
+    if [[ -n $cd ]]; then $DNF install "$cd" && rm -f "$cd"; else echo "claude-desktop-official is current"; fi
   fi
 
   if ! on database; then :

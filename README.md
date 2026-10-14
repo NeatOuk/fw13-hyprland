@@ -49,6 +49,7 @@ The core desktop (Hyprland, bar, login, fonts, theme, Framework tools, backup, c
 | `messaging` | Telegram Desktop (official build) |
 | `ghostty` | Ghostty terminal (built from the official release) |
 | `database` | DBeaver CE database tool (official RPM, ~120 MB) |
+| `claude-desktop` | Claude Desktop app (Anthropic's official .deb repackaged as an RPM, ~600 MB) |
 | `localsend` | LocalSend file sharing (Flathub) |
 
 ```bash
