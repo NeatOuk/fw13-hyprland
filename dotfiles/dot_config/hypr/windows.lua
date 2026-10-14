@@ -12,7 +12,7 @@ hl.window_rule({ name = "tearing-steam-games", match = { class = "^(steam_app_.*
 hl.window_rule({ name = "tearing-gamescope",   match = { class = "^(gamescope)$" },     immediate = true })
 
 -- Small settings dialogs float.
-for _, class in ipairs({ "blueman-manager", "nm-connection-editor", "org.fcitx.fcitx5-config-qt" }) do
+for _, class in ipairs({ "nm-connection-editor", "org.fcitx.fcitx5-config-qt" }) do
   hl.window_rule({ name = "float-" .. class, match = { class = "^(" .. class .. ")$" }, float = true })
 end
 hl.window_rule({ name = "float-thunar-progress", match = { class = "^(thunar)$", title = "^(File Operation Progress)$" }, float = true })

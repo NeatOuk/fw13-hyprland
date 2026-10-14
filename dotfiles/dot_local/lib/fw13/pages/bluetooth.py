@@ -8,7 +8,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from .. import bt  # noqa: E402
 from ..ui_theme import button  # noqa: E402
-from .common import Page, label, launch, wrap  # noqa: E402
+from .common import Page, label, wrap  # noqa: E402
 
 SCAN_SECONDS = 20
 WATCHED = {"Powered", "Alias", "Name", "Connected", "Paired", "Trusted", "Percentage"}
@@ -107,11 +107,6 @@ class BluetoothPage(Page):
         self.new_box = self.add_widget(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8))
         self.update_new(devices)
 
-        more = Gtk.Button(label="More… (Bluetooth Manager)")
-        more.set_halign(Gtk.Align.START)
-        more.set_margin_top(12)
-        more.connect("clicked", lambda _b: launch("blueman-manager"))
-        self.add_widget(more)
         if not a["powered"]:
             for child in self.box.get_children()[rest:]:
                 child.set_sensitive(False)

@@ -24,8 +24,7 @@ playerctl
 wf-recorder
 # Applets — Fedora official
 network-manager-applet
-blueman
-# fw-display-panel (GTK3 popup) — already pulled by blueman/waybar; listed for Minimal
+# fw-display-panel (GTK3 popup) — already pulled by waybar; listed for Minimal
 python3-gobject
 gtk-layer-shell
 btop

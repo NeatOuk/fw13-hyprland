@@ -1,0 +1,14 @@
+[Unit]
+Description=fw13 Bluetooth pairing agent: confirm codes and PINs via notifications (Hyprland only)
+# The condition skips it (no failure) outside Hyprland: GNOME/KDE run their own agent.
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecCondition=%h/.local/bin/fw-bt-agent enabled
+ExecStart=%h/.local/bin/fw-bt-agent
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

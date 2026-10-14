@@ -5,10 +5,6 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("uwsm app -- hyprpaper")
   hl.exec_cmd("uwsm app -- hypridle")
   hl.exec_cmd("systemctl --user start hyprpolkitagent")
-  -- blueman-applet stays for its pairing agent (AuthAgent); its tray icon is off — the bar's bluetooth module
-  -- replaces it. All three plugins must go: ShowConnected pulls StatusIcon back in, and StatusNotifierItem is
-  -- the Wayland tray item itself. (/etc/xdg/autostart/blueman.desktop is hidden in Hyprland: dot_config/autostart.)
-  hl.exec_cmd([[gsettings set org.blueman.general plugin-list "['!StatusIcon', '!StatusNotifierItem', '!ShowConnected']" && uwsm app -- blueman-applet]])
   hl.exec_cmd("uwsm app -- fcitx5 -d --replace")
   hl.exec_cmd("uwsm app -- wl-paste --watch cliphist store")
   -- Per-screen workspace ranges + login layout (the terminal on the laptop's 1, Chromium on the monitor's 1)

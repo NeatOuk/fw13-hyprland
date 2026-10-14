@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+"""Bluetooth pairing agent (user service fw-bt-agent, Hyprland only; GNOME/KDE run their own). Replaces blueman-applet.
+
+Registers a BlueZ Agent1 (KeyboardDisplay) as the default agent and answers bluetoothd through notifications:
+  confirm a code / allow pairing / allow a service → notification with Pair (Allow) and Reject; closing it rejects
+  show a code to type on the device                → notification with the code, closed when pairing ends
+  type a PIN or passkey here                       → fuzzel prompt
+Only bluetoothd (the current owner of org.bluez) may call the agent; it re-registers when bluetoothd restarts.
+  fw-bt-agent            run
+  fw-bt-agent enabled    exit 0 when the service should run (Hyprland)
+  fw-bt-agent test       self-check
+"""
+import os
+import sys
+
+sys.path.insert(0, os.path.expanduser("~/.local/lib"))
+from fw13 import notify  # noqa: E402
+from gi.repository import Gio, GLib  # noqa: E402  (versions pinned by fw13.notify)
+
+APP = "fw-bluetooth"
+BZ = "org.bluez"
+AGENT_PATH = "/org/fw13/bt_agent"
+REJECTED, CANCELED = "org.bluez.Error.Rejected", "org.bluez.Error.Canceled"
+XML = """<node><interface name="org.bluez.Agent1">
+  <method name="Release"/>
+  <method name="RequestPinCode"><arg type="o" direction="in"/><arg type="s" direction="out"/></method>
+  <method name="DisplayPinCode"><arg type="o" direction="in"/><arg type="s" direction="in"/></method>
+  <method name="RequestPasskey"><arg type="o" direction="in"/><arg type="u" direction="out"/></method>
+  <method name="DisplayPasskey"><arg type="o" direction="in"/><arg type="u" direction="in"/><arg type="q" direction="in"/></method>
+  <method name="RequestConfirmation"><arg type="o" direction="in"/><arg type="u" direction="in"/></method>
+  <method name="RequestAuthorization"><arg type="o" direction="in"/></method>
+  <method name="AuthorizeService"><arg type="o" direction="in"/><arg type="s" direction="in"/></method>
+  <method name="Cancel"/>
+</interface></node>"""
+
+
+def pin_ok(text):
+    """BlueZ legacy PIN: 1–16 characters."""
+    return 1 <= len(text) <= 16
+
+
+def passkey(text):
+    """Passkey 0–999999 as an int, else None."""
+    return int(text) if text.isdigit() and int(text) <= 999999 else None
+
+
+class Agent:
+    def __init__(self):
+        self.bus = Gio.bus_get_sync(Gio.BusType.SYSTEM)
+        self.session = Gio.bus_get_sync(Gio.BusType.SESSION)
+        self.owner = None      # bluetoothd's unique name
+        self.pending = {}      # notification id → (invocation, reply on "ok")
+        self.shown = set()     # notification ids that only display a code
+        self.prompt = None     # (Gio.Subprocess, invocation) of a fuzzel PIN prompt
+        info = Gio.DBusNodeInfo.new_for_xml(XML).interfaces[0]
+        self.bus.register_object(AGENT_PATH, info, self.on_call, None, None)
+        notify.on_action(self.session, self.on_action)
+        self.session.signal_subscribe(None, notify.NAME, "NotificationClosed", notify.PATH, None,
+                                      Gio.DBusSignalFlags.NONE, self.on_closed)
+        Gio.bus_watch_name_on_connection(self.bus, BZ, Gio.BusNameWatcherFlags.NONE, self.appeared, self.vanished)
+
+    def appeared(self, _conn, _name, owner):
+        self.owner = owner
+        try:
+            for method, args in (("RegisterAgent", (AGENT_PATH, "KeyboardDisplay")), ("RequestDefaultAgent", (AGENT_PATH,))):
+                sig = "(os)" if len(args) == 2 else "(o)"
+                self.bus.call_sync(BZ, "/org/bluez", "org.bluez.AgentManager1", method, GLib.Variant(sig, args),
+                                   None, Gio.DBusCallFlags.NONE, 5000, None)
+        except GLib.Error as e:
+            print(f"fw-bt-agent: could not register: {e.message}", file=sys.stderr)
+
+    def vanished(self, *_):
+        self.owner = None
+        self.cancel()
+
+    def name(self, dev):
+        try:
+            res = self.bus.call_sync(BZ, dev, "org.freedesktop.DBus.Properties", "Get",
+                                     GLib.Variant("(ss)", ("org.bluez.Device1", "Alias")), GLib.VariantType("(v)"),
+                                     Gio.DBusCallFlags.NONE, 3000, None)
+            return res.unpack()[0]
+        except GLib.Error:
+            return dev.rsplit("/", 1)[-1].removeprefix("dev_").replace("_", ":")
+
+    def ask(self, inv, title, body, ok_label, reply=None):
+        nid = notify.send(APP, title, body, [("ok", ok_label), ("reject", "Reject")], urgency=notify.CRITICAL,
+                          bus=self.session)
+        if nid is None:
+            inv.return_dbus_error(REJECTED, "no notification daemon")
+            return
+        self.pending[nid] = (inv, reply)
+
+    def show(self, title, body):
+        nid = notify.send(APP, title, body, urgency=notify.CRITICAL, bus=self.session)
+        if nid:
+            self.shown.add(nid)
+
+    def type_in(self, inv, dev, kind):
+        """fuzzel prompt for a PIN (kind "pin") or a numeric passkey (kind "passkey")."""
+        what = "PIN" if kind == "pin" else "passkey (digits)"
+        try:
+            proc = Gio.Subprocess.new(["fuzzel", "--dmenu", "--lines", "0", "--prompt", f"{what} for {self.name(dev)} › "],
+                                      Gio.SubprocessFlags.STDIN_PIPE | Gio.SubprocessFlags.STDOUT_PIPE)
+        except GLib.Error as e:
+            inv.return_dbus_error(REJECTED, e.message)
+            return
+        self.prompt = (proc, inv)
+
+        def done(p, res):
+            if not self.prompt or self.prompt[0] is not p:
+                return  # cancelled meanwhile
+            self.prompt = None
+            try:
+                _ok, out, _err = p.communicate_utf8_finish(res)
+            except GLib.Error:
+                out = ""
+            text = (out or "").strip()
+            if kind == "pin" and pin_ok(text):
+                inv.return_value(GLib.Variant("(s)", (text,)))
+            elif kind == "passkey" and passkey(text) is not None:
+                inv.return_value(GLib.Variant("(u)", (passkey(text),)))
+            else:
+                inv.return_dbus_error(REJECTED, "no valid input")
+        proc.communicate_utf8_async("", None, done)
+
+    def on_call(self, _conn, sender, _path, _iface, method, params, inv):
+        if sender != self.owner:
+            inv.return_dbus_error("org.freedesktop.DBus.Error.AccessDenied", "only bluetoothd may call the agent")
+            return
+        args = params.unpack()
+        if method in ("Release", "Cancel"):
+            self.cancel()
+            inv.return_value(None)
+        elif method == "RequestConfirmation":
+            dev, key = args
+            self.ask(inv, f"Pair with {self.name(dev)}?", f"Check that it shows {key:06d}", "Pair")
+        elif method == "RequestAuthorization":
+            self.ask(inv, f"Pair with {self.name(args[0])}?", "It asks to pair with this laptop", "Pair")
+        elif method == "AuthorizeService":
+            self.ask(inv, f"Allow {self.name(args[0])}?", "It asks to use a Bluetooth service on this laptop", "Allow")
+        elif method == "DisplayPasskey":
+            dev, key, entered = args
+            if entered == 0:  # called again per typed digit: notify once
+                self.show(f"Pair with {self.name(dev)}", f"Type {key:06d} on it, then Enter")
+            inv.return_value(None)
+        elif method == "DisplayPinCode":
+            dev, pin = args
+            self.show(f"Pair with {self.name(dev)}", f"Enter PIN {pin} on it")
+            inv.return_value(None)
+        elif method == "RequestPinCode":
+            self.type_in(inv, args[0], "pin")
+        elif method == "RequestPasskey":
+            self.type_in(inv, args[0], "passkey")
+        else:
+            inv.return_dbus_error(REJECTED, "unknown method")
+
+    def on_action(self, nid, action):
+        if nid in self.pending:
+            inv, reply = self.pending.pop(nid)
+            if action == "ok":
+                inv.return_value(reply)
+            else:
+                inv.return_dbus_error(REJECTED, "rejected")
+
+    def on_closed(self, _c, _s, _p, _i, _sig, params):
+        nid = params.unpack()[0]
+        self.shown.discard(nid)
+        # Dismissed without a button = reject; mako may close right before ActionInvoked arrives, so wait a moment
+        GLib.timeout_add(300, lambda: (self.on_action(nid, "reject"), False)[1])
+
+    def cancel(self):
+        """bluetoothd gave up (or left): drop open questions and close their notifications."""
+        for nid in [*self.pending, *self.shown]:
+            try:
+                self.session.call_sync(notify.NAME, notify.PATH, notify.NAME, "CloseNotification",
+                                       GLib.Variant("(u)", (nid,)), None, Gio.DBusCallFlags.NO_AUTO_START, 3000, None)
+            except GLib.Error:
+                pass
+        for inv, _reply in self.pending.values():
+            inv.return_dbus_error(CANCELED, "canceled")
+        self.pending.clear()
+        self.shown.clear()
+        if self.prompt:
+            proc, inv = self.prompt
+            self.prompt = None
+            proc.force_exit()
+            inv.return_dbus_error(CANCELED, "canceled")
+
+
+def selftest():
+    assert Gio.DBusNodeInfo.new_for_xml(XML).interfaces[0].name == "org.bluez.Agent1"
+    assert pin_ok("0000") and not pin_ok("") and not pin_ok("x" * 17)
+    assert passkey("012345") == 12345 and passkey("999999") == 999999
+    assert passkey("1000000") is None and passkey("12a") is None and passkey("") is None and passkey("-1") is None
+    print("fw-bt-agent: ok")
+
+
+if __name__ == "__main__":
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "run"
+    if cmd == "test":
+        selftest()
+    elif cmd == "enabled":
+        sys.exit(0 if notify.in_hyprland() else 1)
+    else:
+        Agent()
+        GLib.MainLoop().run()

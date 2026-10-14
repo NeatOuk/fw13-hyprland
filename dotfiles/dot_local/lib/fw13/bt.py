@@ -1,7 +1,7 @@
 """Bluetooth through BlueZ on the system bus (org.bluez ObjectManager) — Gio D-Bus, no bluetoothctl parsing.
 
 Every call is synchronous and safe from a worker thread; actions return (ok, message).
-Pairing PINs/passkeys are answered by the running agent (blueman-applet), not here.
+Pairing PINs/passkeys are answered by the running agent (fw-bt-agent), not here.
 """
 import shutil
 import subprocess
