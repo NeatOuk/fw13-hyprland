@@ -36,7 +36,9 @@ HIDE_PREFIXES = ("org.gnome.",)
 HIDE_IDS = {"org.freedesktop.MalcontentControl.desktop", "rygel-preferences.desktop",
             "syncthing-start.desktop",  # Syncthing runs as a user service; its Web UI entry stays
             "qt6ct.desktop",  # Qt 6 theming, written by fw13.theme: opening it by hand isn't needed
-            "calf.desktop"}  # Calf audio effects: used inside Easy Effects (speaker preset), not on their own
+            "calf.desktop",  # Calf audio effects: used inside Easy Effects (speaker preset), not on their own
+            "fcitx5-configtool.desktop",  # opened from Settings → Input → Input methods (Khmer)…
+            "kbd-layout-viewer5.desktop"}  # fcitx5's layout viewer
 SHOW_IDS = {"org.gnome.Software.desktop"}  # GNOME apps kept in the launcher (user decision: the app store)
 
 # (desktop id, MIME types or None = the app's own MimeType= list). Earlier entries win a type.
