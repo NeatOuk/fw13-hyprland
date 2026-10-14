@@ -1,0 +1,15 @@
+# Replaces RDM's own entry: starts it through fw-rdm (window drawn at all on XWayland, scaled per screen).
+# TryExec hides it once RDM is uninstalled.
+[Desktop Entry]
+Name=Remote Desktop Manager
+Comment=Centralize, Manage and Secure Remote Connections
+Keywords=rdm;devolutions;rdp;vnc;ssh;hub;dvls;remote;desktop;manager;
+TryExec=remotedesktopmanager
+Exec=fw-rdm %U
+Icon=com.devolutions.remotedesktopmanager
+Type=Application
+Categories=Utility;Network;RemoteAccess;
+StartupWMClass=RemoteDesktopManager
+StartupNotify=true
+Terminal=false
+MimeType=x-scheme-handler/rdm;application/x-remotedesktopmanager-pvm;application/x-remotedesktopmanager-rdd;application/x-remotedesktopmanager-rdm;application/x-remotedesktopmanager-rdp;

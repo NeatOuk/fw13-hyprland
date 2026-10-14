@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Remote Desktop Manager (Avalonia on XWayland) under Hyprland; the launcher entry
+# (~/.local/share/applications/com.devolutions.remotedesktopmanager.desktop) starts it through this.
+#  - LIBGL_DRI3_DISABLE=1: with DRI3 its OpenGL window stays transparent (nothing drawn) on XWayland; without, it
+#    still renders on the GPU (checked: amdgpu gfx time in its fdinfo).
+#  - AVALONIA_SCREEN_SCALE_FACTORS: XWayland apps get no scaling here (force_zero_scaling), so Avalonia is told each
+#    screen's Hyprland scale ("eDP-1=1.875;DP-3=1.25"), read when it starts.
+set -euo pipefail
+export LIBGL_DRI3_DISABLE=1
+scales="$(hyprctl -j monitors 2>/dev/null | python3 -c \
+  'import json, sys; print(";".join("%s=%g" % (m["name"], m["scale"]) for m in json.load(sys.stdin)))' 2>/dev/null || true)"
+[[ -n $scales ]] && export AVALONIA_SCREEN_SCALE_FACTORS="$scales"
+exec remotedesktopmanager "$@"

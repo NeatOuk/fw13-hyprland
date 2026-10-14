@@ -14,6 +14,10 @@
 .local/lib/**/__pycache__
 .local/lib/**/__pycache__/**
 
+# Remote Desktop Manager launcher (through fw-rdm) only when it's installed (group `remote`)
+{{ if not (lookPath "remotedesktopmanager") }}
+.local/share/applications/com.devolutions.remotedesktopmanager.desktop
+{{ end }}
 # DBeaver launcher + first-run dark theme only when it's installed (group `database`)
 {{ if not (lookPath "dbeaver-ce") }}
 .local/share/applications/dbeaver-ce.desktop
