@@ -6,7 +6,7 @@
   "spacing": 0,
   "modules-left": ["custom/menu", "custom/app", "custom/ws1", "custom/ws2", "custom/ws3", "custom/ws4", "custom/ws5", "custom/ws6", "custom/ws7", "custom/ws8", "custom/ws9"],
   "modules-center": ["custom/caffeine", "custom/profile", "clock", "custom/weather", "custom/recording"],
-  "modules-right": ["tray", "bluetooth", "network", "custom/warp", "custom/vpn", "pulseaudio", "custom/display", "custom/claude", "custom/opencode", "cpu", "battery", "custom/notifications", "custom/control", "custom/power"],
+  "modules-right": ["custom/syncthing", "tray", "bluetooth", "network", "custom/warp", "custom/vpn", "pulseaudio", "custom/display", "custom/claude", "custom/opencode", "cpu", "battery", "custom/notifications", "custom/control", "custom/power"],
 
   "custom/menu": { "format": " ", "on-click": "fw-menu-anchor launcher >/dev/null && fw-launcher --anchor top-left --keyboard-focus=on-demand --no-exit-on-keyboard-focus-loss --launch-prefix='uwsm app -- '", "on-click-right": "uwsm app -- fw-term", "tooltip": false },
   // Focused app's name (fw-active-app: Hyprland events → launcher name; hidden on an empty workspace)
@@ -38,6 +38,8 @@
     "interval": 2,
     "on-click": "fw-record"
   },
+  // Syncthing (fw-syncthing writes it): syncing NN %, problems or paused on battery/metered; hidden when idle
+  "custom/syncthing": { "exec": "fw-syncthing bar", "return-type": "json", "signal": 17, "on-click": "fw-settings syncthing" },
   "tray": { "spacing": 12 },
   "bluetooth": {
     "format": "",

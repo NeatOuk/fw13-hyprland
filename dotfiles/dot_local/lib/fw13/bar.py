@@ -10,7 +10,7 @@ import re
 import subprocess
 
 SIGNALS = {"opencode": 9, "ws": 10, "warp": 11, "notifications": 12, "vpn": 13, "profile": 14, "weather": 15,
-           "caffeine": 16}
+           "caffeine": 16, "syncthing": 17}
 
 
 def refresh(name):

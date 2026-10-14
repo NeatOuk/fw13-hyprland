@@ -11,7 +11,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from .. import syncthing  # noqa: E402
+from .. import store, syncthing  # noqa: E402
 from ..ui_theme import button, label  # noqa: E402
 from .common import Page, bg, launch  # noqa: E402
 
@@ -111,11 +111,21 @@ class SyncthingPage(Page):
         if "folders" in st:
             self.row("Rescan all folders", button("Rescan all", self.rescan),
                      hint="Looks for changes now instead of waiting for the next scan")
+            self.pause_switch("Pause on battery", "syncthing_pause_battery",
+                              "Pauses every device while unplugged; resumed when the charger is back")
+            self.pause_switch("Pause on metered connections", "syncthing_pause_metered",
+                              "Phone hotspots and networks marked metered (Settings → Network)")
             self.render_pending(st.get("pending") or [], st["devices"])
             self.render_devices(st["devices"])
             self.render_folders(st["folders"])
             self.render_problems(st["folders"], st.get("conflicts") or [])
         self.show_all()
+
+    def pause_switch(self, text, key, hint):
+        sw = Gtk.Switch()
+        sw.set_active(bool(store.get(key)))
+        sw.connect("state-set", lambda _s, on: store.set(key, on) or False)
+        self.row(text, sw, hint=hint + " (within 20 s; the bar shows a pause icon)")
 
     def buttons(self, *specs):
         """A row of buttons from (text, callback[, css class]) specs."""

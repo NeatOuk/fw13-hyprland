@@ -6,24 +6,36 @@ Long-polls Syncthing's event API (fw13.syncthing) in a worker thread and notifie
   a device shares a folder       → Accept (fuzzel asks where, default ~/Sync/<name>) / Ignore (Syncthing's ignoredFolders)
   items fail to sync (FolderErrors) or a conflict copy appears (LocalIndexUpdated) → notice with Show (Settings)
 Each request is notified once per run; Settings → Syncthing lists the same open requests. Syncthing stopped → retries.
+Bar: $XDG_RUNTIME_DIR/fw-syncthing.json (waybar custom/syncthing, signal 17): syncing NN %, errors or paused by us;
+empty (hidden) when idle. Pause: store syncthing_pause_battery / syncthing_pause_metered (Settings → Syncthing, off by
+default) pause every device while on battery / on a metered connection (NetworkManager Metered yes/guess-yes, e.g. a
+phone hotspot); only the devices it paused are resumed (their IDs persist in ~/.local/state/fw13/syncthing-paused.json).
   fw-syncthing            run
+  fw-syncthing bar        print the bar module's JSON
   fw-syncthing enabled    exit 0 when the service should run (Hyprland + syncthing installed)
   fw-syncthing test       self-check
 """
+import json
 import os
+import re
 import subprocess
 import sys
 import threading
 import time
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
-from fw13 import notify, syncthing  # noqa: E402
+from fw13 import bar, notify, power, store, syncthing  # noqa: E402
 from gi.repository import Gio, GLib  # noqa: E402  (versions pinned by fw13.notify)
 
 APP = "fw-syncthing"
-EVENTS = "PendingDevicesChanged,PendingFoldersChanged,FolderErrors,LocalIndexUpdated"
+EVENTS = "PendingDevicesChanged,PendingFoldersChanged,FolderErrors,LocalIndexUpdated,StateChanged,FolderSummary"
 RETRY = 30      # s, while Syncthing is stopped or unreachable
+WAKE = 20       # s, longest event wait: battery / metered changes are noticed within this
 NOTE_MS = 120000
+BAR = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "fw-syncthing.json")
+PAUSED = os.path.expanduser("~/.local/state/fw13/syncthing-paused.json")
+NM = "org.freedesktop.NetworkManager"
+METERED = (1, 3)  # NMMetered yes / guess-yes
 
 
 def key(req):
@@ -53,6 +65,73 @@ def problem(event, errors):
     return None
 
 
+def bar_status(folders, paused_reason):
+    """The bar module's JSON (pure): paused by us > errors > syncing NN % > hidden."""
+    if paused_reason:
+        return {"text": "\uf04c", "tooltip": f"Syncthing paused: {paused_reason}", "class": "paused"}
+    bad = [f["label"] for f in folders if f["state"].startswith("error") or f.get("failing")]
+    if bad:
+        return {"text": "\uf071", "tooltip": "Syncthing: problems in " + ", ".join(bad), "class": "error"}
+    pcts = [int(m.group(1)) for f in folders for m in [re.match(r"syncing (\d+) %", f["state"])] if m]
+    if pcts:
+        pct = sum(pcts) // len(pcts)
+        return {"text": f"\uf021 {pct}%", "tooltip": f"Syncthing: syncing {len(pcts)} folder(s), {pct} %",
+                "class": "syncing"}
+    return {"text": ""}
+
+
+def pause_plan(want, ours, devices):
+    """(pause, resume, new `ours`) (pure). want: pausing wanted now; ours: device IDs we paused; devices: {id: paused}.
+    Pausing takes every running device; resuming touches only ours, so a device paused by hand stays paused."""
+    if want:
+        pause = [d for d, paused in devices.items() if not paused]
+        return pause, [], sorted({*ours, *pause} & devices.keys())
+    return [], [d for d in ours if devices.get(d)], []
+
+
+def pause_reason():
+    """Why syncing should pause now ("on battery" / "metered connection"), or "" (switches in store, default off)."""
+    if store.get("syncthing_pause_battery"):
+        on = power._call(power.UP, "/org/freedesktop/UPower", "org.freedesktop.DBus.Properties", "Get",
+                         GLib.Variant("(ss)", (power.UP, "OnBattery")), "(v)")
+        if on and on[0]:
+            return "on battery"
+    if store.get("syncthing_pause_metered"):
+        m = power._call(NM, "/org/freedesktop/NetworkManager", "org.freedesktop.DBus.Properties", "Get",
+                        GLib.Variant("(ss)", (NM, "Metered")), "(v)")
+        if m and m[0] in METERED:
+            return "metered connection"
+    return ""
+
+
+def load_paused():
+    try:
+        return list(json.load(open(PAUSED)))
+    except (OSError, ValueError, TypeError):
+        return []
+
+
+def save_paused(ids):
+    os.makedirs(os.path.dirname(PAUSED), exist_ok=True)
+    with open(PAUSED + ".tmp", "w") as f:
+        json.dump(ids, f)
+    os.replace(PAUSED + ".tmp", PAUSED)
+
+
+def write_bar(status):
+    """Write the bar JSON and refresh waybar when it changed."""
+    text = json.dumps(status)
+    try:
+        if open(BAR).read() == text:
+            return
+    except OSError:
+        pass
+    with open(BAR + ".tmp", "w") as f:
+        f.write(text)
+    os.replace(BAR + ".tmp", BAR)
+    bar.refresh("syncthing")
+
+
 def ask_path(label):
     """fuzzel prompt for where to put an accepted folder; Enter keeps the default. None = cancelled / not absolute."""
     default = syncthing.default_path(label)
@@ -71,6 +150,7 @@ class Watcher:
         self.seen = set()   # request keys already notified
         self.notes = {}     # notification id → request
         self.errors = {}    # folder ID → failing paths last notified
+        self.ours = load_paused()
         notify.on_action(self.session, self.on_action)
         threading.Thread(target=self.poll, daemon=True).start()
 
@@ -82,14 +162,34 @@ class Watcher:
                     last = syncthing.api("/rest/events?limit=1&timeout=0") or []
                     since = last[-1]["id"] if last else 0
                     GLib.idle_add(self.got, ["start"])
-                events = syncthing.api(f"/rest/events?since={since}&timeout=50&events={EVENTS}", timeout=60) or []
+                events = syncthing.api(f"/rest/events?since={since}&timeout={WAKE}&events={EVENTS}",
+                                       timeout=WAKE + 10) or []
+                self.housekeep()
             except (syncthing.Error, KeyError, ValueError):
                 since = None
+                write_bar({"text": ""})
                 time.sleep(RETRY)
                 continue
             if events:
                 since = events[-1]["id"]
                 GLib.idle_add(self.got, events)
+
+    def housekeep(self):
+        """Pause/resume for battery / metered, then the bar (worker thread; at most every 2 s while syncing)."""
+        reason = pause_reason()
+        me = syncthing.api("/rest/system/status")["myID"]
+        devices = {d["deviceID"]: bool(d.get("paused")) for d in syncthing.api("/rest/config/devices")
+                   if d["deviceID"] != me}
+        pause, resume, ours = pause_plan(bool(reason), self.ours, devices)
+        for d in pause:
+            syncthing.set_paused("device", d, True)
+        for d in resume:
+            syncthing.set_paused("device", d, False)
+        if ours != self.ours:
+            self.ours = ours
+            save_paused(ours)
+        write_bar(bar_status(syncthing.snapshot()["folders"], reason if self.ours else ""))
+        time.sleep(2)
 
     def got(self, events):
         if events == ["start"] or any(e["type"].startswith("Pending") for e in events):
@@ -173,6 +273,17 @@ def selftest():
     assert fresh(reqs, set()) == reqs
     assert fresh(reqs, {("folder", "f", "A")}) == [reqs[0], reqs[2]]
     assert fresh(reqs, {key(r) for r in reqs}) == []
+    folders = [{"label": "A", "state": "idle"}, {"label": "B", "state": "syncing 40 %"},
+               {"label": "C", "state": "syncing 60 %"}]
+    assert bar_status(folders[:1], "") == {"text": ""}
+    assert bar_status(folders, "")["text"] == "\uf021 50%"
+    assert bar_status(folders + [{"label": "D", "state": "idle", "failing": 2}], "")["class"] == "error"
+    assert bar_status(folders, "on battery")["class"] == "paused"
+    devs = {"a": False, "b": True}
+    assert pause_plan(True, [], devs) == (["a"], [], ["a"])
+    assert pause_plan(True, ["a"], {"a": True, "b": True}) == ([], [], ["a"])
+    assert pause_plan(False, ["a"], {"a": True, "b": True}) == ([], ["a"], [])  # b was paused by hand: stays
+    assert pause_plan(False, ["gone"], devs) == ([], [], [])
     errs = {}
     ev = {"type": "FolderErrors", "data": {"folder": "f", "errors": [{"path": "a", "error": "x"}]}}
     assert problem(ev, errs)[0] == "f" and problem(ev, errs) is None  # same set: told once
@@ -187,6 +298,11 @@ if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "run"
     if cmd == "test":
         selftest()
+    elif cmd == "bar":
+        try:
+            print(open(BAR).read())
+        except OSError:
+            print('{"text": ""}')
     elif cmd == "enabled":
         sys.exit(0 if notify.in_hyprland() and syncthing.installed() else 1)
     else:

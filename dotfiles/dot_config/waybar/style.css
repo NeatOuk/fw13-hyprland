@@ -24,6 +24,9 @@ tooltip { background: @bg; border: 1px solid @accent; }
 #custom-warp { color: @muted; }
 #custom-warp.connected { color: @accent; }
 #custom-warp.connecting { color: @yellow; }
+#custom-syncthing { padding: 0 9px; color: @accent; }
+#custom-syncthing.paused { color: @muted; }
+#custom-syncthing.error { color: @yellow; }
 #custom-vpn { color: @muted; }
 #custom-vpn.connected { color: @accent; }
 /* Notification bell: accent with unread notifications, dim under do-not-disturb */
