@@ -53,7 +53,7 @@ Build/download mechanics for the non-repo sources: docs/ARCHITECTURE.md → Inst
 
 Pinned binaries: bump version + sha256 together. Apps the user removed via Settings → Apps are listed in `~/.config/fw13/skip-packages` and skipped by install.sh.
 
-Declined by the user — do not re-propose unless asked: `mesa-va-drivers-freeworld`, toolbox, Docker CE, ProtonUp-Qt, Nerd Fonts, snapper/btrfs-assistant, Qt5 removal, CJK font removal, swayosd COPR, Arch support, bootc/ISO image, a single-process shell (Quickshell/AGS/DankMaterialShell replacing Waybar/fuzzel/mako/our panels), pavucontrol (removed, user decision; per-app volume is in Settings → Sound), and the other ideas from the Oct 2026 comparison with ML4W/JaKooLit/Omarchy/end-4/HyDE/Caelestia (overview with live previews, theme gallery, OCR, DDC/CI brightness, clamshell handling, bar weather/reminders): the current design stays.
+Declined by the user — do not re-propose unless asked: `mesa-va-drivers-freeworld`, toolbox, Docker CE, ProtonUp-Qt, Nerd Fonts, snapper/btrfs-assistant, Qt5 removal, CJK font removal, swayosd COPR, Arch support, bootc/ISO image, a single-process shell (Quickshell/AGS/DankMaterialShell replacing Waybar/fuzzel/mako/our panels), pavucontrol (removed, user decision; per-app volume is in Settings → Sound), Teams for Linux (added then removed Oct 2026: too buggy), and the other ideas from the Oct 2026 comparison with ML4W/JaKooLit/Omarchy/end-4/HyDE/Caelestia (overview with live previews, theme gallery, OCR, DDC/CI brightness, clamshell handling, bar weather/reminders): the current design stays.
 
 ## Commands
 
