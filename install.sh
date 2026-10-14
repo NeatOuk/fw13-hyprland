@@ -42,7 +42,7 @@ SCRCPY_SHA256="${SCRCPY_SHA256:-9f969d30cc574816077edecda65719c1c70b0aee1df1ba5f
 DBEAVER_VERSION="${DBEAVER_VERSION:-26.2.2}"
 DBEAVER_SHA256="${DBEAVER_SHA256:-ac034c7a0ec44da1231a0a7de844b2b394bc3744ccb0251efb36bb00182c8c76}"
 # Claude Desktop (user decision: Anthropic's official build, only published as a .deb for Ubuntu/Debian, repackaged as
-# the RPM claude-desktop-official; Cowork's QEMU not installed). Version + sha256 from the apt index
+# the RPM claude-desktop-official; Cowork's QEMU/OVMF/virtiofsd from Fedora in 73-cowork.txt). Version + sha256 from the apt index
 # (downloads.claude.ai/claude-desktop/apt/stable/dists/stable/main/binary-amd64/Packages); bump both together.
 CLAUDE_DESKTOP_VERSION="${CLAUDE_DESKTOP_VERSION:-2.37337.1}"
 CLAUDE_DESKTOP_SHA256="${CLAUDE_DESKTOP_SHA256:-41745b0914f0ff51631a1ff1bb403b836bf5c995845cca6742dd39bca3a2da14}"
@@ -62,7 +62,7 @@ declare -A GROUP_INFO=(
   [messaging]="94-rpm-build.txt|Telegram Desktop, official telegram.org build as an RPM"
   [ghostty]="94-rpm-build.txt 98-ghostty.txt|Ghostty terminal, built from the official release (kitty stays)"
   [database]="|DBeaver CE database tool (official RPM, ~120 MB)"
-  [claude-desktop]="94-rpm-build.txt|Claude Desktop app (Anthropic's official .deb repackaged as an RPM, ~600 MB)"
+  [claude-desktop]="94-rpm-build.txt 73-cowork.txt|Claude Desktop app (Anthropic's official .deb repackaged as an RPM) + QEMU for its Cowork tab, ~700 MB"
   [localsend]="|LocalSend file sharing (Flathub, send only)"
 )
 # The saved choice: the groups LEFT OUT, one per line, so a group added later is on. Absent = every group.
@@ -419,6 +419,9 @@ system_phase() {
     local cd
     cd="$(build_claude_desktop_rpm)" || die "Claude Desktop RPM build failed (see above)"
     if [[ -n $cd ]]; then $DNF install "$cd" && rm -f "$cd"; else echo "claude-desktop-official is current"; fi
+    # Cowork's VM needs vsock: load it now and at every boot
+    $SUDO install -D -m 0644 system/etc/modules-load.d/fw13-cowork.conf /etc/modules-load.d/fw13-cowork.conf
+    $SUDO modprobe vhost_vsock || warn "vhost_vsock didn't load: Cowork's VM can't start until it does"
   fi
 
   if ! on database; then :

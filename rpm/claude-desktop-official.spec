@@ -4,7 +4,7 @@
 # they register the apt repo and an Ubuntu AppArmor profile (nothing to do on Fedora); the GNOME search provider and
 # the MIME types they copy are shipped as files here. chrome-sandbox keeps 0755: Fedora allows unprivileged user
 # namespaces, so Chromium's namespace sandbox works without the SUID helper. No self-updater on Linux; updates come
-# from bumping the pin in install.sh. Cowork (QEMU VM) is not set up (user decision): its tab says QEMU is missing.
+# from bumping the pin in install.sh. Cowork's QEMU, OVMF and virtiofsd come from packages/73-cowork.txt (same group).
 %global debug_package %{nil}
 %global __strip /bin/true
 %global _build_id_links none

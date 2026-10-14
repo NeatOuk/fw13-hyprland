@@ -1,0 +1,5 @@
+# Claude Desktop's Cowork tab (group claude-desktop; user decision): it runs tasks in a QEMU/KVM virtual machine
+# that the app starts itself — QEMU, its UEFI firmware and the folder-sharing daemon, all from Fedora
+qemu-system-x86-core
+edk2-ovmf
+virtiofsd
