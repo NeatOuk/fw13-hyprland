@@ -1,0 +1,32 @@
+name: Feature request
+description: An idea for the desktop, Settings or the installer
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you want to do
+      description: The problem or use case, not just the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How it could work
+      description: Where it would live (bar, Settings page, key, installer group) and what it would do.
+  - type: textarea
+    id: packages
+    attributes:
+      label: New packages
+      description: |
+        Every new package is decided case by case. If your idea needs one, name it and where it comes from,
+        in this order of preference: Fedora → vendor repo → RPM Fusion → COPR → upstream installer → Flathub.
+      placeholder: "none / git-delta (Fedora)"
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: It isn't on the declined list in CLAUDE.md (e.g. a single-process shell, Arch support, Nerd Fonts, an ISO image)
+          required: true
+        - label: It keeps the desktop simple (conventional keys, bar menus over big GUI apps)

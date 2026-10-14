@@ -1,0 +1,75 @@
+name: Bug report
+description: Something in the installer, the desktop or Settings doesn't work
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Security problems go to the [private report form](https://github.com/NeatOuk/fw13-hyprland/security/advisories/new), not here.
+        Bugs in Hyprland or other upstream packages belong upstream.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Click the shield on the bar
+        2. …
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Installer (install.sh)
+        - Bar / panels / menus
+        - Settings app
+        - Keys / windows / workspaces
+        - Jarvis / AI
+        - Power / battery / sleep
+        - Network / VPN / Bluetooth
+        - Backups (Timeshift / restic)
+        - Theme / look
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Laptop
+      placeholder: Framework 13, AMD Ryzen AI 9 HX 370 (BIOS 3.03)
+    validations:
+      required: true
+  - type: input
+    id: fedora
+    attributes:
+      label: Fedora edition and version
+      description: "`cat /etc/fedora-release`, and which edition you started from (Workstation, KDE, Minimal…)"
+      placeholder: Fedora 44 Workstation
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: fw13-hyprland version
+      description: Release, or the commit from `git -C ~/.local/share/fw13-hypr log -1 --oneline`
+  - type: input
+    id: groups
+    attributes:
+      label: Install options
+      description: Optional groups you left out, or flags like `--minimal`, `KEEP_DM=1`, `HYPR_COPR=`
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Whatever fits: the installer's output, `journalctl --user -b -u <service>`, `fw-hwcheck` or a report from `~/.local/state/fw13/health/`.
+        Check there are no passwords, keys or tokens in it.
+      render: text
