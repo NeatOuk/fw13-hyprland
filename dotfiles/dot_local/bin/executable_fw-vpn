@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Bar VPN shield (custom/vpn, signal 13) over every VPN (lib/fw13/vpn.py: NetworkManager + strongSwan).
+"""Bar shield (custom/vpn, signal 13) over Cloudflare WARP (lib/fw13/warp.py) and every VPN (lib/fw13/vpn.py:
+NetworkManager + strongSwan), merged into one icon (user decision).
 
-  fw-vpn --bar     waybar JSON: hidden without any VPN, class connected when one is up
-  fw-vpn           menu (bar click with FW_BAR=1 → below the icon): every VPN, ● = connected; pick = connect /
-                   disconnect; last row opens Settings → Network to add or edit
+  fw-vpn --bar     waybar JSON: hidden without WARP or any VPN; class connected when WARP or a VPN is up,
+                   connecting while WARP connects
+  fw-vpn           menu (bar click with FW_BAR=1 → below the icon): Cloudflare WARP first (pick = its panel),
+                   then every VPN, ● = connected (pick = connect / disconnect); last row opens Settings → Network
 A NetworkManager VPN whose password isn't saved is brought up in a terminal (`nmcli --ask`), which asks for it.
 A failed connect notifies with Ask Jarvis (`fw-vpn --failed <name> <error>`, spawned so the menu returns at once).
   fw-vpn test      self-check
@@ -15,22 +17,29 @@ import sys
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
 
-from fw13 import bar as waybar, notify as fwnotify, vpn  # noqa: E402
+from fw13 import bar as waybar, notify as fwnotify, vpn, warp  # noqa: E402
 
 SHIELD = "\uf3ed"  # Font Awesome shield-halved
 
 
+def bar_json(vs, w):
+    """Waybar JSON from the VPN list and warp.bar()'s dict (class hidden = WARP not installed)."""
+    has_warp = w.get("class") != "hidden"
+    if not vs and not has_warp:
+        return {"text": ""}
+    on = [v for v in vs if v["active"]]
+    lines = [f"{'●' if w['class'] == 'connected' else '○'} {w.get('tooltip', 'Cloudflare WARP')}"] if has_warp else []
+    lines += [f"{'●' if v['active'] else '○'} {v['name']} · {v['kind']}" for v in vs]
+    cls = "connected" if on or w.get("class") == "connected" else "connecting" if w.get("class") == "connecting" else "off"
+    return {"text": SHIELD, "class": cls, "tooltip": "\n".join(lines) + "\n\nClick: WARP panel / connect a VPN"}
+
+
 def bar():
     vs = vpn.vpns()
-    if not vs:
-        print('{"text": ""}')
-        return
-    on = [v for v in vs if v["active"]]
-    tip = "\n".join(f"{'●' if v['active'] else '○'} {v['name']} · {v['kind']}" for v in vs)
-    if on and any(v["backend"] == "swan" for v in on):
-        tip += "\n\n" + " ".join(vpn.swan_routes())
-    print(json.dumps({"text": SHIELD, "class": "connected" if on else "off",
-                      "tooltip": f"VPN: {'connected' if on else 'off'}\n{tip}\n\nClick: connect / disconnect"}))
+    out = bar_json(vs, warp.bar())
+    if any(v["active"] and v["backend"] == "swan" for v in vs):
+        out["tooltip"] = out["tooltip"].replace("\n\nClick", "\n\n" + " ".join(vpn.swan_routes()) + "\n\nClick", 1)
+    print(json.dumps(out))
 
 
 def notify(title, body):
@@ -70,8 +79,10 @@ def menu():
         if not pos:
             return  # second click on the icon: menu closed
     vs = vpn.vpns()
-    rows = [f"{'●' if v['active'] else '○'}  {v['name']}  ·  {v['kind']}" + ("  (connected)" if v["active"] else "")
-            for v in vs] + ["  Add or edit VPNs…"]
+    w = warp.bar()
+    top = [f"{'●' if w['class'] == 'connected' else '○'}  Cloudflare WARP  ·  {w['class']}  (panel…)"] if w["class"] != "hidden" else []
+    rows = top + [f"{'●' if v['active'] else '○'}  {v['name']}  ·  {v['kind']}" + ("  (connected)" if v["active"] else "")
+                  for v in vs] + ["  Add or edit VPNs…"]
     r = subprocess.run(["fuzzel", "--dmenu", "--index", *pos, "--prompt", "VPN › ", "--width", "48",
                         "--lines", str(min(len(rows), 12))], input="\n".join(rows), capture_output=True, text=True)
     try:
@@ -80,10 +91,12 @@ def menu():
         pick = None
     if pick is None or not 0 <= pick < len(rows):
         return
-    if pick == len(vs):
+    if pick < len(top):  # the WARP panel opens under the pointer, which is still on the shield
+        subprocess.Popen(["uwsm", "app", "--", "env", "FW_BAR=1", "fw-warp-panel"], start_new_session=True)
+    elif pick == len(rows) - 1:
         subprocess.Popen(["uwsm", "app", "--", "fw-settings", "network"], start_new_session=True)
     else:
-        toggle(vs[pick])
+        toggle(vs[pick - len(top)])
 
 
 def main():
@@ -97,6 +110,13 @@ def main():
     elif args == ["test"]:
         assert jarvis_argv("ncx", "timeout") == ["fw-jarvis-panel", "--ask",
                                                  "VPN ncx failed to connect: timeout\nWhy, and how do I fix it?"]
+        nm = {"name": "ncx", "kind": "OpenVPN", "active": False, "backend": "nm"}
+        assert bar_json([], {"text": "", "class": "hidden"}) == {"text": ""}
+        assert bar_json([nm], {"text": "", "class": "hidden"})["class"] == "off"
+        b = bar_json([nm], {"class": "connected", "tooltip": "Cloudflare WARP: Connected"})
+        assert b["class"] == "connected" and b["tooltip"].startswith("● Cloudflare WARP: Connected\n○ ncx")
+        assert bar_json([], {"class": "connecting", "tooltip": "x"})["class"] == "connecting"
+        assert bar_json([dict(nm, active=True)], {"class": "connecting"})["class"] == "connected"
         print("ok")
     else:
         print(__doc__.strip(), file=sys.stderr)

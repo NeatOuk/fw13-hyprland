@@ -11,7 +11,7 @@ window#waybar { background: @bg; color: @fg; }
 #custom-ws1.occupied, #custom-ws2.occupied, #custom-ws3.occupied, #custom-ws4.occupied, #custom-ws5.occupied, #custom-ws6.occupied, #custom-ws7.occupied, #custom-ws8.occupied, #custom-ws9.occupied { color: @fg; }
 #custom-ws1.active, #custom-ws2.active, #custom-ws3.active, #custom-ws4.active, #custom-ws5.active, #custom-ws6.active, #custom-ws7.active, #custom-ws8.active, #custom-ws9.active { color: @accent; }
 #custom-ws1:hover, #custom-ws2:hover, #custom-ws3:hover, #custom-ws4:hover, #custom-ws5:hover, #custom-ws6:hover, #custom-ws7:hover, #custom-ws8:hover, #custom-ws9:hover { color: @fg; }
-#tray, #bluetooth, #network, #custom-warp, #custom-vpn, #pulseaudio, #custom-display, #custom-claude, #custom-opencode, #cpu, #battery { padding: 0 9px; }
+#tray, #bluetooth, #network, #custom-vpn, #pulseaudio, #custom-display, #custom-claude, #custom-opencode, #cpu, #battery { padding: 0 9px; }
 #custom-notifications, #custom-caffeine, #custom-profile, #custom-weather { padding: 0 9px; }
 #custom-power { padding: 0 14px 0 9px; color: @red; }
 #battery.warning { color: @yellow; }
@@ -21,15 +21,13 @@ tooltip { background: @bg; border: 1px solid @accent; }
 #custom-claude.warning { color: @yellow; }
 #custom-claude.critical { color: @red; }
 /* Cloudflare WARP: accent when connected, dim when off */
-#custom-warp { color: @muted; }
-#custom-warp.connected { color: @accent; }
-#custom-warp.connecting { color: @yellow; }
 #submap { padding: 0 10px; color: @bg; background: @yellow; }
 #custom-syncthing { padding: 0 9px; color: @accent; }
 #custom-syncthing.paused { color: @muted; }
 #custom-syncthing.error { color: @yellow; }
 #custom-vpn { color: @muted; }
 #custom-vpn.connected { color: @accent; }
+#custom-vpn.connecting { color: @yellow; }
 /* Notification bell: accent with unread notifications, dim under do-not-disturb */
 #custom-notifications.unread { color: @accent; }
 #custom-notifications.dnd { color: @muted; }

@@ -2,9 +2,9 @@
 """Cloudflare WARP panel: on/off, mode, DNS filtering, protocol, and everything warp-cli and Cloudflare's trace
 report (exit IP and location, endpoint, handshake, latency, traffic, account, trusted networks, split tunnel).
 
-  fw-warp-panel            open the panel (bar cloud icon: FW_BAR=1 → below the icon; a second click closes it)
-  fw-warp-panel --bar      print the bar module's JSON (waybar custom/warp, signal 11)
-  fw-warp-panel --toggle   connect / disconnect (bar right-click)
+  fw-warp-panel            open the panel (bar shield menu → Cloudflare WARP: FW_BAR=1 → under the pointer)
+  fw-warp-panel --bar      print warp.bar()'s JSON (fw-vpn merges it into the shield, signal 13)
+  fw-warp-panel --toggle   connect / disconnect
 
 Backend: ~/.local/lib/fw13/warp.py. warp-cli needs Cloudflare's Terms of Service accepted: the panel asks once.
 GTK3 + gtk-layer-shell, like fw-display-panel.
@@ -34,7 +34,7 @@ if len(sys.argv) > 1 and sys.argv[1] == "--toggle":
     if st is None:
         os.execvp("fw-warp-panel", ["fw-warp-panel"])  # not set up yet: open the panel instead
     err = warp.disconnect() if st["status"] in ("Connected", "Connecting") else warp.connect()
-    waybar.refresh("warp")
+    waybar.refresh("vpn")
     if err:
         subprocess.run(["fw-notify", "Cloudflare WARP", err])
     sys.exit(0)
@@ -442,7 +442,7 @@ class Panel(Gtk.Window):
                 self.set_message(f"Sign in to {team} in the browser; WARP registers when you're done")
             else:
                 self.set_message(f"Registered with {team}")
-            waybar.refresh("warp")
+            waybar.refresh("vpn")
             self.poll()
         in_thread(lambda: warp.join_org(team), done)
 
@@ -453,7 +453,7 @@ class Panel(Gtk.Window):
 
     def accept(self):
         warp.accept_tos()
-        waybar.refresh("warp")
+        waybar.refresh("vpn")
         self.view = None
         self.poll()
 
@@ -498,7 +498,7 @@ class Panel(Gtk.Window):
             self.trace = {}  # exit IP may have changed
             if self.data:
                 self.data["slow_at"] = 0  # re-read the registration now: it picks the view
-            waybar.refresh("warp")
+            waybar.refresh("vpn")
             self.poll()
         in_thread(fn, done)
 
