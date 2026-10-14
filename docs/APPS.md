@@ -89,6 +89,7 @@ For an off-laptop copy, **restic** backs up your home folder daily (user systemd
 | SUPER+L / Escape | Lock / power menu |
 | SUPER+Arrows (+Shift / +Ctrl) | Focus / move / resize |
 | SUPER+1..9 (+Shift), SUPER+Tab | Go to workspace / move window there (on the focused screen: every screen has its own 1–9), previous workspace |
+| Ctrl+← / → | Previous / next workspace on this screen (so Ctrl+arrow no longer jumps by word in terminals and text fields) |
 | SUPER+V | Clipboard history (the picked item is pasted into the window you were in) |
 | Print / Shift+Print / Alt+Print / SUPER+Print | Region shot / full shot / start or stop recording / color picker |
 | Alt+Shift+4 / Alt+Shift+3 | Snip a region / click a window → annotate in swappy (Ctrl+C copies, Ctrl+S saves to ~/Pictures/Screenshots) |

@@ -58,6 +58,9 @@ end
 hl.bind("SUPER + TAB",        hl.dsp.focus({ workspace = "previous" }), { description = "Previous workspace" })
 hl.bind("SUPER + mouse_down", hl.dsp.focus({ workspace = "m+1" }), { description = "Next workspace on this screen" })
 hl.bind("SUPER + mouse_up",   hl.dsp.focus({ workspace = "m-1" }), { description = "Previous workspace on this screen" })
+-- CTRL+←/→ is taken from apps (word jumps in terminals and text fields; user decision)
+hl.bind("CTRL + right",       hl.dsp.focus({ workspace = "m+1" }), { description = "Next workspace on this screen" })
+hl.bind("CTRL + left",        hl.dsp.focus({ workspace = "m-1" }), { description = "Previous workspace on this screen" })
 
 -- Clipboard / capture / tools
 hl.bind("SUPER + V",             exec("fw-clipboard"), { description = "Clipboard history" })
