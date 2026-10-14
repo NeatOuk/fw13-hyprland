@@ -130,6 +130,7 @@ Hyprland's config is **Lua** (`~/.config/hypr/hyprland.lua`, which `require()`s 
 ```
 install.sh                 entry point (preflight → repos → packages → system files → login/power → user phase → report)
 packages/NN-*.txt          one package per line; 15-login and 61-power are conditional
+wallpapers/ml4w.txt        default wallpapers to download (sha256 + name; ML4W collection, credited below)
 repos/*.repo               vendor repos (vscode, mise, cloudflare-warp, devolutions-rdm)
 rpm/                       specs built locally (Telegram Desktop)
 system/                    root helpers and config: /usr/local/bin, /etc (systemd, polkit, modprobe, geoclue, Chromium policy)
@@ -139,6 +140,11 @@ dotfiles/                  chezmoi source (.chezmoiroot)
 ## Contributing
 
 Start with [CONTRIBUTING.md](CONTRIBUTING.md) (setup, rules, tests, roadmap). Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Credits
+
+- **Wallpapers:** the 20 default wallpapers come from the [ML4W Wallpaper Collection](https://github.com/mylinuxforwork/wallpaper) by **Stephan Raabe** ([My Linux For Work](https://github.com/mylinuxforwork), GPL-2.0). They are downloaded from his repository at install time, not stored here. Thank you!
+- **Speaker preset:** Framework's FW13 EasyEffects preset from [FrameworkComputer/linux-docs](https://github.com/FrameworkComputer/linux-docs) (GPL-3.0).
 
 ## License
 

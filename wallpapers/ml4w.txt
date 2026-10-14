@@ -1,0 +1,24 @@
+# Default wallpapers: 20 pictures picked from the ML4W Wallpaper Collection by Stephan Raabe (mylinuxforwork),
+# https://github.com/mylinuxforwork/wallpaper (GPL-2.0), at commit ML4W_WALLPAPER_COMMIT in install.sh.
+# Not stored in this repo: install.sh downloads each into ~/Pictures/Wallpapers and checks its sha256.
+# Format: sha256  file name. Bump the commit and the sums together.
+294ad54c6f52b4c75885fe913fb58a4f3583f284b597db76deb9af91c475516b  abstract-dark.png
+14a02c9feeb2ce0b8f3d291b2d4bbae66e2999e0a7bf67a4b41d7237b652a344  chromatic-waves.png
+59dc554b2fe81f79b1f89258f838315fbad79d5a71cfd1508f29c56b85acfdbb  dark-star.jpg
+464669af3aed108f54677198ea33b5da382f9d38ca53ff282d209fbd058afbb4  dark-waves.jpg
+afc31578e6d38cb685ab3274ca37a242d1e7dc6af3d0870229052d6f9250de37  default.jpg
+aaeebccb9cea3866559c27b69eee15336ee0fa057ef31f24a33905b752946450  Desert-With-Mountains-Moon.jpg
+21ed4cbeb40f48f70518a1f449df757cf5e8fb7febe0fda9e4da674c7bcf032a  earth-from-moon.jpg
+3f24cf559f42c82fcca34f5de8af615a0a04e84238fff52b0fa3082dfbed156a  highlands-grid.jpg
+29ba58f9fdbaf61f3ccef6acaaa9b1338a101e0e98cc70055dd4a3b492d5165a  lake-mcdonald.jpg
+ce3f6b3672e17f8e69537615bb8bef25e1f3916a623639da57fe0b843c2de15c  landscape-abstract-neon.jpg
+b60670d5f8ae4400b3ec09049114905901b3bfc8d6ad08b5a43fb7b71aea3241  lofoten-sundown.jpg
+5cbf927a3f5799adb0e1efbd8fd285c9f22d12e19fc26b576adef8db07d4ff22  midnight-reflections-moonlit-sea.jpg
+e5c264ae79cf569014501a6e70868b206b1388d4aebdfb0432485130be145d2d  moonlight.jpg
+a053a8c761ee6ae3f01814fb932977fe909b27615bbb57625522e450f249f9dd  mountain-snow-minima.jpg
+f9fbcf71762ef269673043ffafd65d0a19b871949d3eca120299c75445d45ae3  northern-night.jpg
+da4cd7fe4581c55196b16ea6a0e76facf3d059a8d3ab7271a6504a724d4d1d2f  onyx-flow.png
+6d8a8c01bc1f60cfa9eb9d5164ea4d8d53e7fd0857e3edc4ee53fc2d897b02cc  peak-in-the-clouds.jpg
+358b438be18ba81e0203ef934a84147bdd3f09a4d2e9a0f8e719c467c6f27918  shard-window-dark.png
+19c29e7af97d254cc39f369ecf1520a9153bc67b32b9d5cce3fe1fa0eb7c18b1  snowcapped-mountains.jpg
+684b3adacb2fec762b8f3db1c1368252e79f7ea47bac03c3d8040c6f3d687668  symmetry-in-the-stillness.jpg

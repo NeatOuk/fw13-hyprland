@@ -266,7 +266,7 @@ The generated colors live in `~/.config/fw13/theme/`. Your own `~/.config/gtk-4.
 
 </details>
 
-**Wallpapers** live in `~/Pictures/Wallpapers` (originals are never changed; desktop and lock images are rendered from them). SUPER+W opens a strip of them: click (or arrows + Enter) to use one, **+ Add…** copies pictures in. Settings → Appearance has the full gallery. From a terminal: `fw-wallpaper set|add <files>`, `fw-wallpaper effects <desktop> <lock>`.
+**Wallpapers** live in `~/Pictures/Wallpapers`. The installer puts 20 pictures there from the [ML4W Wallpaper Collection](https://github.com/mylinuxforwork/wallpaper) by Stephan Raabe (GPL-2.0, thanks!); delete any you don't want and they stay deleted. Originals are never changed (the desktop and lock images are rendered from them). SUPER+W opens a strip of them: click (or arrows + Enter) to use one, **+ Add…** copies pictures in. Settings → Appearance has the full gallery. From a terminal: `fw-wallpaper set|add <files>`, `fw-wallpaper effects <desktop> <lock>`.
 
 ### Default apps
 

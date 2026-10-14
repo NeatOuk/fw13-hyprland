@@ -49,6 +49,7 @@ Build/download mechanics for the non-repo sources: docs/ARCHITECTURE.md → Inst
 | Official release, built | **Ghostty** (user decision: official source, not a COPR) → `ghostty-official`, pinned sha256; group `ghostty` (`GHOSTTY=0` skips for one run) |
 | Upstream release binaries | **framework_tool** (user decision; not in Fedora), **scrcpy** (user decision: official release, not a COPR; uses Fedora's adb), **DBeaver CE** (user decision: official RPM from GitHub releases, not Flathub; group `database`; bundles its JRE, no deps); all sha256-pinned |
 | Flathub (user remote) | **LocalSend** only (user decision; `--user`; port 53317 not opened (user decision): send only) |
+| Upstream content | **Wallpapers**: 20 from the ML4W Wallpaper Collection (github.com/mylinuxforwork/wallpaper, Stephan Raabe, GPL-2.0; user decision, credited in README), downloaded per file at a pinned commit with sha256 from `wallpapers/ml4w.txt`, not stored in git |
 | Upstream installer | Claude Code (`claude.ai/install.sh` → `~/.local/bin/claude`, self-updating; mise npm skipped its postinstall) |
 
 Pinned binaries: bump version + sha256 together. Apps the user removed via Settings → Apps are listed in `~/.config/fw13/skip-packages` and skipped by install.sh.

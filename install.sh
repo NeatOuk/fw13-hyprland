@@ -46,6 +46,9 @@ DBEAVER_SHA256="${DBEAVER_SHA256:-ac034c7a0ec44da1231a0a7de844b2b394bc3744ccb025
 # (downloads.claude.ai/claude-desktop/apt/stable/dists/stable/main/binary-amd64/Packages); bump both together.
 CLAUDE_DESKTOP_VERSION="${CLAUDE_DESKTOP_VERSION:-2.37337.1}"
 CLAUDE_DESKTOP_SHA256="${CLAUDE_DESKTOP_SHA256:-41745b0914f0ff51631a1ff1bb403b836bf5c995845cca6742dd39bca3a2da14}"
+# Default wallpapers (user decision): 20 picked from the ML4W Wallpaper Collection (github.com/mylinuxforwork/wallpaper,
+# Stephan Raabe, GPL-2.0), listed with their sha256 in wallpapers/ml4w.txt; downloaded at this commit, not stored here.
+ML4W_WALLPAPER_COMMIT="${ML4W_WALLPAPER_COMMIT:-9e9d463d80e6090e1a60cfdfbd17dcd82eddd779}"
 STATE_DIR="$HOME/.local/state/fw13-hypr"
 
 # Optional groups: everything else is core (what the desktop itself needs). A group owns its packages/*.txt files and
@@ -587,7 +590,36 @@ root_theme() {
   fi
 }
 
+# Default wallpapers into the wallpaper library (Settings → Appearance), before chezmoi so its first run picks one.
+# Each file is fetched once: one you delete stays deleted (names done are kept in $STATE_DIR/wallpapers-ml4w).
+fetch_wallpapers() {
+  local pics dir done sum f part
+  pics="$(xdg-user-dir PICTURES 2>/dev/null || true)"
+  [[ -z $pics || $pics == "$HOME" ]] && pics="$HOME/Pictures"
+  dir="$pics/Wallpapers" done="$STATE_DIR/wallpapers-ml4w"
+  mkdir -p "$dir" "$STATE_DIR"
+  touch "$done"
+  while read -r sum f; do
+    [[ -z $sum || $sum == \#* ]] && continue
+    grep -qxF -- "$f" "$done" && continue
+    if [[ ! -e $dir/$f ]]; then
+      part="$dir/.$f.part"
+      if ! { curl -fsSL --retry 2 -o "$part" \
+               "https://raw.githubusercontent.com/mylinuxforwork/wallpaper/$ML4W_WALLPAPER_COMMIT/$f" \
+             && echo "$sum  $part" | sha256sum -c --status; }; then
+        rm -f "$part"
+        warn "wallpaper $f: download failed or checksum mismatch (the next run tries again)"
+        continue
+      fi
+      mv "$part" "$dir/$f"
+    fi
+    echo "$f" >> "$done"
+  done < "$SRC/wallpapers/ml4w.txt"
+}
+
 user_phase() {
+  say "Wallpapers (ML4W collection, 20 pictures)"
+  fetch_wallpapers
   say "mise tools (node, chezmoi, starship)"
   set +u; eval "$(mise activate bash)"; set -u
 
