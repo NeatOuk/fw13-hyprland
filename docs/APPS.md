@@ -2,20 +2,348 @@
 
 What fw13-hypr gives you once it is installed. Installing, updating and testing are in the [README](../README.md); per-component internals in [ARCHITECTURE.md](ARCHITECTURE.md).
 
+**Contents:** [The bar](#the-bar) · [Keys](#keys) · [Settings](#settings) · [Desktop](#desktop) · [Jarvis & AI](#jarvis--ai) · [Apps](#apps) · [Backups](#backups)
+
+> **Three keys to remember:** **SUPER+Space** opens the launcher, **SUPER+I** opens Settings, **SUPER+/** lists every shortcut.
+
+---
+
+## The bar
+
+A thin bar per screen: launcher, the focused app's name and workspaces on the left · profile, clock and weather in the middle · tray and status on the right. Bar menus open right below the icon you clicked; clicking the same icon again closes them.
+
+| Icon | Click | Right-click / other |
+|---|---|---|
+| Framework gear | App launcher | |
+| Workspace circles | Go to that workspace (one row per screen) | |
+| Coffee cup | **Keep awake** on / off | |
+| Profile | **Normal**, **Focus** or **Zen** | |
+| Clock · weather | Weather opens Settings → System | |
+| REMOTE | Shown while remote mode is on (Super+Alt+R leaves) | |
+| Syncthing | Settings → Syncthing (shown only while syncing, on a problem or paused) | |
+| Bluetooth | Connected devices (with battery), paired ones to connect | Settings → Bluetooth |
+| Wi-Fi | Networks, the connected one first | Settings → Network |
+| Shield | **Cloudflare \| VPN** panel | Settings → Network |
+| Volume | Volume menu | Middle-click: Settings → Sound |
+| Display | **Display panel** | Scroll: brightness |
+| ✱ | Claude plan limits (5-hour and weekly %, reset times) | |
+| `>_` | Coding agent and Ollama servers | |
+| Battery | **Power panel** (tooltip: power draw in watts) | |
+| Bell | Notification history, Do not disturb, Dismiss all | Toggles Do not disturb |
+| Power | Lock / suspend / log out / reboot / shut down | |
+
+<details>
+<summary><b>Power panel, display panel and the shield panel</b></summary>
+
+- **Power panel** (battery icon): charge state, time to full or empty, power profile, an 80 % charge limit toggle, battery health and the CPU/power tuning in effect (driver, energy preference, platform profile, panel power saving, tuned profile).
+- **Display panel** (display icon): a brightness slider for the laptop screen, and for each connected monitor its position (drag it), refresh rate and scale. **Apply** asks you to keep the change and reverts after 15 seconds otherwise; kept layouts are saved in `~/.config/hypr/displays.conf`, per monitor model. **Auto-brightness** from the light sensor is off by default (here or in Settings → Display); changing brightness yourself pauses it until the next wake or login.
+- **Shield panel**, two pages. The shield is accent-coloured when WARP or a VPN is connected and yellow while connecting. Without Cloudflare WARP installed, the panel has only the VPN page.
+  - **Cloudflare:** on/off, mode, DNS filter and protocol, exit IP and Cloudflare location, tunnel endpoint, handshake, latency, loss and traffic, account (free, WARP+ key, or **Join organization** for Cloudflare Zero Trust: you sign in in the browser), the split-tunnel include/exclude list, fallback domains, trusted networks and your organization's policy. It asks you to accept Cloudflare's Terms of Service once before talking to WARP. Settings your Zero Trust organization controls are shown but greyed out. Cloudflare's own tray app is hidden in Hyprland (the panel's **Cloudflare app** button starts it). With Citadel enforcing, allow `warp-svc` at its gate the first time.
+  - **VPN:** every VPN with **Connect** / **Disconnect**, and **Add or edit…** for Settings → Network. strongSwan connections (a file in `/etc/strongswan/swanctl/conf.d/<name>.conf`, connection and child both named `<name>`, secrets inside, root-only) connect without a password for an admin (wheel) user at the laptop, through the root helper `fw-vpn-ctl` that can only bring that one connection up or down (polkit rule `50-fw13-vpn.rules`). The tooltip lists the networks the tunnel carries.
+
+</details>
+
+**Profiles.** **Focus** turns on Do not disturb; **Zen** also drops gaps, borders and rounding and turns night light on. Leaving Zen puts them back as they were; turning Do not disturb off on the bell leaves Focus/Zen; each login starts in Normal.
+
+**Keep awake** (also SUPER+Shift+K) stops the screen from dimming and locking and the laptop from sleeping until you click it again or log out (closing the lid still suspends). It turns itself off with a notification when the battery drops below 20 %.
+
+**Weather** shows an icon and the temperature for the city set in Settings → System → **Weather** (hidden until you set one; type `Paris, US` to pick between places with the same name). The tooltip shows today and the next two days. Data from [Open-Meteo](https://open-meteo.com) (no account), refreshed every 30 minutes; offline it shows the last value, dimmed. With Citadel enforcing, allow `python3` to reach open-meteo.com the first time.
+
+---
+
+## Keys
+
+Press **SUPER+/** (or SUPER+K) for a searchable cheat sheet; it also lists your own binds in `hypr/local.lua` that have a `description`.
+
+**Apps**
+
+| Key | Action |
+|---|---|
+| SUPER+Return / Space | Terminal (kitty or Ghostty, Settings → My Framework) / launcher |
+| SUPER+B / E / Shift+C | Chromium / Files / VS Code |
+| SUPER+A / Alt+A / Ctrl+A | Jarvis / ask about a screen region / ask about the selected text |
+| SUPER+Shift+A / T / B | Claude Code / btop / Timeshift |
+| SUPER+I | Settings |
+| SUPER+V | Clipboard history (the picked item is pasted into the window you were in) |
+| SUPER+. / = | Emoji picker (pasted) / calculator (Enter copies the result) |
+| SUPER+W | Wallpaper picker |
+
+**Windows**
+
+| Key | Action |
+|---|---|
+| SUPER+Q / Shift+Q | Close / force quit (kills the app at once, no save prompt) |
+| SUPER+F / T / J / P | Fullscreen / float / change split / pseudo-tile |
+| SUPER+Arrows (+Shift / +Ctrl) | Focus / move / resize |
+| SUPER+S / Shift+S | Scratchpad / send window to scratchpad |
+| SUPER+C / X | Copy / cut in the focused window (Ctrl+Shift+C in terminals; no cut there) |
+
+**Workspaces & screens**
+
+| Key | Action |
+|---|---|
+| SUPER+1..9 (+Shift) | Go to workspace / move window there (each screen has its own 1–9) |
+| SUPER+Tab | Previous workspace |
+| Ctrl+← / → | Previous / next workspace on this screen (so Ctrl+arrow no longer jumps by word) |
+| 3-finger swipe | Switch workspace |
+| Super+Alt+R | **Remote mode**: every key, Super included, goes to the window (e.g. Command in a Remote Desktop Manager session to a Mac) until Super+Alt+R again |
+
+**Capture**
+
+| Key | Action |
+|---|---|
+| Print / Shift+Print | Region shot / full shot |
+| Alt+Print / SUPER+Print | Start or stop recording / color picker |
+| Alt+Shift+4 / 3 | Snip a region / click a window → annotate in swappy (Ctrl+C copies, Ctrl+S saves to ~/Pictures/Screenshots) |
+
+**System**
+
+| Key | Action |
+|---|---|
+| SUPER+L / Escape | Lock / power menu |
+| SUPER+N | Night light |
+| SUPER+Shift+K | Keep awake on / off |
+| SUPER+, (+Shift) | Dismiss notification (all) |
+| Ctrl+Space | Switch to/from Khmer (fcitx5, the standard Khmer NiDA layout, as on Windows, macOS and phones) |
+
+Volume, mic and brightness keys show a small bar at the bottom of the screen (also during Do not disturb).
+
+---
+
+## Settings
+
+**SUPER+I** or "Settings" in the launcher opens the **Settings** app, in the same flat style, as a normal tiled window. The search box (**Ctrl+F**) finds any setting, not just page names ("hibernate", "night light", "warn at", "ssh", "wifi"): matches show as *Page › Section › Setting*, and clicking one (or Enter for the first) opens the page at that setting and highlights it.
+
+Appearance and Input are saved to `~/.config/hypr/settings.lua`, checked by Hyprland before it's used; your `local.lua` still wins over it. GNOME's own settings stay in the GNOME session.
+
+| Page | What's there |
+|---|---|
+| [Network](#network) | Wi-Fi, Ethernet, every VPN (add, edit, delete) |
+| [Bluetooth](#bluetooth) | Devices, pairing |
+| [Sound](#sound) | Devices, per-app volume, speaker sound, noise suppression |
+| [Display](#display) | Brightness, screens, scale, night light schedule |
+| [Power](#power) | Profiles, charge limit, timeouts, battery warnings, hibernate |
+| [Appearance](#appearance--input) | Wallpaper, theme, font, gaps, workspaces |
+| [Input](#appearance--input) | Touchpad, keyboard, Khmer |
+| [Security](#security) | Fingerprint, disk unlock, Secure Boot, SSH keys |
+| [System](#system) | Date and time, updates, weather city |
+| [Coding agent](#coding-agent--jarvis) | OpenCode or Pi, Ollama servers |
+| [Jarvis](#coding-agent--jarvis) | Model, fallback, local models, memory |
+| [Apps](#apps-page) | Every app, updates, uninstall |
+| [Syncthing](#syncthing) | Devices, folders, requests, conflicts |
+| [My Framework](#my-framework) | Hardware, backups, keys, login shell |
+
+### Network
+
+Wi-Fi (connect, forget, hidden networks; passwords never appear in a command line), Ethernet, and every VPN in one list: NetworkManager's OpenVPN, OpenConnect (FortiGate SSL / AnyConnect / GlobalProtect), Cisco IPsec and WireGuard, plus strongSwan IKEv2. Each VPN has Connect / Disconnect, **Edit…** and **Delete** (after a Yes/No question).
+
+<details>
+<summary>Adding and editing VPNs</summary>
+
+- **IKEv2 (FortiGate / strongSwan)…** opens a form: name, server, gateway ID, your ID, username, password, pre-shared key, networks. It asks for your password, keeps the previous file as `<name>.conf.bak`, never shows the password and key, and leaves them unchanged when left empty.
+- **OpenVPN file (.ovpn)…** imports the profile as is, with its certificates, then asks once for the username, password and key passphrase it needs and saves them in the VPN's root-only profile, so connecting doesn't ask again (**Skip** asks on each connect instead). **Save password…** saves or changes them later.
+- **WireGuard file…** and **OpenConnect, Cisco… or another file** go through nm-connection-editor, as does **Edit…** for NetworkManager VPNs.
+
+</details>
+
+### Bluetooth
+
+On/off, your devices (connect, forget, battery), scan and pair. When a device shows a code to confirm, a notification asks **Pair** / **Reject**; a device that needs a PIN typed here gets a prompt.
+
+### Sound
+
+Output and input devices, volume, per-app volume (every app playing sound, with mute), **Speaker sound** (see [Apps](#apps)), and **Noise suppression** for the microphone. Noise suppression is off by default: on adds a *Noise-cancelled microphone* from PipeWire's WebRTC echo canceller and makes it the default; off removes it and the previous microphone is the default again (switching restarts the audio for a moment).
+
+### Display
+
+Brightness, arrange screens, refresh rate, scale, and night light with a **Schedule**: Off, Sunset to sunrise for the weather city (19:00 to 06:30 when offline or without one), or Custom times. It checks every 5 minutes and changes only at the switch-over times, so SUPER+N wins until the next one; Zen keeps it on.
+
+### Power
+
+| Setting | What it does |
+|---|---|
+| Profile | Follows the charger (balanced on AC, power saver on battery); each profile has a one-line description |
+| 80 % charge limit | Set in Framework's own battery controller too (at boot, on plug-in and when you flip the switch) |
+| Screen & sleep | Timeouts, separately for plugged in and on battery |
+| Warn at | 20, 10 and 5 %; 10 and 5 %; or off. 20 % is a normal notification with the time left; 10 and 5 % stay up until dismissed and show even in Focus/Zen; 5 % says what the laptop does at 2 %. Warnings reset when you plug in |
+| Sleep report | After 30 min or more asleep on battery: the battery used, and per hour. When it drained fast and deep sleep was short, it says something kept the laptop awake |
+| Screen at 60 Hz | On battery (on by default, only with a faster built-in screen): the 120 Hz panel drops to 60 Hz when unplugged |
+| Hibernate | Opt-in, see below |
+
+<details>
+<summary>Hibernate</summary>
+
+*When the battery is very low* shows whether hibernate is ready (logind CanHibernate). **Set up hibernate…** opens a terminal running `sudo fw-hibernate-setup`, which explains and asks before each step: a btrfs subvolume `swap` mounted at `/swap`, a RAM-sized swapfile (after zram, SELinux-labelled, left out of Timeshift), and dracut's resume module (systemd finds the swapfile through an EFI variable, so no kernel argument). It refuses with kernel lockdown (Secure Boot), on non-btrfs or without the space; `--dry-run` shows the plan, `undo` reverses it.
+
+Once ready, **Then hibernate after** 1 h / 3 h / never makes idle sleep and the lid suspend-then-hibernate on battery (plugged in, they only suspend; a laptop suspended on AC starts the countdown once unplugged). At the critical battery level the laptop suspends and then hibernates, and the power menu gets **Hibernate**.
+
+</details>
+
+### Appearance & Input
+
+**Appearance:** wallpaper (effect: none, blur, dim, grey, blur + dim), theme (colors from the wallpaper, dark or light, or Tokyo Night), **Colour from** (the most colourful part (default), most of the image, or one of its 4 main colours shown as swatches), font (one fixed-width font for the bar, launcher, notifications, lock screen, panels and terminals; JetBrains Mono by default), gaps, borders, and how many workspaces each bar shows (1–9; higher ones appear while in use). Details in [Look & theme](#look--theme).
+
+**Input:** touchpad, key repeat, keyboard layouts, input methods (Khmer).
+
+### Security
+
+| Section | What's there |
+|---|---|
+| Fingerprint | Enrolled count, enrol, remove all |
+| Lock screen | Lock now; timeouts are in Power |
+| Disk encryption | How the LUKS disk unlocks at boot: **Password only**, **TPM + PIN** or **TPM automatic** |
+| Secure Boot | On/off (changed in the BIOS, F2) |
+| Citadel | The firewall's state, Open Citadel |
+| SSH keys | Agent status, your keys, Add to agent, Copy public key, Create key… |
+| Login screen | |
+
+Root-only facts come from the hourly `fw-health-root`, so opening the page never asks for a password.
+
+<details>
+<summary>Disk unlock and SSH keys in detail</summary>
+
+- **Disk unlock:** the choice opens a terminal running `sudo fw-disk-unlock`, which asks for your disk passphrase, enrols the TPM (PCR 7), updates `/etc/crypttab` (or the kernel line), adds dracut's TPM module and rebuilds the initramfs of every installed kernel. **TPM automatic** is offered only with Secure Boot on, and only guards against the disk leaving the laptop, so TPM + PIN is the safer choice. The passphrase is never removed and stays the fallback.
+- **SSH keys:** whether the SSH agent runs (Fedora's `gcr-ssh-agent`, or your own when `SSH_AUTH_SOCK` was already set) and how many keys it holds; each `~/.ssh/*.pub` with its fingerprint. **Add to agent** runs `ssh-add` in a terminal that asks the passphrase; without a key, **Create key…** runs `ssh-keygen -t ed25519` in a terminal.
+
+</details>
+
+### System
+
+Date, time zone (or **Set time zone automatically**), automatic time, device name, weather city and °C/°F for the bar, software updates (count from dnf's cache, **Snapshot + update…**), firmware updates (fwupd), about this computer.
+
+### Coding agent & Jarvis
+
+**Coding agent:** OpenCode or **Pi** (with their versions) for the `>_` icon, Jarvis's Open button and its Ollama fallback; your Ollama servers with online status and model count (**Add server**, **Remove**); the default server and model for both agents.
+
+**Jarvis:** the Claude **model** (an alias such as opus/sonnet, or a full name) and **effort** (low to max; empty = Claude Code's default), the Ollama fallback when Claude is unreachable, an optional **Laya decision model** (your self-hosted classifier: URL, token kept in GNOME Keyring, Test) that puts a safe / risky / destructive badge on Jarvis's action cards (advice only: nothing runs without Run), **Local models (Ollama)** (the laptop's models with size and whether they're loaded on the GPU, **Download…**, **Remove**; the Radeon 890M runs them through ROCm) and Jarvis's **memory** notes.
+
+### Apps page
+
+Every app in the launcher plus Flatpak apps, with where it came from (a Fedora/vendor package, Flatpak, or Steam/Lutris/by hand) and **Update available → version**; apps with updates come first. **Check now**, **Update all…** (the same snapshot-first update as System) and **Uninstall…**, which opens a terminal running `sudo dnf remove <package>` or `flatpak uninstall <app>`: both list what goes and ask first.
+
+<details>
+<summary>Pre-installed apps</summary>
+
+**Remove pre-installed apps… → Remove all…** takes out every optional app this desktop installed in one go (one list to confirm). The optional apps (Steam, Lutris, Telegram, Chromium, VS Code, Remote Desktop Manager, Ghostty, DBeaver, Citadel, Cloudflare WARP, Easy Effects, LocalSend, Claude Desktop) can be uninstalled one by one too, and re-running `install.sh` then skips them (`~/.config/fw13/skip-packages`). **Removed apps** lists them with **Reinstall on next installer run**, which needs the app's group selected. Removing Chromium leaves links and SUPER+B without their browser. The rest of the desktop (and packages it needs), our own tools and GNOME's core apps (Files, Software, Settings, Ptyxis, the default viewers) are marked and have no Uninstall button.
+
+</details>
+
+### Syncthing
+
+Shown when Syncthing is installed. On/off for the service (also at login), version, this device's ID with **Copy**, your devices (connected direct or via relay, or last seen) and folders (path, idle / syncing NN % / error / paused, shared with how many devices), **Open full UI** and **Rescan all**; refreshed every 3 seconds while open.
+
+| You want to… | How |
+|---|---|
+| Add a device | **Add device…**, paste the other device's ID |
+| Add a folder | **Add folder…**, pick it and who to share with |
+| Manage | Devices: **Pause/Resume**, **Remove**. Folders: **Open**, **Share…**, **Pause/Resume**, **Remove** (files stay) |
+| Answer a request | A notification offers **Accept** / **Ignore** (a folder asks where to put it, `~/Sync/<name>` by default); open ones are under **Requests** |
+| Fix problems | **Sync errors** lists failing files; **Conflicts** lists `*.sync-conflict-*` copies with **Open**, **Keep this copy**, **Delete** (both to the Trash, so undoable); a notification tells you when either appears |
+| Save battery or data | **Pause on battery** and **Pause on metered connections** (off by default) pause every device and resume only the ones they paused |
+
+The full UI is still there for versioning, ignore patterns and bandwidth.
+
+### My Framework
+
+**Hardware:** a **Touch screen** switch (only on touch models; the touchpad keeps working), touchpad **haptic feedback** strength (Off to 100 %) and **click force** (light, medium, firm; haptic touchpad only), live fan speed and fan mode (automatic or a fixed 25–100 %), keyboard backlight, fingerprint-reader LED brightness, the power-off delay, and reports from `framework_tool` (firmware versions, battery and charger, temperatures, privacy switches, USB-C ports, input modules, chassis-open count, expansion cards, deep-sleep count, controller log). Changes ask for your password through polkit; reports open in a terminal.
+
+**What the installer asked once:** Chromium sign-in keys, the Ollama Cloud key, restic off-site backups (see [Backups](#backups)) and your login shell (bash, zsh or fish). Keys are typed into hidden fields, never shown again, and stored only in `~/.config/chezmoi/chezmoi.toml` and the private files made from it; new keys take effect after you log out and back in. It also shows where your dotfiles come from (**Update dotfiles**, **Re-run user setup**).
+
+---
+
+## Desktop
+
+### Look & theme
+
+Colors follow your wallpaper (Material You, by [matugen](https://github.com/InioX/matugen)) or the fixed Tokyo Night palette, with flat square borders, small gaps, and a lock screen styled like the text login (tuigreet).
+
+The theme recolors window borders, the bar, launcher, notifications, terminal, lock screen, our panels and GTK/Qt apps (GTK 3 at once; libadwaita and Qt apps when they next start; Qt apps need one re-login the first time). Also themed: terminal tools through the terminal's 16 colors (prompt, git, btop, fzf, bat), Chromium (its GTK theme at login, unless you picked one), the Khmer input popup, admin apps that run as root (also in GNOME), and VS Code if you turn on Settings → Appearance → VS Code (off by default, since Settings Sync could copy the colors). For Claude Code pick `/theme` → dark-ansi, for OpenCode the `system` theme. Steam and web pages keep their own look.
+
+<details>
+<summary>Where the colors live</summary>
+
+The generated colors live in `~/.config/fw13/theme/`. Your own `~/.config/gtk-4.0/gtk.css` is never overwritten, and GNOME/KDE on the same account get their GTK settings back when you log out of Hyprland. The Citadel window follows after a restart; its tray icon is drawn by Citadel itself. Wallpaper colors need matugen 4 from the Hyprland COPR (Fedora's 3.1.0 is too old); installed with `HYPR_COPR=` empty, it stays Tokyo Night.
+
+</details>
+
+**Wallpapers** live in `~/Pictures/Wallpapers` (originals are never changed; desktop and lock images are rendered from them). SUPER+W opens a strip of them: click (or arrows + Enter) to use one, **+ Add…** copies pictures in. Settings → Appearance has the full gallery. From a terminal: `fw-wallpaper set|add <files>`, `fw-wallpaper effects <desktop> <lock>`.
+
+### Default apps
+
+| Opens in | |
+|---|---|
+| Folders | GNOME Files |
+| Links | Chromium |
+| Pictures, PDFs, text, video, music | GNOME's Image Viewer, Document Viewer, Text Editor, Video Player, Audio Player |
+
+These defaults are Hyprland-only (`~/.config/hyprland-mimeapps.list`); a default you set yourself (Files → Open With… → Always use for this file type) wins from the next login. Inside Hyprland the launcher hides GNOME's own apps (Maps, Weather, Text Editor, GNOME Settings…), Qt6 Settings, Calf, Fcitx 5 Configuration, the keyboard layout viewer and entries meant for other desktops; they stay installed and visible in GNOME.
+
+**Chromium Memory Saver** is on with maximum savings, so background tabs sleep sooner (a recommended policy in `/etc/chromium/policies/recommended/fw13-memory.json`; change it in `chrome://settings/performance`).
+
+### Screens
+
+Each screen has its own workspaces 1–9 and its own row of circles in the bar. At login your terminal opens on the laptop's workspace 1 and Chromium on the external monitor's workspace 1 (the laptop's workspace 2 without a monitor). Unplugging a monitor moves its windows into the first free workspaces of the screen they land on; a monitor plugged back in starts empty.
+
+### Notices that come to you
+
+| Notice | When | What you can do |
+|---|---|---|
+| **USB drive** "STICK" (32.0 GB) | You plug in a stick, SD card or USB disk (mounted under `/run/media/$USER/`) | **Open** in Files; **Eject** unmounts and powers it off, then says **Safe to unplug** (or why not) |
+| **Software updates** | 20 min after login, then daily, when the count changed or a day passed | **Update now**: a Timeshift snapshot first, then `dnf upgrade`, `flatpak update`, and whether a reboot is needed |
+| **Low battery** | 20, 10 and 5 % | **Ask Jarvis** |
+| **Health** | 15 min after login, then daily, only when something is wrong | **Diagnose** (Jarvis reads the report) |
+| **Crash** | An app crashes or a service fails | **Diagnose**, you pick which agent reads it |
+| **Time zone changed** | Automatic time zone is on and you moved | |
+
+<details>
+<summary>Details: USB, updates, health, time zone</summary>
+
+- **USB:** drives already plugged in at login and encrypted (LUKS) sticks are left alone: open those in Files. Hyprland only (GNOME and KDE do this themselves); `fw-usb check` lists what would trigger.
+- **Updates:** `fw-updates --check` counts pending updates from dnf's cache (no password, no download; Fedora's `dnf-makecache.timer` refreshes it) plus firmware from fwupd, e.g. *33 package updates · 1 firmware update (Fingerprint Sensor 01000334)*. If the snapshot fails, the update stops unless you type `y`. Firmware is installed from Settings → System → **Firmware updates** (needs AC power and a reboot). From a terminal: `fw-updates apply`.
+- **Health:** at the first Hyprland login `fw-hwcheck` checks the Framework hardware (CPU driver, GPU, Wi-Fi, Bluetooth, battery and charge limit, firmware, fingerprint, light sensor, deep sleep, power profiles) and lists what to try by hand. `fw-health` then checks failed services, disk space, backups, reboot needed, firmware updates, battery wear, SSD health and new crashes. Reports are in `~/.local/state/fw13/health/`. Silence noisy crashes in `~/.config/fw-crash-watch/ignore`.
+- **Time zone:** off by default (Settings → System). It locates you with GeoClue (nearby Wi-Fi, else your IP, through BeaconDB), turns that into a time zone with [Open-Meteo](https://open-meteo.com), and checks at login, when you join a network and every 6 hours. A VPN can make the IP-based guess wrong; if the change would need your password, it only tells you. `PYTHONPATH=~/.local/lib python3 -m fw13.timezone check` shows what it would set.
+
+</details>
+
+---
+
+## Jarvis & AI
+
+**SUPER+A** opens **Jarvis**: type a question and the answer appears in the panel (Claude, or your coding agent on one of your Ollama servers).
+
+| | |
+|---|---|
+| **Start fast** | An empty panel offers starter buttons (battery drain, slowness, disk space, recent changes, health check) |
+| **Knows the laptop** | The first question of a conversation comes with a short snapshot (battery, network, VPN, failed services, disk, updates, load, busiest processes, recent errors; never passwords or command lines) |
+| **Look at things** | SUPER+Alt+A asks about a screen region; SUPER+Ctrl+A about the selected text (explain, fix, translate) |
+| **Remembers** | Say "remember …" (or accept a suggested note) and press Save; notes live in `~/jarvis/MEMORY.md` and Settings → Jarvis → Memory |
+| **History** | Reopens one of the last 20 Claude conversations; Enter continues it |
+| **Offline** | Without internet, or when Claude can't be reached, it answers with the first of your Ollama servers that responds (turn off in Settings → Jarvis) |
+| **Safe changes** | It reads files, logs and settings (not key and password files). Changes come one step at a time as a card with **What / Why / How** and **Run** / **Skip**; nothing runs until you press Run, and the output goes back to Jarvis. When the fix is a setting, the card opens the right Settings page instead |
+| **Bigger jobs** | **Continue in terminal** opens the same conversation as a full session. Other buttons start a repo task, diagnose the last crash, or open Claude or the coding agent |
+
+**`>_` coding agent:** manages Ollama servers for **OpenCode** or **Pi** (one choice for the icon, Jarvis's Open button and its fallback; both get the same servers and models): the laptop's own Ollama, your self-hosted servers (add/remove, online status, model list) and Ollama Cloud (key asked once during install), and the default server and model.
+
+---
+
 ## Apps
 
-| App | Detail |
+| App | What it is |
 |---|---|
-| Framework tool | `framework_tool` (Framework's official command-line tool, from their GitHub release, checksum-pinned) in `/usr/local/bin`: firmware versions, charge limit, fan, keyboard backlight and other EC settings — e.g. `sudo framework_tool --versions` |
-| Speakers | **EasyEffects** (Fedora) with **Framework's own FW13 speaker preset** (`fw13-speakers`: room correction, compressor, limiter; its output is raised +9.5 dB over Framework's so voices stay as loud as without effects; a softer clear-voice variant `fw13-clear` is included too; from [FrameworkComputer/linux-docs](https://github.com/FrameworkComputer/linux-docs), GPL-3.0), loaded for the built-in speakers only; turn it off, pick Framework / Clear voice, or set your own Bass, Warmth, Voice clarity, Air and Level in **Settings → Sound → Speaker sound** |
-| Editor | **Neovim with [LazyVim](https://www.lazyvim.org)** (`nvim`): file finder, search (ripgrep, fd), syntax parsers, language servers through Mason, git screen with lazygit (`<leader>gg`); Tokyo Night theme, icons from the terminal's built-in Nerd Font symbols. The config in `~/.config/nvim` is created once and then yours (add plugins in `lua/plugins/`, extras with `:LazyExtras`) |
-| Database | **DBeaver CE** (the official RPM from DBeaver's GitHub releases, checksum-pinned; bundles its own Java): connect to PostgreSQL, MySQL, SQLite and more from the app launcher. Runs on XWayland with a dark theme (its native Wayland mode draws empty dialogs); the theme can be changed in Window → Preferences → User Interface → Appearance. Group `database` |
-| Remote Desktop Manager | Devolutions' **Remote Desktop Manager** (their own repo): RDP, SSH, VNC and more. Its launcher entry starts it through `fw-rdm`, which makes its window draw at all on this desktop (it showed only the wallpaper) and scales it to each screen; open it from the launcher, not `remotedesktopmanager` in a terminal. While the entry editor is open RDM keeps the mouse inside it; close it or move focus with Super+←/→ (or Super+1–9) to free the mouse. For Command on a Mac, use remote mode (Super+Alt+R). Group `remote` |
-| Claude Desktop | **Claude** (Chat and Claude Code with visual diffs, an integrated terminal and app preview): Anthropic's official Linux build, published only for Ubuntu/Debian (Linux support is in beta, Fedora not yet official), repackaged as an RPM (`claude-desktop-official`) with a pinned version and checksum; re-run the installer to update. Sign in with your claude.ai account. The **Cowork** tab runs its tasks in a small virtual machine the app starts itself (Fedora's QEMU, OVMF firmware and virtiofsd are installed with it, and the vsock module loads at boot). Group `claude-desktop` |
-| Android | `adb`/`fastboot` (Fedora's android-tools) and **scrcpy** (Genymobile's official release, checksum-pinned) to show and control your phone on the laptop: turn on USB debugging on the phone, plug it in, run `scrcpy` or pick it in the app launcher |
-| Syncthing | File sync between your own devices (Fedora's package), running as your user service; open **Syncthing Web UI** from the app launcher (127.0.0.1:8384) to add devices and folders. No firewall port is opened, so it connects out or through Syncthing's relays |
-| Telegram | **Telegram Desktop**, the official build from telegram.org, packaged as an RPM (`telegram-desktop-official`) so dnf owns it (`dnf remove telegram-desktop-official` removes it). Its own updater is off; re-run the installer to update it (it rebuilds only when telegram.org has a newer version). The icon in the bar's tray is Telegram's own |
-| Citadel | Installs **Citadel**, an outbound firewall: when an app connects somewhere new it asks (Allow once / Always / Block) in its window, tray icon or a notification, and your answers become per-app policies. **Enforcement is on**, so blocked or unanswered connections really are blocked. It's built from [citadel-app](https://github.com/NeatOuk/citadel-app) and [citadel-helper](https://github.com/NeatOuk/citadel-helper) as RPMs (`dnf remove citadel citadel-helper` removes it). Turn blocking off any time with `citadel enforce off` or in Citadel → Settings |
+| **Files** | GNOME Files (Nautilus): search as you type, tabs (Ctrl+T), path bar (Ctrl+L), hidden files (Ctrl+H) |
+| **Claude Desktop** | Chat, Claude Code (visual diffs, terminal, app preview) and **Cowork**. Anthropic's official Linux build (Ubuntu/Debian only, Linux support in beta) repackaged as an RPM (`claude-desktop-official`, version and checksum pinned); re-run the installer to update. Cowork runs tasks in a small VM (Fedora's QEMU, OVMF and virtiofsd; the vsock module loads at boot). Group `claude-desktop` |
+| **Neovim** | With [LazyVim](https://www.lazyvim.org) (`nvim`): file finder, search (ripgrep, fd), syntax parsers, language servers through Mason, lazygit (`<leader>gg`), Tokyo Night. `~/.config/nvim` is created once and then yours (plugins in `lua/plugins/`, extras with `:LazyExtras`) |
+| **DBeaver CE** | Databases (PostgreSQL, MySQL, SQLite…). Official RPM, checksum-pinned, bundles its own Java. Runs on XWayland with a dark theme (Window → Preferences → User Interface → Appearance). Group `database` |
+| **Remote Desktop Manager** | Devolutions' RDP, SSH, VNC and more (their repo). Start it from the launcher (it goes through `fw-rdm`, which makes it draw and scales it per screen). While its entry editor is open it keeps the mouse inside; close it or move focus with Super+←/→ (or Super+1–9). For Command on a Mac, use remote mode (Super+Alt+R). Group `remote` |
+| **Speakers** | **EasyEffects** with **Framework's FW13 preset** for the built-in speakers (room correction, compressor, limiter; +9.5 dB so voices stay as loud; a softer `fw13-clear` too; from [FrameworkComputer/linux-docs](https://github.com/FrameworkComputer/linux-docs), GPL-3.0). Off, Framework / Clear voice, or your own Bass, Warmth, Voice clarity, Air and Level in Settings → Sound → Speaker sound |
+| **Android** | `adb`/`fastboot` and **scrcpy** (official release, checksum-pinned) to show and control your phone: turn on USB debugging, plug it in, run `scrcpy` or pick it in the launcher |
+| **Syncthing** | File sync between your devices, as your user service; managed in [Settings → Syncthing](#syncthing), full UI at 127.0.0.1:8384. No firewall port is opened (it connects out or through relays) |
+| **Telegram** | The official build from telegram.org as an RPM (`telegram-desktop-official`); its updater is off, re-run the installer to update |
+| **Citadel** | Outbound firewall: when an app connects somewhere new it asks (Allow once / Always / Block); answers become per-app policies. **Enforcement is on**. Built from [citadel-app](https://github.com/NeatOuk/citadel-app) and [citadel-helper](https://github.com/NeatOuk/citadel-helper); `citadel enforce off` or Citadel → Settings turns blocking off |
+| **Games** | Steam (RPM Fusion) with gamescope, GameMode and MangoHud, and **Lutris** for Windows launchers: for **Battle.net** search it in Lutris, Install, sign in (runs through Wine; can break briefly after a Battle.net update) |
+| **Framework tool** | `framework_tool` (official, checksum-pinned) in `/usr/local/bin`: firmware versions, charge limit, fan, keyboard backlight and other EC settings, e.g. `sudo framework_tool --versions` |
+
+---
 
 ## Backups
 
@@ -26,7 +354,7 @@ What fw13-hypr gives you once it is installed. Installing, updating and testing 
 | btrfs with `@`/`@home` subvolumes | **btrfs** (instant, no extra space) | hourly ×12, daily ×7, weekly ×4, boot ×3 |
 | Fedora's default btrfs (`root`/`home`), ext4, xfs | **rsync** (copies files, then incremental) | daily ×7, weekly ×4, boot ×3 |
 
-It leaves out caches, the Steam library, mise, containers and `~/Downloads`. Timeshift schedules itself (its own cron jobs). To restore on Fedora's default layout, use `sudo fw-timeshift-restore` (Timeshift's own restore only works on the `@` subvolume layout); on an `@` layout, `sudo timeshift --restore` or `timeshift-launcher` (`SUPER+Shift+B`).
+It leaves out caches, the Steam library, mise, containers and `~/Downloads`. Timeshift schedules itself (its own cron jobs). To restore on Fedora's default layout, use `sudo fw-timeshift-restore` (Timeshift's own restore only works on the `@` layout); on an `@` layout, `sudo timeshift --restore` or `timeshift-launcher` (`SUPER+Shift+B`).
 
 **Restoring the system** (Fedora's default layout, rsync mode):
 
@@ -39,68 +367,6 @@ sudo fw-timeshift-restore undo              # go back to the system from before 
 
 It copies the current system, restores the snapshot onto the copy and swaps the two only if that worked, so the running system is never overwritten. It keeps `/home`, Wi-Fi/VPN connections, Bluetooth pairings, fingerprints and Timeshift's settings, and holds Timeshift's lock so scheduled snapshots wait. The snapshot's kernel is added next to the current ones and made the default. The first boot relabels SELinux (several minutes, then one automatic reboot). The old system stays as subvolume `root.fw-before` until you delete it.
 
-For an off-laptop copy, **restic** backs up your home folder daily (user systemd timer, encrypted, keeps 7 daily / 4 weekly / 6 monthly). Configure it with the restic prompt during install or later in Settings → My Framework, which has presets for a **NAS over SFTP** and **Backblaze B2 (S3)**; S3 keys (also Wasabi, R2, MinIO) are entered there, never in a file by hand. Settings → My Framework → Restore opens a terminal with the repository loaded: `restic snapshots`, `restic mount ~/restic-mnt` to browse (fuse3), or `restic restore latest --target ~/restore --include ~/path`. Keep the repository password in a password manager: without it the backup can't be read.
+**Off-laptop: restic** backs up your home folder daily (user systemd timer, encrypted, keeps 7 daily / 4 weekly / 6 monthly). Configure it with the restic prompt during install or in Settings → My Framework, which has presets for a **NAS over SFTP** and **Backblaze B2 (S3)**; S3 keys (also Wasabi, R2, MinIO) are entered there, never in a file by hand. Settings → My Framework → Restore opens a terminal with the repository loaded: `restic snapshots`, `restic mount ~/restic-mnt` to browse, or `restic restore latest --target ~/restore --include ~/path`.
 
-## Desktop, Settings & keys
-
-- **Look:** colors that follow your wallpaper (Material You, generated by [matugen](https://github.com/InioX/matugen)) or the fixed Tokyo Night palette, flat square borders, small gaps, a thin bar (launcher, the focused app's name and workspaces | clock | tray and status) and a lock screen styled like the text login (tuigreet).
-- **Settings:** SUPER+I or "Settings" in the launcher opens our **Settings** app, in the same flat style. The search box (Ctrl+F) finds any setting, not just page names ("hibernate", "night light", "warn at", "battery suspend", "ssh", "wifi"): matches are listed as *Page › Section › Setting*, and clicking one (or Enter for the first) opens the page at that setting and highlights it; new settings are found automatically.
-  - **Network:** Wi-Fi (connect, forget, hidden networks; passwords never appear in a command line), Ethernet, and every VPN in one list (NetworkManager's OpenVPN, OpenConnect for FortiGate SSL / AnyConnect / GlobalProtect, Cisco IPsec and WireGuard, plus strongSwan IKEv2): Connect / Disconnect, **Edit…** (nm-connection-editor, or a form for IKEv2: name, server, gateway ID, your ID, username, password, pre-shared key, networks; asks for your password, keeps the previous file as `<name>.conf.bak`, the password and key are never shown and stay unchanged when left empty; Delete), and add one: **IKEv2 (FortiGate / strongSwan)…**, **OpenVPN file (.ovpn)…** (imported as is, with its certificates; then it asks once for the username, password and key passphrase the profile needs and saves them in the VPN's root-only profile, so connecting doesn't ask again; **Skip** asks on each connect instead). OpenVPN profiles have **Save password…** to save or change them later; **Delete** next to Edit removes any VPN after a Yes/No question, **WireGuard file…**, **OpenConnect, Cisco… or another file** (nm-connection-editor). The bar's shield lists them all too.
-  - **Bluetooth:** on/off, your devices (connect, forget, battery), scan and pair. When a device shows a code to confirm, a notification asks **Pair** / **Reject**; a device that needs a PIN typed here gets a prompt (fw-bt-agent; Blueman is no longer installed).
-  - **Sound:** output and input devices, volume, per-app volume (every app playing sound, with mute), speaker sound, and **Noise suppression** for the microphone (off by default: adds a *Noise-cancelled microphone* from PipeWire's WebRTC echo canceller and makes it the default; off removes it and the previous microphone is the default again; switching restarts the audio for a moment). **Display:** brightness, arrange screens, refresh rate, scale, night light with a **Schedule** (Off, Sunset to sunrise for the weather city, 19:00 to 06:30 when offline or without one, or Custom times; checked every 5 minutes and changed only at the switch-over times, so SUPER+N wins until the next one; Zen keeps it on). **Power:** battery, profile, 80 % charge limit (set in Framework's own battery controller too, at boot, on plug-in and when you flip the switch: the Linux setting alone let it charge past 80 %), screen & sleep timeouts, separately for plugged in and on battery, and when to warn about a low battery (**Warn at** 20, 10 and 5 %, 10 and 5 %, or off: 20 % is a normal notification with the time left, 10 % and 5 % stay up until dismissed and show even in Focus/Zen; 5 % says what the laptop does at 2 %; warnings reset when you plug in), a **Sleep report** after 30 min or more asleep on battery (a notification with the battery used and per hour; when it drained fast and the hardware spent little time in deep sleep, it says something kept the laptop awake), **Screen at 60 Hz** on battery (on by default, only with a faster built-in screen: the 120 Hz panel drops to 60 Hz when unplugged and goes back when plugged in), and **hibernate** (opt-in): *When the battery is very low* shows whether hibernate is ready (logind CanHibernate); **Set up hibernate…** opens a terminal running `sudo fw-hibernate-setup`, which explains and asks before each step: a btrfs subvolume `swap` mounted at `/swap`, a RAM-sized swapfile (after zram, SELinux-labelled, left out of Timeshift), dracut's resume module (systemd finds the swapfile through an EFI variable, so no kernel argument); refused with kernel lockdown (Secure Boot), on non-btrfs or without the space; `--dry-run` shows the plan, `undo` reverses it. Once ready, **Then hibernate after** 1 h / 3 h / never (on battery) makes idle sleep and the lid suspend-then-hibernate on battery (plugged in, they only suspend; a laptop suspended on AC starts the countdown once unplugged), at the critical battery level the laptop suspends and then hibernates, and the power menu gets **Hibernate**.
-  - **Appearance:** wallpaper (with an effect: none, blur, dim, grey, blur + dim), theme (colors from the wallpaper, dark or light, or Tokyo Night; **Colour from**: the most colourful part (default), most of the image, or one of its 4 main colours shown as swatches), font (one fixed-width font for the bar, launcher, notifications, lock screen, panels and terminals; JetBrains Mono by default), gaps, borders, how many workspaces each bar shows (1–9; higher ones appear while in use). The theme recolors the window borders, bar, launcher, notifications, terminal, lock screen, our own panels and GTK/Qt apps (GTK 3 apps at once; libadwaita and Qt apps when they next start; switching Qt apps to these colors the first time needs a re-login, since qt6ct is set for the Hyprland session only). The Citadel window follows after a restart; its tray icon is drawn by Citadel itself. The generated colors live in `~/.config/fw13/theme/`; your own `~/.config/gtk-4.0/gtk.css` is never overwritten, and GNOME/KDE on the same account get their GTK settings back when you log out of Hyprland. It needs matugen 4 from the Hyprland COPR (Fedora's 3.1.0 is too old); installed with `HYPR_COPR=` empty, it stays Tokyo Night. **Input:** touchpad, key repeat, keyboard layouts, input methods (Khmer).
-  - **Security:** fingerprint (enrolled count, enrol, remove all), lock screen (a pointer to the per-power-source timeouts in Power, Lock now), disk encryption: how the LUKS disk unlocks at boot (**Password only**, **TPM + PIN** or **TPM automatic**; the choice opens a terminal running `sudo fw-disk-unlock`, which asks for your disk passphrase, enrols the TPM (PCR 7), updates `/etc/crypttab` (or the kernel line), adds dracut's TPM module and rebuilds the initramfs of every installed kernel; **TPM automatic** is offered only with Secure Boot on, and only guards against the disk leaving the laptop, so TPM + PIN is the safer choice; the passphrase is never removed and stays the fallback), Secure Boot on/off (changed in the BIOS, F2), the Citadel firewall's state (Open Citadel), SSH keys (whether the SSH agent runs, Fedora's `gcr-ssh-agent` or your own when `SSH_AUTH_SOCK` was already set, and how many keys it holds, each `~/.ssh/*.pub` with its fingerprint, **Add to agent** runs `ssh-add` in a terminal that asks the passphrase, **Copy public key**; without a key, **Create key…** runs `ssh-keygen -t ed25519` in a terminal), and the login screen. Root-only facts come from the hourly `fw-health-root`, so opening the page never asks for a password.
-  - **System:** date, time zone (or **Set time zone automatically**), automatic time, device name, weather city and °C/°F for the bar, software updates (count from dnf's cache, **Snapshot + update…**), firmware updates (fwupd), about this computer.
-  - **Coding agent:** OpenCode or **Pi** (with their versions) for the `>_` icon, Jarvis's Open button and its Ollama fallback; your Ollama servers with online status and model count, **Add server** (name + address) and **Remove**; the default server and model for both agents. Models are downloaded in Jarvis → Local models, the Ollama Cloud key is set in My Framework.
-  - **Jarvis:** the Claude model and effort for SUPER+A, the Ollama fallback when Claude is unreachable, an optional **Laya decision model** (your self-hosted classifier: URL, token kept in GNOME Keyring, Test) that puts a safe / risky / destructive badge on Jarvis's action cards (advice only: nothing runs without Run), **Local models (Ollama)** (the models on this laptop with size and whether they are loaded on the GPU, **Download…** by name in a terminal, **Remove**; the Radeon 890M runs them through ROCm) and Jarvis's memory notes.
-  - **Apps:** every app in the launcher plus Flatpak apps, with where it came from (a Fedora/vendor package, Flatpak, or Steam/Lutris/by hand) and **Update available → version** (from dnf's cache and the Flatpak remotes); apps with updates come first. **Check now**, **Update all…** (the same snapshot-first update as System) and **Uninstall…**, which opens a terminal running `sudo dnf remove <package>` or `flatpak uninstall <app>`: both list what goes and ask before removing anything. **Remove pre-installed apps… → Remove all…** takes out every optional app this desktop installed in one go (one list to confirm). The optional apps this desktop installs (Steam, Lutris, Telegram, Chromium, VS Code, Remote Desktop Manager, Ghostty, DBeaver, Citadel, Cloudflare WARP, Easy Effects, LocalSend) can be uninstalled too, and re-running `install.sh` then skips them (`~/.config/fw13/skip-packages`; **Removed apps** on the same page lists them with **Reinstall on next installer run**, which needs the app's group selected). Removing Chromium leaves links and SUPER+B without their browser. The rest of the desktop (and packages it needs), our own tools and GNOME's core apps (Files, Software, Settings, Ptyxis, the default viewers) are marked and have no Uninstall button.
-  - **Syncthing** (only when Syncthing is installed): on/off for the service (also at login), version, this device's ID with **Copy**, your other devices (connected direct or via relay, or last seen), folders (path, idle / syncing NN % / error / paused, shared with how many devices), **Open full UI** and **Rescan all**; refreshed every 3 seconds while the page is open. **Add device…** (paste the other device's ID) and **Add folder…** (pick a folder and who to share it with); each device has **Pause/Resume** and **Remove**, each folder **Open**, **Share…**, **Pause/Resume** and **Remove** (its files stay). When a new device wants to connect or one of your devices shares a folder, a notification offers **Accept** / **Ignore** (accepting a folder asks where to put it, `~/Sync/<name>` by default) and the page lists the open requests under **Requests**. Files that fail to sync are listed under **Sync errors**, and conflict copies (`*.sync-conflict-*`, made when two devices changed the same file) under **Conflicts** with **Open**, **Keep this copy** and **Delete** (both move a file to the Trash, so they can be undone); a notification tells you when either appears. **Pause on battery** and **Pause on metered connections** (both off by default) pause every device while unplugged or on a phone hotspot / metered network and resume only the ones they paused. A small icon on the bar shows Syncthing syncing (with %), a problem, or paused; it is hidden when all is in sync, and clicking it opens this page. The full UI is still there for advanced options (versioning, ignore patterns, bandwidth).
-  - **My Framework:** first the laptop's hardware: a **Touch screen** switch to ignore touches on the screen (only on models with a touch panel; the touchpad keeps working), **touchpad haptic feedback** strength (Off to 100 %) and **click force** (light, medium, firm), only with the haptic touchpad, live fan speed and fan mode (automatic or a fixed 25–100 %), keyboard backlight, fingerprint-reader LED brightness, how long the laptop waits before fully powering off when shut down, and reports from `framework_tool` (firmware versions, battery and charger, temperatures, privacy switches, USB-C ports, input modules, chassis-open count, display and audio expansion cards, deep-sleep count, power-off delay, controller log). Changes ask for your password through polkit; reports open in a terminal. Below that, what the installer asked once, changeable later: Chromium sign-in keys, the Ollama Cloud key for OpenCode, restic off-site backups (repository and password, test connection, set up a new repository, back up now, daily on/off, last run, log) and your login shell (bash, zsh or fish). Keys are typed into hidden fields, never shown again, and stored only in `~/.config/chezmoi/chezmoi.toml` and the private files made from it; new keys take effect after you log out and back in. It also shows where your dotfiles come from (Update dotfiles, Re-run user setup) and what the installer set up (fingerprint and the login screen moved to Security).
-  Appearance and Input are saved to `~/.config/hypr/settings.lua`, checked by Hyprland before it's used; your `local.lua` still wins over it. It opens as a normal tiled window; clicking the sliders icon again closes it. GNOME's own settings are in the GNOME session.
-- **Apps that follow the theme:** besides the desktop, GTK and Qt apps: terminal tools through the terminal's 16 colors (kitty or Ghostty) (prompt, shells, git, btop, fzf, bat), Chromium (switched to its GTK theme at login, unless you picked a Chromium theme yourself), the Khmer input popup (fcitx5), and VS Code if you turn on Settings → Appearance → VS Code (off by default: it writes colors into VS Code's `settings.json` while you're in Hyprland and removes them at logout, so Settings Sync could copy them). GNOME apps (libadwaita) pick up new colors when they next start. For Claude Code pick `/theme` → dark-ansi, for OpenCode the `system` theme. Admin apps that run as root (Timeshift and other password-prompt tools) use the same theme, also in GNOME. Steam and web pages keep their own look.
-- **Games:** Steam (RPM Fusion) with gamescope, GameMode and MangoHud, and **Lutris** for Windows launchers: for **Battle.net** open Lutris, search "Battle.net", Install, then sign in. Blizzard doesn't support Linux officially; it runs through Wine (Lutris downloads its own runner), which works well for most Blizzard games but can break briefly after a Battle.net update.
-- **Apps and defaults:** inside Hyprland the launcher hides GNOME's own apps (Maps, Weather, Text Editor, GNOME Settings…), Qt6 Settings (qt6ct: the theme sets it), Calf (Easy Effects uses its effects), Fcitx 5 Configuration (opened from Settings → Input), the keyboard layout viewer and entries meant for other desktops; they stay installed and visible in the GNOME session. Folders open in GNOME Files (the file manager; it replaced Thunar), links in Chromium, and pictures, PDFs, text, video and music in GNOME's viewers (Image Viewer, Document Viewer, Text Editor, Video Player, Audio Player). These defaults are Hyprland-only (`~/.config/hyprland-mimeapps.list`); a default you set yourself (Files → Open With… → Always use for this file type) wins from the next login.
-- **Chromium Memory Saver:** on by default with maximum savings, so background tabs are put to sleep sooner and give back their memory (a recommended policy in `/etc/chromium/policies/recommended/fw13-memory.json`). You can still turn it off or pick another level in `chrome://settings/performance`.
-- **Wallpapers:** pictures live in `~/Pictures/Wallpapers` (originals are never changed; the desktop and lock images are rendered from them). SUPER+W opens a strip of them: click (or arrows + Enter) to use one, **+ Add…** copies pictures in. Settings → Appearance has the full gallery. From a terminal: `fw-wallpaper set|add <files>`, `fw-wallpaper effects <desktop> <lock>`.
-- **Profile:** the icon left of the clock picks **Normal**, **Focus** (no notifications: the bell's Do not disturb) or **Zen** (no notifications, no gaps, borders or rounding, night light on). Leaving Zen puts gaps, borders and night light back as they were; turning Do not disturb off on the bell leaves Focus/Zen; each login starts in Normal.
-- **Keep awake:** the coffee cup left of the profile icon (or SUPER+Shift+K) stops the screen from dimming, locking and the laptop from going to sleep until you click it again or log out (closing the lid still suspends). It turns itself off with a notification when the battery drops below 20 % on battery.
-- **Automatic time zone:** off by default; Settings → System → **Set time zone automatically** looks up where you are with GeoClue (Wi-Fi networks nearby, else your IP address, through BeaconDB), turns it into a time zone with [Open-Meteo](https://open-meteo.com) and sets it, then notifies *Time zone changed to Europe/Paris*. It checks at login, when you join a network and every 6 hours. A VPN can make the IP-based guess wrong. If changing the time zone would need your password, it only tells you. Hyprland only (GNOME has its own switch); `PYTHONPATH=~/.local/lib python3 -m fw13.timezone check` shows what it would set.
-- **USB drives:** plug in a USB stick, SD card or USB disk and it is mounted under `/run/media/$USER/` with a notification such as *USB drive "STICK" (32.0 GB)*: **Open** shows it in Files, **Eject** unmounts it and powers it off, then tells you it is **Safe to unplug** (or why not, e.g. a file is still open). Drives already plugged in at login and encrypted (LUKS) sticks are left alone: open those in Files. Hyprland only (GNOME and KDE do this themselves); `fw-usb check` lists what would trigger.
-- **Weather:** right of the clock, an icon and the temperature for the city set in Settings → System → **Weather** (hidden until you set one; type `Paris, US` to pick between places with the same name). The tooltip shows today and the next two days. Data from [Open-Meteo](https://open-meteo.com) (no account), refreshed every 30 minutes; offline it shows the last value, dimmed. With Citadel enforcing, allow `python3` to reach open-meteo.com at its gate the first time. Click opens Settings → System.
-- **Notifications:** the bell left of the power icon shows unread notifications; click it for the history (pick one to copy its text), **Do not disturb** and **Dismiss all**; right-click toggles Do not disturb. Volume, mic and brightness keys show a small bar at the bottom of the screen (also during Do not disturb).
-- **Health:** at the first Hyprland login `fw-hwcheck` checks the Framework hardware (CPU driver, GPU, Wi-Fi, Bluetooth, battery and charge limit, firmware, fingerprint, light sensor, suspend incl. whether the last suspend reached deep sleep, power profiles) and lists what to try by hand. `fw-health` runs 15 minutes after login and then daily: failed services, disk space, backups (restic and Timeshift), reboot needed, firmware updates, battery wear, SSD health and new crashes. It stays quiet when all is fine; otherwise a notification offers **Diagnose** (Jarvis reads the report). Reports are in `~/.local/state/fw13/health/`.
-- **Software updates:** 20 minutes after login and then daily, `fw-updates --check` counts pending updates from dnf's cache (no password, no download; Fedora's `dnf-makecache.timer` refreshes it) plus firmware updates from fwupd (`fwupdmgr get-updates`, on the metadata Fedora's `fwupd-refresh.timer` keeps fresh), e.g. *33 package updates · 1 firmware update (Fingerprint Sensor 01000334)*, and shows a notification when either number changed or a day passed. **Update now** (or Settings → System → **Snapshot + update…**) opens a terminal that first takes a Timeshift snapshot (or runs `fw-timeshift-setup` if Timeshift isn't set up), stops if the snapshot fails unless you type `y`, then runs `dnf upgrade --refresh`, `flatpak update` (yours, and the system's when it has apps) and tells you whether a reboot is needed; firmware is installed from Settings → System → **Firmware updates** (needs AC power and a reboot), which the terminal reminds you of. Same from a terminal: `fw-updates apply`.
-- **Auto-brightness:** Settings → Display (or the display panel) turns on brightness from the light sensor (off by default). Changing brightness yourself pauses it until the next wake or login.
-- **Bar menus:** The power icon (right end) opens lock / suspend / log out / reboot / shut down. The battery icon opens the **power panel**: charge state, time to full or empty, power profile, an 80% charge limit toggle, battery health and the CPU/power tuning in effect (driver, energy preference, platform profile, panel power saving, tuned profile); the battery tooltip shows the power draw in watts. The display icon opens the **display panel**: a brightness slider for the laptop screen, and for each connected monitor its position (drag it), refresh rate and scale. **Apply** asks you to keep the change and reverts after 15 seconds otherwise; kept layouts are saved in `~/.config/hypr/displays.conf`, per monitor model. Scrolling on the display icon changes brightness. Clicking the Wi-Fi, Bluetooth or volume icon jumps straight to that section (the Bluetooth menu lists connected devices with their battery, and your other paired devices to connect with one click); bar menus open right below the icon you clicked; right-click (middle-click for volume) opens the full settings app.
-- **Cloudflare WARP:** the shield icon (shared with VPNs, accent when WARP or a VPN is connected, yellow while connecting) opens a panel with two pages, **Cloudflare | VPN**. The **Cloudflare** page is the WARP panel: on/off, mode, DNS filter and protocol, exit IP and Cloudflare location, tunnel endpoint, handshake, latency, loss and traffic, account (free, WARP+ key, or **Join organization** for Cloudflare Zero Trust: you sign in in the browser), the split-tunnel include/exclude list, fallback domains, trusted networks and your organization's policy. Right-click the icon to connect or disconnect. It asks you to accept Cloudflare's Terms of Service once before talking to WARP. Settings your Zero Trust organization controls are shown but greyed out. Cloudflare's own tray app is hidden in Hyprland (the panel's **Cloudflare app** button starts it). With Citadel enforcing, allow `warp-svc` at its gate the first time.
-- **VPN (strongSwan):** the same shield appears once a connection file exists in `/etc/strongswan/swanctl/conf.d/<name>.conf` (connection and child both named `<name>`, secrets inside, root-only). Its **VPN** page lists every VPN with Connect / Disconnect (and **Add or edit…** for Settings → Network): no password for an admin (wheel) user at the laptop, through the root helper `fw-vpn-ctl` that can only bring that one connection up or down (polkit rule `50-fw13-vpn.rules`). The tooltip lists the networks the tunnel carries.
-- **AI:** SUPER+A opens **Jarvis**: type a question and the answer appears right in the panel (Claude, or your coding agent, OpenCode or Pi, on one of your Ollama servers). An empty panel offers starter buttons (battery drain, slowness, disk space, recent changes, health check). The first question of each conversation comes with a short snapshot of the laptop (battery, network, VPN, failed services, disk, updates, load, busiest processes, recent errors; never passwords or command lines), so Jarvis starts with the facts. SUPER+Alt+A asks about a part of the screen (pick a region; Jarvis looks at the screenshot) and SUPER+Ctrl+A about the text you selected (explain, fix, translate). Jarvis has a **memory**: say "remember …" (or let it suggest a note after a fix worked) and press Save; the notes live in `~/jarvis/MEMORY.md`, every answer reads them, and Settings → Jarvis → Memory lists and removes them. **History** reopens one of the last 20 Claude conversations, so Enter continues it. Without internet, or when Claude can't be reached, Jarvis answers with the first of your Ollama servers (the `>_` panel) that responds, e.g. a home server on the LAN; Settings → Jarvis → When Claude is unreachable turns that off. Jarvis can read files, logs and settings (not your key and password files) and a few root-only facts. When something needs changing, it proposes one step at a time as a card with **What / Why / How** and **Run** / **Skip**: nothing runs until you press Run, and the output goes back to Jarvis, which checks it and proposes the next step. When the fix is a setting, the card is an **Open Settings → …** button for the right page instead. Bigger jobs go to **Continue in terminal**, the same conversation as a full session. Settings → Jarvis picks the Claude **model** (an alias such as opus/sonnet, or a full name) and **effort** (low to max); empty = Claude Code's default. The panel's buttons start a repo task with what you typed, diagnose the last crash, or open Claude or the coding agent. The ✱ icon shows your Claude plan limits (5-hour and weekly %, reset times), updated whenever Claude Code runs. The `>_` icon manages **Ollama servers for the coding agent** (OpenCode, or **Pi** from pi.dev; one choice for the icon, Jarvis's Open button and its fallback, and both get the same servers and models, so switching needs no other setup): the laptop's own Ollama, your self-hosted servers (add/remove, online status, model list) and Ollama Cloud (key asked once during install), and picks the default server and model. When an app crashes or a service fails, a notification offers **Diagnose**: it saves a crash report and asks which agent should read it, so you decide what leaves the laptop. Silence noisy ones in `~/.config/fw-crash-watch/ignore`. The low-battery (20 and 10 %), software-update and failed-VPN notifications have an **Ask Jarvis** button that opens the panel with the question already asked.
-- **Screens:** each screen has its own workspaces 1–9 and its own row of circles in the bar. At login, your terminal opens on the laptop's workspace 1 and Chromium on the external monitor's workspace 1 (the laptop's workspace 2 if no monitor is connected). Unplugging a monitor moves its windows into the first free workspaces of the screen they land on, so its circles and SUPER+N reach them; a monitor plugged back in starts empty.
-- **Keys:**
-
-| Key | Action |
-|---|---|
-| SUPER+Return / Space | Terminal (kitty or Ghostty, Settings → My Framework) / launcher (fuzzel) |
-| SUPER+B / E / Shift+C | Chromium / Files (GNOME Files) / VS Code |
-| SUPER+C / X | Copy / cut in the focused window (Ctrl+Shift+C in terminals; no cut there) |
-| SUPER+A / Alt+A / Ctrl+A | Jarvis (AI assistant) / ask about a screen region / ask about the selected text |
-| SUPER+Shift+A / T / B | Claude Code / btop / Timeshift |
-| SUPER+Q / F / T / J / P | Close / fullscreen / float / change split / pseudo-tile |
-| SUPER+Shift+Q | Force quit: kills the app at once (no save prompt; for frozen apps or ones that stay in the tray) |
-| SUPER+S / Shift+S | Scratchpad / send window to scratchpad |
-| SUPER+L / Escape | Lock / power menu |
-| SUPER+Arrows (+Shift / +Ctrl) | Focus / move / resize |
-| SUPER+1..9 (+Shift), SUPER+Tab | Go to workspace / move window there (on the focused screen: every screen has its own 1–9), previous workspace |
-| Super+Alt+R | **Remote mode**: every key, Super included, goes to the window (e.g. Command in a Remote Desktop Manager session to a Mac) until Super+Alt+R again; the bar shows REMOTE meanwhile |
-| Ctrl+← / → | Previous / next workspace on this screen (so Ctrl+arrow no longer jumps by word in terminals and text fields) |
-| SUPER+V | Clipboard history (the picked item is pasted into the window you were in) |
-| Print / Shift+Print / Alt+Print / SUPER+Print | Region shot / full shot / start or stop recording / color picker |
-| Alt+Shift+4 / Alt+Shift+3 | Snip a region / click a window → annotate in swappy (Ctrl+C copies, Ctrl+S saves to ~/Pictures/Screenshots) |
-| SUPER+N | Night light |
-| SUPER+Shift+K | Keep awake on / off (the coffee cup in the bar) |
-| SUPER+W | Wallpaper picker |
-| SUPER+K or SUPER+/ | Keyboard shortcuts cheat sheet (searchable; also lists your own binds in `hypr/local.lua` that have a `description`) |
-| SUPER+. / SUPER+= | Emoji picker (pasted into the window you were in) / calculator (Enter copies the result) |
-| SUPER+, (+Shift) | Dismiss notification (all) |
-| Ctrl+Space | Switch to/from Khmer (fcitx5; the standard Khmer NiDA layout, as on Windows, macOS and phones) |
-| 3-finger swipe | Switch workspace |
+> Keep the restic repository password in a password manager: without it the backup can't be read.
