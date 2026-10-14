@@ -1,5 +1,5 @@
-"""Syncthing (the user service syncthing.service) over its REST API, for Settings → Syncthing. Read-only except
-start/stop of the service and "Rescan all"; Syncthing's own configuration is never written.
+"""Syncthing (the user service syncthing.service) over its REST API, for Settings → Syncthing: status, plus adding,
+pausing, sharing and removing devices and folders through Syncthing's own config endpoints (it validates and saves).
 
 The GUI address and API key come from config.xml (<gui tls=…><address>, <apikey>), read at every call and never
 logged: ~/.local/state/syncthing (Syncthing ≥ 1.27 / 2.x) or the older ~/.config/syncthing.
@@ -8,6 +8,7 @@ logged: ~/.local/state/syncthing (Syncthing ≥ 1.27 / 2.x) or the older ~/.conf
 """
 import json
 import os
+import secrets
 import shutil
 import ssl
 import subprocess
@@ -54,8 +55,8 @@ def gui(xml_text):
     return f"{'https' if tls else 'http'}://{host}:{port}", (g.findtext("apikey") or "").strip() or None
 
 
-def api(endpoint, method="GET", path=None):
-    """JSON from the REST API (None for an empty body); Error with a short reason otherwise."""
+def api(endpoint, method="GET", path=None, body=None, timeout=TIMEOUT):
+    """JSON from the REST API (None for an empty body); `body` is sent as JSON. Error with a short reason otherwise."""
     path = path or config_path()
     if not path:
         raise Error("No Syncthing config found (it is created the first time Syncthing runs)")
@@ -66,17 +67,22 @@ def api(endpoint, method="GET", path=None):
         raise Error(f"Can't read Syncthing's config: {e.__class__.__name__}") from None
     if not key:
         raise Error("Syncthing's config has no API key")
-    req = urllib.request.Request(url + endpoint, method=method, headers={"X-API-Key": key})
+    headers = {"X-API-Key": key}
+    data = None
+    if body is not None:
+        data, headers["Content-Type"] = json.dumps(body).encode(), "application/json"
+    req = urllib.request.Request(url + endpoint, data=data, method=method, headers=headers)
     # the GUI's TLS cert is self-signed; it's our own loopback service
     ctx = ssl._create_unverified_context() if url.startswith("https") else None  # noqa: S323
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT, context=ctx) as r:
-            body = r.read()
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+            out = r.read()
     except urllib.error.HTTPError as e:
-        raise Error(f"Syncthing answered {e.code} {e.reason}") from None
+        detail = e.read().decode(errors="replace").strip().splitlines()[:1]  # Syncthing's own reason, e.g. a bad path
+        raise Error(f"Syncthing answered {e.code} {e.reason}" + (f": {detail[0][:200]}" if detail else "")) from None
     except (urllib.error.URLError, OSError) as e:
         raise Error(f"Syncthing's API at {url} is not reachable") from e
-    return json.loads(body) if body.strip() else None
+    return json.loads(out) if out.strip() else None
 
 
 def service():
@@ -96,6 +102,63 @@ def set_service(on):
 
 def rescan():
     api("/rest/db/scan", method="POST")
+
+
+def _q(text):
+    return urllib.parse.quote(text, safe="")
+
+
+def check_id(text):
+    """A pasted device ID → Syncthing's normalised form (it accepts any case, spaces, missing dashes); Error if bad."""
+    res = api(f"/rest/svc/deviceid?id={_q(text.strip())}") or {}
+    if "id" not in res:
+        raise Error(f"Not a valid device ID: {res.get('error', 'unknown error')}")
+    return res["id"]
+
+
+def add_device(device_id, name):
+    """Add a device with Syncthing's defaults for new devices (as its own "Add Device" does)."""
+    dev = {**api("/rest/config/defaults/device"), "deviceID": device_id, "name": name.strip()}
+    api("/rest/config/devices", "POST", body=dev)
+
+
+def new_folder_id():
+    """Random ID in Syncthing's own style (xxxxx-xxxxx); IDs must match on every device sharing the folder."""
+    abc = "abcdefghijklmnopqrstuvwxyz0123456789"
+    return "-".join("".join(secrets.choice(abc) for _ in range(5)) for _ in range(2))
+
+
+def add_folder(path, label, device_ids, folder_id=None):
+    """Add a folder (created if missing) shared with `device_ids`, with Syncthing's defaults for new folders."""
+    path = os.path.expanduser(path.strip())
+    if not os.path.isabs(path):
+        raise Error("The folder path must be absolute (or start with ~)")
+    os.makedirs(path, exist_ok=True)
+    f = api("/rest/config/defaults/folder")
+    devices = list(f.get("devices") or [])  # the defaults hold this device
+    devices += [{"deviceID": d} for d in device_ids if d not in {x["deviceID"] for x in devices}]
+    api("/rest/config/folders", "POST", body={**f, "id": folder_id or new_folder_id(),
+                                               "label": label.strip() or os.path.basename(path), "path": path,
+                                               "devices": devices})
+
+
+def set_paused(kind, ident, paused):
+    """Pause or resume a device or folder (kind "device" / "folder")."""
+    api(f"/rest/config/{kind}s/{_q(ident)}", "PATCH", body={"paused": bool(paused)})
+
+
+def remove(kind, ident):
+    """Remove a device or folder from Syncthing (a folder's files stay on disk)."""
+    api(f"/rest/config/{kind}s/{_q(ident)}", "DELETE")
+
+
+def share(folder_id, device_id, on):
+    """Share a folder with a device, or stop sharing it."""
+    f = api(f"/rest/config/folders/{_q(folder_id)}")
+    devices = [d for d in f.get("devices") or [] if d["deviceID"] != device_id]
+    if on:
+        devices.append({"deviceID": device_id})
+    api(f"/rest/config/folders/{_q(folder_id)}", "PATCH", body={"devices": devices})
 
 
 def short_id(device_id):
@@ -150,9 +213,10 @@ def snapshot():
             st = None if f.get("paused") else api(f"/rest/db/status?folder={urllib.parse.quote(f['id'])}")
         except Error:
             st = None
-        folders.append({"label": f.get("label") or f["id"], "path": f.get("path", ""),
-                        "state": folder_state(f, st),
-                        "shared": sum(1 for d in f.get("devices", []) if d.get("deviceID") != me)})
+        shared = [d["deviceID"] for d in f.get("devices", []) if d.get("deviceID") != me]
+        folders.append({"id": f["id"], "label": f.get("label") or f["id"], "path": f.get("path", ""),
+                        "paused": bool(f.get("paused")), "state": folder_state(f, st),
+                        "shared": len(shared), "devices": shared})
     return {"version": version, "id": me, "devices": devices, "folders": folders}
 
 
@@ -175,6 +239,9 @@ def test():
     assert gui(SAMPLE.format(tls="false", addr="127.0.0.1:8384", key=""))[1] is None
     assert short_id("UST6SE2-7M6P4LI-XNCA64A") == "UST6SE2"
     assert seen("1970-01-01T07:00:00+07:00") == "never" and seen("2026-10-13T07:57:31.12+07:00") == "2026-10-13 07:57"
+    fid = new_folder_id()
+    assert len(fid) == 11 and fid[5] == "-" and fid.replace("-", "").isalnum() and fid != new_folder_id()
+    assert _q("a b/c?") == "a%20b%2Fc%3F"
     assert via("relay-client") == "relay" and via("tcp-server") == "direct" and via("quic-client") == "direct"
     assert folder_state({"paused": True}, None) == "paused"
     assert folder_state({}, {"state": "idle"}) == "idle"

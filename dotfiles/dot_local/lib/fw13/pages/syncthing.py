@@ -1,6 +1,8 @@
-"""Syncthing: service on/off, version, this device's ID (Copy), other devices, folders, Open full UI, Rescan all.
-Over fw13.syncthing (REST API, read-only apart from Rescan). Listed only when syncthing is installed
-(pages/__init__.py NEEDS). Polls every few seconds while the page is on screen; re-renders only on a change."""
+"""Syncthing: service on/off, version, this device's ID (Copy), other devices (add, pause, remove), folders (add,
+open, share, pause, remove), Open full UI, Rescan all. Over fw13.syncthing (REST API). Listed only when syncthing
+is installed (pages/__init__.py NEEDS). Polls every few seconds while the page is on screen; re-renders only on a
+change. Forms are dialogs, so a re-render never loses what is being typed."""
+import os
 import subprocess
 
 import gi
@@ -98,7 +100,7 @@ class SyncthingPage(Page):
                      hint=f"{syncthing.short_id(st['id'])} · {st['id']}")
         if st["running"]:
             self.row("Full Syncthing UI", button("Open full UI", lambda: launch("xdg-open", UI)),
-                     hint="Add devices and folders there; it opens in your browser")
+                     hint="Advanced options (versioning, ignore patterns, bandwidth); it opens in your browser")
         if "folders" in st:
             self.row("Rescan all folders", button("Rescan all", self.rescan),
                      hint="Looks for changes now instead of waiting for the next scan")
@@ -106,10 +108,19 @@ class SyncthingPage(Page):
             self.render_folders(st["folders"])
         self.show_all()
 
+    def buttons(self, *specs):
+        """A row of buttons from (text, callback[, css class]) specs."""
+        box = Gtk.Box(spacing=6)
+        for spec in specs:
+            box.pack_start(button(*spec), False, False, 0)
+        return box
+
     def render_devices(self, devices):
         self.heading("Devices")
+        self.row("Add a device", button("Add device…", self.add_device),
+                 hint="Paste the other device's ID (Syncthing on it: Actions → Show ID)")
         if not devices:
-            self.add_widget(label("No other devices yet: add one in the full UI", "dim"))
+            self.add_widget(label("No other devices yet", "dim"))
         for d in devices:
             if d["paused"]:
                 hint = "paused"
@@ -117,14 +128,114 @@ class SyncthingPage(Page):
                 hint = f"connected · {d['via']}"
             else:
                 hint = f"not connected · last seen {d['seen']}"
-            self.row(d["name"], hint=f"{hint} · {syncthing.short_id(d['id'])}")
+            self.row(d["name"], self.buttons(
+                ("Resume" if d["paused"] else "Pause", lambda d=d: self.act(
+                    "Resumed" if d["paused"] else "Paused", syncthing.set_paused, "device", d["id"], not d["paused"])),
+                ("Remove", lambda d=d: self.remove("device", d["id"], d["name"]), "danger")),
+                hint=f"{hint} · {syncthing.short_id(d['id'])}")
 
     def render_folders(self, folders):
         self.heading("Folders")
+        self.row("Add a folder", button("Add folder…", self.add_folder),
+                 hint="Pick a folder on this laptop and the devices to share it with")
         if not folders:
-            self.add_widget(label("No shared folders yet: add one in the full UI", "dim"))
+            self.add_widget(label("No shared folders yet", "dim"))
         for f in folders:
-            self.row(f["label"], hint=f"{f['path']} · {f['state']} · shared with {_plural(f['shared'], 'device')}")
+            self.row(f["label"], self.buttons(
+                ("Open", lambda f=f: launch("xdg-open", f["path"])),
+                ("Share…", lambda f=f: self.share(f)),
+                ("Resume" if f["paused"] else "Pause", lambda f=f: self.act(
+                    "Resumed" if f["paused"] else "Paused", syncthing.set_paused, "folder", f["id"], not f["paused"])),
+                ("Remove", lambda f=f: self.remove("folder", f["id"], f["label"]), "danger")),
+                hint=f"{f['path']} · {f['state']} · shared with {_plural(f['shared'], 'device')}")
+
+    # ---- actions: Syncthing calls run in a worker thread; the next poll shows the result
+
+    def act(self, done_msg, fn, *args):
+        def done(err):
+            self.say(err or done_msg)
+            self.reload()
+        bg(lambda: fn(*args) and None, done, fail=str)
+
+    def dialog(self, title, ok):
+        """(dialog, content box) with Cancel + `ok` buttons."""
+        dlg = Gtk.Dialog(title=title, transient_for=self.get_toplevel(), modal=True)
+        dlg.add_buttons("Cancel", Gtk.ResponseType.CANCEL, ok, Gtk.ResponseType.OK)
+        dlg.set_default_response(Gtk.ResponseType.OK)
+        box = dlg.get_content_area()
+        box.set_spacing(8)
+        for side in ("top", "bottom", "start", "end"):
+            getattr(box, f"set_margin_{side}")(16)
+        return dlg, box
+
+    def device_checks(self, box, chosen=()):
+        """A check button per other device → {device ID: check}."""
+        checks = {}
+        for d in (self.state or {}).get("devices", []):
+            c = checks[d["id"]] = Gtk.CheckButton(label=d["name"])
+            c.set_active(d["id"] in chosen)
+            box.pack_start(c, False, False, 0)
+        if not checks:
+            box.pack_start(label("No other devices yet: add one first", "dim"), False, False, 0)
+        return checks
+
+    def add_device(self):
+        dlg, box = self.dialog("Add device", "Add")
+        box.pack_start(label("Device ID"), False, False, 0)
+        ident = Gtk.Entry(activates_default=True, width_chars=60)
+        box.pack_start(ident, False, False, 0)
+        box.pack_start(label("Name (optional)"), False, False, 0)
+        name = Gtk.Entry(activates_default=True)
+        box.pack_start(name, False, False, 0)
+        dlg.show_all()
+        ok = dlg.run() == Gtk.ResponseType.OK
+        text, nick = ident.get_text(), name.get_text()
+        dlg.destroy()
+        if ok and text.strip():
+            self.act("Device added: it connects once the other side adds this laptop too",
+                     lambda: syncthing.add_device(syncthing.check_id(text), nick))
+
+    def add_folder(self):
+        dlg, box = self.dialog("Add folder", "Add")
+        box.pack_start(label("Folder"), False, False, 0)
+        chooser = Gtk.FileChooserButton(title="Folder to sync", action=Gtk.FileChooserAction.SELECT_FOLDER)
+        chooser.set_current_folder(os.path.expanduser("~"))
+        box.pack_start(chooser, False, False, 0)
+        box.pack_start(label("Name (optional)"), False, False, 0)
+        name = Gtk.Entry(activates_default=True)
+        box.pack_start(name, False, False, 0)
+        box.pack_start(label("Share with"), False, False, 0)
+        checks = self.device_checks(box)
+        dlg.show_all()
+        ok = dlg.run() == Gtk.ResponseType.OK
+        path, nick = chooser.get_filename(), name.get_text()
+        devices = [i for i, c in checks.items() if c.get_active()]
+        dlg.destroy()
+        if ok and path:
+            self.act("Folder added", syncthing.add_folder, path, nick, devices)
+
+    def share(self, f):
+        dlg, box = self.dialog(f"Share {f['label']}", "Save")
+        box.pack_start(label(f"Share {f['label']} with:"), False, False, 0)
+        checks = self.device_checks(box, f["devices"])
+        dlg.show_all()
+        ok = dlg.run() == Gtk.ResponseType.OK
+        changes = {i: c.get_active() for i, c in checks.items() if c.get_active() != (i in f["devices"])}
+        dlg.destroy()
+        if ok and changes:
+            self.act("Sharing updated", lambda: [syncthing.share(f["id"], i, on) for i, on in changes.items()] and None)
+
+    def remove(self, kind, ident, name):
+        detail = ("Its files stay on this laptop; it stops syncing." if kind == "folder"
+                  else "Folders stop syncing with it; it can be added again later.")
+        dlg = Gtk.MessageDialog(transient_for=self.get_toplevel(), modal=True, message_type=Gtk.MessageType.WARNING,
+                                buttons=Gtk.ButtonsType.YES_NO, text=f"Remove {name} from Syncthing?")
+        dlg.format_secondary_text(detail)
+        dlg.set_default_response(Gtk.ResponseType.NO)
+        ok = dlg.run() == Gtk.ResponseType.YES
+        dlg.destroy()
+        if ok:
+            self.act(f"{name} removed", syncthing.remove, kind, ident)
 
     def on_switch(self, sw, on):
         sw.set_sensitive(False)
