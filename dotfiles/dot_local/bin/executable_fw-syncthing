@@ -4,6 +4,7 @@
 Long-polls Syncthing's event API (fw13.syncthing) in a worker thread and notifies on the GTK-free main loop:
   a new device wants to connect  → Accept (adds it) / Ignore (dismissed, not asked again)
   a device shares a folder       → Accept (fuzzel asks where, default ~/Sync/<name>) / Ignore (Syncthing's ignoredFolders)
+  items fail to sync (FolderErrors) or a conflict copy appears (LocalIndexUpdated) → notice with Show (Settings)
 Each request is notified once per run; Settings → Syncthing lists the same open requests. Syncthing stopped → retries.
   fw-syncthing            run
   fw-syncthing enabled    exit 0 when the service should run (Hyprland + syncthing installed)
@@ -20,7 +21,7 @@ from fw13 import notify, syncthing  # noqa: E402
 from gi.repository import Gio, GLib  # noqa: E402  (versions pinned by fw13.notify)
 
 APP = "fw-syncthing"
-EVENTS = "PendingDevicesChanged,PendingFoldersChanged"
+EVENTS = "PendingDevicesChanged,PendingFoldersChanged,FolderErrors,LocalIndexUpdated"
 RETRY = 30      # s, while Syncthing is stopped or unreachable
 NOTE_MS = 120000
 
@@ -32,6 +33,24 @@ def key(req):
 def fresh(reqs, seen):
     """Requests not notified yet (pure)."""
     return [r for r in reqs if key(r) not in seen]
+
+
+def problem(event, errors):
+    """(folder ID, title with {} for the folder name, body) worth a notice, or None (pure; updates `errors`).
+    FolderErrors: once per new set of failing paths. LocalIndexUpdated: when its filenames hold a conflict copy."""
+    data = event.get("data") or {}
+    folder = data.get("folder", "")
+    if event["type"] == "FolderErrors":
+        paths = sorted(e.get("path", "") for e in data.get("errors") or [])
+        if not paths or errors.get(folder) == paths:
+            return None
+        errors[folder] = paths
+        return folder, "Syncthing: {} has sync errors", f"{len(paths)} item(s) failing, e.g. {paths[0]}"
+    if event["type"] == "LocalIndexUpdated":
+        found = [n for n in data.get("filenames") or [] if syncthing.is_conflict(n)]
+        if found:
+            return folder, "Syncthing: conflict in {}", f"{os.path.basename(found[0])}: both sides changed it"
+    return None
 
 
 def ask_path(label):
@@ -51,6 +70,7 @@ class Watcher:
         self.session = Gio.bus_get_sync(Gio.BusType.SESSION)
         self.seen = set()   # request keys already notified
         self.notes = {}     # notification id → request
+        self.errors = {}    # folder ID → failing paths last notified
         notify.on_action(self.session, self.on_action)
         threading.Thread(target=self.poll, daemon=True).start()
 
@@ -69,11 +89,26 @@ class Watcher:
                 continue
             if events:
                 since = events[-1]["id"]
-                GLib.idle_add(self.got, [e["type"] for e in events])
+                GLib.idle_add(self.got, events)
 
-    def got(self, types):
-        threading.Thread(target=self.check_pending, daemon=True).start()
+    def got(self, events):
+        if events == ["start"] or any(e["type"].startswith("Pending") for e in events):
+            threading.Thread(target=self.check_pending, daemon=True).start()
+        problems = [p for e in events if e != "start" for p in [problem(e, self.errors)] if p]
+        if problems:
+            threading.Thread(target=self.tell, args=(problems,), daemon=True).start()
         return False
+
+    def tell(self, problems):
+        try:
+            labels = {f["id"]: f.get("label") or f["id"] for f in syncthing.api("/rest/config/folders")}
+        except syncthing.Error:
+            labels = {}
+        for folder, title, body in problems:
+            nid = notify.send(APP, title.format(labels.get(folder, folder)), body, [("show", "Show")],
+                              timeout=NOTE_MS, bus=self.session)
+            if nid:
+                self.notes[nid] = {"kind": "show"}
 
     def check_pending(self):
         try:
@@ -103,6 +138,9 @@ class Watcher:
 
     def on_action(self, nid, action):
         r = self.notes.pop(nid, None)
+        if r and r["kind"] == "show":
+            notify.launch(["fw-settings", "syncthing"])
+            return
         if r and action in ("accept", "ignore"):
             threading.Thread(target=self.answer, args=(r, action), daemon=True).start()
 
@@ -135,6 +173,13 @@ def selftest():
     assert fresh(reqs, set()) == reqs
     assert fresh(reqs, {("folder", "f", "A")}) == [reqs[0], reqs[2]]
     assert fresh(reqs, {key(r) for r in reqs}) == []
+    errs = {}
+    ev = {"type": "FolderErrors", "data": {"folder": "f", "errors": [{"path": "a", "error": "x"}]}}
+    assert problem(ev, errs)[0] == "f" and problem(ev, errs) is None  # same set: told once
+    assert problem({"type": "LocalIndexUpdated", "data": {"folder": "f", "filenames": ["b.txt"]}}, errs) is None
+    hit = problem({"type": "LocalIndexUpdated", "data": {"folder": "f", "filenames": [
+        "d/b.sync-conflict-20261014-101500-ABCDEFG.txt"]}}, errs)
+    assert hit and "b.sync-conflict" in hit[2]
     print("fw-syncthing: ok")
 
 

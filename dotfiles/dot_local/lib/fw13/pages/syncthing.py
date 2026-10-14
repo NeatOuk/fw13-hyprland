@@ -3,6 +3,7 @@ open, share, pause, remove), Open full UI, Rescan all. Over fw13.syncthing (REST
 is installed (pages/__init__.py NEEDS). Polls every few seconds while the page is on screen; re-renders only on a
 change. Forms are dialogs, so a re-render never loses what is being typed."""
 import os
+import time
 import subprocess
 
 import gi
@@ -16,6 +17,8 @@ from .common import Page, bg, launch  # noqa: E402
 
 POLL = 3  # s
 UI = "http://127.0.0.1:8384"
+SCAN_EVERY = 30  # s between conflict scans (a walk of every folder)
+_scan = {"at": 0.0, "found": []}
 
 
 def _load():
@@ -23,7 +26,11 @@ def _load():
     if not running:
         return {"running": False, "enabled": enabled}
     try:
-        return {"running": True, "enabled": enabled, **syncthing.snapshot(), "pending": syncthing.pending()}
+        snap = syncthing.snapshot()
+        if time.monotonic() - _scan["at"] > SCAN_EVERY:
+            _scan.update(at=time.monotonic(), found=syncthing.conflicts(snap["folders"]))
+        return {"running": True, "enabled": enabled, **snap, "pending": syncthing.pending(),
+                "conflicts": _scan["found"]}
     except syncthing.Error as e:
         return {"running": True, "enabled": enabled, "error": str(e)}
 
@@ -107,6 +114,7 @@ class SyncthingPage(Page):
             self.render_pending(st.get("pending") or [], st["devices"])
             self.render_devices(st["devices"])
             self.render_folders(st["folders"])
+            self.render_problems(st["folders"], st.get("conflicts") or [])
         self.show_all()
 
     def buttons(self, *specs):
@@ -180,7 +188,31 @@ class SyncthingPage(Page):
                 ("Resume" if f["paused"] else "Pause", lambda f=f: self.act(
                     "Resumed" if f["paused"] else "Paused", syncthing.set_paused, "folder", f["id"], not f["paused"])),
                 ("Remove", lambda f=f: self.remove("folder", f["id"], f["label"]), "danger")),
-                hint=f"{f['path']} · {f['state']} · shared with {_plural(f['shared'], 'device')}")
+                hint=f"{f['path']} · {f['state']} · shared with {_plural(f['shared'], 'device')}"
+                     + (f" · {_plural(f['failing'], 'item')} failing" if f["failing"] else ""))
+
+    def render_problems(self, folders, found):
+        failing = [(f, e) for f in folders for e in f["errors"]]
+        if failing:
+            self.heading("Sync errors")
+            for f, e in failing:
+                self.row(e.get("path", "?"), hint=f"{f['label']} · {e.get('error', '')}")
+        if found:
+            self.heading("Conflicts")
+            self.add_widget(label("Both devices changed these files; Syncthing kept the other version as a copy. "
+                                  "Keep this copy (the current file goes to the Trash) or Delete it (to the Trash).",
+                                  "dim", wrap=True))
+            for c in found:
+                name = os.path.basename(c["path"])
+                self.row(name, self.buttons(
+                    ("Open", lambda c=c: launch("xdg-open", c["path"])),
+                    ("Keep this copy", lambda c=c: self.resolve(syncthing.keep_conflict, c["path"])),
+                    ("Delete", lambda c=c: self.resolve(syncthing.drop_conflict, c["path"]), "danger")),
+                    hint=f"{c['folder']} · current file: {os.path.basename(syncthing.original(c['path']))}")
+
+    def resolve(self, fn, path):
+        _scan["at"] = 0.0  # rescan on the next poll
+        self.act("Done (see the Trash to undo)", fn, path)
 
     # ---- actions: Syncthing calls run in a worker thread; the next poll shows the result
 

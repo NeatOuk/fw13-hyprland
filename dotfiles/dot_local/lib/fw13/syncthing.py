@@ -8,6 +8,7 @@ logged: ~/.local/state/syncthing (Syncthing ≥ 1.27 / 2.x) or the older ~/.conf
 """
 import json
 import os
+import re
 import secrets
 import shutil
 import ssl
@@ -204,6 +205,61 @@ def ignore_folder(folder_id, label, device_id):
     api(f"/rest/config/devices/{_q(device_id)}", "PATCH", body={"ignoredFolders": ignored})
 
 
+CONFLICT = re.compile(r"^(.*)\.sync-conflict-\d{8}-\d{6}-[A-Z0-9]{7}(\.[^/]*)?$")
+SKIP_DIRS = {".stfolder", ".stversions", ".stignore"}
+
+
+def is_conflict(path):
+    return bool(CONFLICT.match(os.path.basename(path)))
+
+
+def original(path):
+    """notes.sync-conflict-20261014-101500-ABCDEFG.txt → notes.txt (same directory)."""
+    m = CONFLICT.match(os.path.basename(path))
+    return os.path.join(os.path.dirname(path), m.group(1) + (m.group(2) or "")) if m else path
+
+
+def conflicts(folders, limit=100):
+    """Conflict copies in the folders' paths: [{"folder": label, "path"}], at most `limit`.
+    shortcut: walks the folders (no Syncthing API lists conflicts); fine for home-sized folders, cache it in callers."""
+    out = []
+    for f in folders:
+        for root, dirs, files in os.walk(f["path"]):
+            dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+            out += [{"folder": f["label"], "path": os.path.join(root, n)} for n in files if CONFLICT.match(n)]
+            if len(out) >= limit:
+                return out[:limit]
+    return out
+
+
+def _trash(path):
+    from gi.repository import Gio
+    Gio.File.new_for_path(path).trash(None)
+
+
+def keep_conflict(path):
+    """Use the conflict copy: the current file goes to the Trash, the copy takes its name."""
+    orig = original(path)
+    if orig == path or not os.path.exists(path):
+        raise Error("Not a conflict copy (or already gone)")
+    if os.path.exists(orig):
+        _trash(orig)
+    os.replace(path, orig)
+
+
+def drop_conflict(path):
+    """Keep the current file: the conflict copy goes to the Trash."""
+    if not is_conflict(path):
+        raise Error("Not a conflict copy")
+    _trash(path)
+
+
+def folder_errors(folder_id, limit=5):
+    """[{"path", "error"}] of items that failed to sync, at most `limit`."""
+    res = api(f"/rest/folder/errors?folder={_q(folder_id)}") or {}
+    return (res.get("errors") or [])[:limit]
+
+
 def short_id(device_id):
     """Syncthing's own short form: the first group of the device ID."""
     return device_id.split("-", 1)[0]
@@ -257,9 +313,14 @@ def snapshot():
         except Error:
             st = None
         shared = [d["deviceID"] for d in f.get("devices", []) if d.get("deviceID") != me]
+        try:
+            errors = folder_errors(f["id"]) if st and st.get("pullErrors") else []
+        except Error:
+            errors = []
         folders.append({"id": f["id"], "label": f.get("label") or f["id"], "path": f.get("path", ""),
                         "paused": bool(f.get("paused")), "state": folder_state(f, st),
-                        "shared": len(shared), "devices": shared})
+                        "shared": len(shared), "devices": shared, "errors": errors,
+                        "failing": (st or {}).get("pullErrors") or 0})
     return {"version": version, "id": me, "devices": devices, "folders": folders}
 
 
@@ -286,6 +347,20 @@ def test():
     assert len(fid) == 11 and fid[5] == "-" and fid.replace("-", "").isalnum() and fid != new_folder_id()
     assert default_path("Photos") == os.path.expanduser("~/Sync/Photos")
     assert default_path("a/b") == os.path.expanduser("~/Sync/a_b") and default_path("..").endswith("/folder")
+    c = "/x/notes.sync-conflict-20261014-101500-ABCDEFG.txt"
+    assert is_conflict(c) and original(c) == "/x/notes.txt" and not is_conflict("/x/notes.txt")
+    assert original("/x/Makefile.sync-conflict-20261014-101500-ABCDEFG") == "/x/Makefile"
+    assert original("/x/a.tar.sync-conflict-20261014-101500-ABC1234.gz") == "/x/a.tar.gz"
+    with tempfile.TemporaryDirectory() as d:
+        os.makedirs(os.path.join(d, "sub")); os.makedirs(os.path.join(d, ".stversions"))
+        for n in ("sub/" + os.path.basename(c), ".stversions/" + os.path.basename(c), "plain.txt"):
+            open(os.path.join(d, n), "w").close()
+        assert [x["path"] for x in conflicts([{"label": "L", "path": d}])] == [os.path.join(d, "sub", os.path.basename(c))]
+        try:
+            drop_conflict(os.path.join(d, "plain.txt"))
+            raise AssertionError("expected Error")
+        except Error:
+            pass
     assert _q("a b/c?") == "a%20b%2Fc%3F"
     assert via("relay-client") == "relay" and via("tcp-server") == "direct" and via("quic-client") == "direct"
     assert folder_state({"paused": True}, None) == "paused"
