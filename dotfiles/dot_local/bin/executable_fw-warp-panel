@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Cloudflare WARP panel: on/off, mode, DNS filtering, protocol, and everything warp-cli and Cloudflare's trace
-report (exit IP and location, endpoint, handshake, latency, traffic, account, trusted networks, split tunnel).
+"""Bar shield panel with two pages (user decision): Cloudflare (WARP on/off, mode, DNS filtering, protocol, and
+everything warp-cli and Cloudflare's trace report: exit IP and location, endpoint, handshake, latency, traffic, account,
+trusted networks, split tunnel) and VPN (every VPN from lib/fw13/vpn.py, connect / disconnect via `fw-vpn --toggle`).
 
-  fw-warp-panel            open the panel (bar shield menu → Cloudflare WARP: FW_BAR=1 → under the pointer)
+  fw-warp-panel            open the panel on Cloudflare (bar shield: FW_BAR=1 → below it; a second click closes it)
+  fw-warp-panel --vpn      open it on the VPN page (also the only page when cloudflare-warp isn't installed)
   fw-warp-panel --bar      print warp.bar()'s JSON (fw-vpn merges it into the shield, signal 13)
   fw-warp-panel --toggle   connect / disconnect
 
@@ -19,7 +21,7 @@ import time
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
 
-from fw13 import bar as waybar, panel as single, warp  # noqa: E402  (no GTK: --bar must stay fast)
+from fw13 import bar as waybar, panel as single, vpn, warp  # noqa: E402  (no GTK: --bar must stay fast)
 
 NAME = "fw-warp-panel"  # pidfile: a second click on the icon closes the open panel
 PANEL_W = 480
@@ -133,7 +135,7 @@ def combo_set(c, value):
 
 
 class Panel(Gtk.Window):
-    def __init__(self, at_bar):
+    def __init__(self, at_bar, page="warp"):
         super().__init__()
         self.get_style_context().add_class("panel")
         self.set_size_request(PANEL_W, -1)
@@ -155,9 +157,23 @@ class Panel(Gtk.Window):
         for side in ("top", "bottom", "start", "end"):
             getattr(self.box, f"set_margin_{side}")(14)
         scroll.add(self.box)
-        self.add(scroll)
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.page = page if warp.installed() else "vpn"
+        if warp.installed():  # page tabs: |Cloudflare|VPN|
+            tabs = Gtk.Box(spacing=6)
+            for side in ("top", "start", "end"):
+                getattr(tabs, f"set_margin_{side}")(14)
+            self.tabs = {}
+            for key, text in (("warp", "Cloudflare"), ("vpn", "VPN")):
+                self.tabs[key] = button(text, lambda k=key: self.show_page(k))
+                tabs.pack_start(self.tabs[key], True, True, 0)
+            outer.pack_start(tabs, False, False, 0)
+            self.mark_tabs()
+        outer.pack_start(scroll, True, True, 0)
+        self.add(outer)
 
-        self.view = None       # "missing" | "tos" | "register" | "main"
+        self.view = None       # "missing" | "tos" | "register" | "main" | "vpn"
+        self.vpns = None       # VPN page: last vpn.vpns()
         self.busy = False      # an action is running
         self.data = {}         # last poll
         self.trace = {}        # {"v4": {...}, "v6": {...}, "at": t}
@@ -180,13 +196,25 @@ class Panel(Gtk.Window):
 
     # ---- views -------------------------------------------------------------------------------------------------
 
+    def mark_tabs(self):
+        for key, b in self.tabs.items():
+            ctx = b.get_style_context()
+            (ctx.add_class if key == self.page else ctx.remove_class)("primary")
+
+    def show_page(self, page):
+        if page != self.page:
+            self.page = page
+            self.mark_tabs()
+            self.choose_view()
+            self.poll()
+
     def clear(self):
         for c in self.box.get_children():
             self.box.remove(c)
 
-    def header(self, right=None):
+    def header(self, right=None, title="Cloudflare WARP"):
         row = Gtk.Box(spacing=10)
-        row.pack_start(label("Cloudflare WARP", "title"), True, True, 0)
+        row.pack_start(label(title, "title"), True, True, 0)
         if right is not None:
             right.set_valign(Gtk.Align.CENTER)
             row.pack_end(right, False, False, 0)
@@ -199,7 +227,9 @@ class Panel(Gtk.Window):
         return lbl
 
     def choose_view(self):
-        if not warp.installed():
+        if self.page == "vpn":
+            view = "vpn"
+        elif not warp.installed():
             view = "missing"
         elif not warp.tos_accepted():
             view = "tos"
@@ -220,6 +250,46 @@ class Panel(Gtk.Window):
             self.update()
             GLib.idle_add(self.fit)
             GLib.idle_add(lambda: self.scroll.get_vadjustment().set_value(0) and False)
+
+    def build_vpn(self):
+        self.clear()
+        self.header(button("Add or edit…", lambda: (launch("fw-settings", "network"), Gtk.main_quit())), "VPN")
+        self.vpn_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.box.pack_start(self.vpn_box, False, False, 0)
+        self.status_label = self.note("")
+        self.vpn_rows = None
+
+    def fill_vpns(self):
+        rows = [(v["name"], v["kind"], v["active"]) for v in self.vpns or []]
+        if rows == self.vpn_rows:
+            return
+        self.vpn_rows = rows
+        for c in self.vpn_box.get_children():
+            self.vpn_box.remove(c)
+        if self.vpns is not None and not rows:
+            self.vpn_box.pack_start(label("No VPNs yet: add one with Add or edit…", "dim"), False, False, 0)
+        for v in self.vpns or []:
+            row = Gtk.Box(spacing=10)
+            name = label(f"{'●' if v['active'] else '○'}  {v['name']}", ellipsize=Pango.EllipsizeMode.END)
+            name.set_hexpand(True)
+            row.pack_start(name, True, True, 0)
+            row.pack_start(label(v["kind"], "dim"), False, False, 0)
+            row.pack_start(button("Disconnect" if v["active"] else "Connect", lambda v=v: self.toggle_vpn(v),
+                                  *(() if v["active"] else ("primary",))), False, False, 0)
+            self.vpn_box.pack_start(row, False, False, 0)
+        self.vpn_box.show_all()
+        GLib.idle_add(self.fit)
+
+    def toggle_vpn(self, v):
+        """fw-vpn --toggle does what the bar menu did: a password prompt in a terminal, Ask Jarvis on failure."""
+        verb = "Disconnecting" if v["active"] else "Connecting"
+        self.set_message(f"{verb} {v['name']}…")
+        def work():
+            subprocess.run(["fw-vpn", "--toggle", v["name"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        def done(_):
+            self.set_message("")
+            self.poll()
+        in_thread(work, done)
 
     def build_missing(self):
         self.clear()
@@ -554,7 +624,14 @@ class Panel(Gtk.Window):
             self.data = d
             self.choose_view()
             self.update()
-        if warp.installed() and warp.tos_accepted():
+        if self.page == "vpn":
+            def vpn_done(vs):
+                self.polling = False
+                self.vpns = vs if isinstance(vs, list) else []
+                if self.view == "vpn":
+                    self.fill_vpns()
+            in_thread(vpn.vpns, vpn_done)
+        elif warp.installed() and warp.tos_accepted():
             in_thread(work, done)
         else:
             self.polling = False
@@ -571,6 +648,9 @@ class Panel(Gtk.Window):
 
     def update(self):
         d = self.data
+        if self.view == "vpn":
+            self.fill_vpns()
+            return
         if self.view == "register":
             st = d.get("status") or {}
             self.set_message(self.message[0] if self.message else (st.get("reason") or ""),
@@ -891,7 +971,7 @@ def main():
     single.claim(NAME)
 
     ui_theme.install()
-    panel = Panel(at_bar)
+    panel = Panel(at_bar, "vpn" if sys.argv[1:] == ["--vpn"] else "warp")
     panel.connect("destroy", Gtk.main_quit)
     try:
         from gi.repository import GLibUnix

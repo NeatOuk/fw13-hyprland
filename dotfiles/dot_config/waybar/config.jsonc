@@ -72,8 +72,8 @@
     "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
     "scroll-step": 5
   },
-  // Cloudflare WARP + every VPN in one shield (fw-vpn; user decision): hidden without either; click = menu (WARP → its panel, a VPN → connect/disconnect), right-click = Settings → Network
-  "custom/vpn": { "exec": "fw-vpn --bar", "return-type": "json", "interval": 10, "signal": 13, "on-click": "FW_BAR=1 fw-vpn", "on-click-right": "uwsm app -- fw-settings network" },
+  // Cloudflare WARP + every VPN in one shield (fw-vpn; user decision): hidden without either; click = panel with two pages, |Cloudflare|VPN| (fw-warp-panel), right-click = Settings → Network
+  "custom/vpn": { "exec": "fw-vpn --bar", "return-type": "json", "interval": 10, "signal": 13, "on-click": "FW_BAR=1 fw-warp-panel", "on-click-right": "uwsm app -- fw-settings network" },
   "custom/display": { "format": "", "tooltip-format": "Display", "on-click": "FW_BAR=1 fw-display-panel", "on-scroll-up": "brightnessctl -q -e4 -n2 set 5%+ && fw-osd brightness", "on-scroll-down": "brightnessctl -q -e4 -n2 set 5%- && fw-osd brightness" },
   "custom/claude": { "exec": "fw-claude-limits --bar", "return-type": "json", "interval": 60, "on-click": "FW_BAR=1 fw-claude-limits" },
   "custom/opencode": { "exec": "fw-opencode --bar", "return-type": "json", "interval": 300, "signal": 9, "on-click": "FW_BAR=1 fw-opencode" },

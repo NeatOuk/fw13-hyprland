@@ -4,8 +4,8 @@ NetworkManager + strongSwan), merged into one icon (user decision).
 
   fw-vpn --bar     waybar JSON: hidden without WARP or any VPN; class connected when WARP or a VPN is up,
                    connecting while WARP connects
-  fw-vpn           menu (bar click with FW_BAR=1 → below the icon): Cloudflare WARP first (pick = its panel),
-                   then every VPN, ● = connected (pick = connect / disconnect); last row opens Settings → Network
+  fw-vpn           open the shield panel (fw-warp-panel) on its VPN page; the bar click opens it on Cloudflare
+  fw-vpn --toggle NAME   connect / disconnect one VPN (the panel's VPN page buttons)
 A NetworkManager VPN whose password isn't saved is brought up in a terminal (`nmcli --ask`), which asks for it.
 A failed connect notifies with Ask Jarvis (`fw-vpn --failed <name> <error>`, spawned so the menu returns at once).
   fw-vpn test      self-check
@@ -31,7 +31,7 @@ def bar_json(vs, w):
     lines = [f"{'●' if w['class'] == 'connected' else '○'} {w.get('tooltip', 'Cloudflare WARP')}"] if has_warp else []
     lines += [f"{'●' if v['active'] else '○'} {v['name']} · {v['kind']}" for v in vs]
     cls = "connected" if on or w.get("class") == "connected" else "connecting" if w.get("class") == "connecting" else "off"
-    return {"text": SHIELD, "class": cls, "tooltip": "\n".join(lines) + "\n\nClick: WARP panel / connect a VPN"}
+    return {"text": SHIELD, "class": cls, "tooltip": "\n".join(lines) + "\n\nClick: Cloudflare / VPN panel"}
 
 
 def bar():
@@ -71,32 +71,13 @@ def toggle(v):
     waybar.refresh("vpn")
 
 
-def menu():
-    pos = []
-    if os.environ.get("FW_BAR"):
-        pos = [p for p in subprocess.run(["fw-menu-anchor", "vpn"], capture_output=True,
-                                         text=True).stdout.split("\n") if p]
-        if not pos:
-            return  # second click on the icon: menu closed
-    vs = vpn.vpns()
-    w = warp.bar()
-    top = [f"{'●' if w['class'] == 'connected' else '○'}  Cloudflare WARP  ·  {w['class']}  (panel…)"] if w["class"] != "hidden" else []
-    rows = top + [f"{'●' if v['active'] else '○'}  {v['name']}  ·  {v['kind']}" + ("  (connected)" if v["active"] else "")
-                  for v in vs] + ["  Add or edit VPNs…"]
-    r = subprocess.run(["fuzzel", "--dmenu", "--index", *pos, "--prompt", "VPN › ", "--width", "48",
-                        "--lines", str(min(len(rows), 12))], input="\n".join(rows), capture_output=True, text=True)
-    try:
-        pick = int(r.stdout.strip()) if r.returncode == 0 else None
-    except ValueError:
-        pick = None
-    if pick is None or not 0 <= pick < len(rows):
-        return
-    if pick < len(top):  # the WARP panel opens under the pointer, which is still on the shield
-        subprocess.Popen(["uwsm", "app", "--", "env", "FW_BAR=1", "fw-warp-panel"], start_new_session=True)
-    elif pick == len(rows) - 1:
-        subprocess.Popen(["uwsm", "app", "--", "fw-settings", "network"], start_new_session=True)
-    else:
-        toggle(vs[pick - len(top)])
+def toggle_by_name(name):
+    v = next((v for v in vpn.vpns() if v["name"] == name), None)
+    if v is None:
+        print(f"fw-vpn: no VPN named {name!r}", file=sys.stderr)
+        return 1
+    toggle(v)
+    return 0
 
 
 def main():
@@ -104,7 +85,9 @@ def main():
     if args == ["--bar"]:
         bar()
     elif not args:
-        menu()
+        os.execvp("fw-warp-panel", ["fw-warp-panel", "--vpn"])
+    elif len(args) == 2 and args[0] == "--toggle":
+        return toggle_by_name(args[1])
     elif len(args) == 3 and args[0] == "--failed":
         failed(args[1], args[2])
     elif args == ["test"]:
