@@ -357,7 +357,9 @@ class AppearancePage(HyprPage):
         self.row("Cursor blinks", blink)
         for key, text, hint in (("bold", "Bold text", "Off: bold text uses the regular weight"),
                                 ("ligatures", "Ligatures", "Join pairs like -> != >= into one symbol (fonts that have them, "
-                                                           "e.g. JetBrains Mono)")):
+                                                           "e.g. JetBrains Mono)"),
+                                ("hints", "Key hints", "Dim “Ctrl+R history · Ctrl+T file · Alt+C folder” at the right of "
+                                                       "the prompt (new terminals)")):
             sw = Gtk.Switch()
             sw.set_active(look[key])
             sw.connect("notify::active", lambda w, _p, key=key: self.queue_terminal(key, w.get_active()))
@@ -628,6 +630,7 @@ class AppearancePage(HyprPage):
         def work():
             store.set(theme.FONT, theme.DEFAULT_FONT)  # written with the theme files just below
             store.set(theme.TERMINAL, dict(theme.TERMINAL_DEFAULT))
+            theme.set_terminal("hints", True)
             errs = [e for e in (hs.reset(), wp.set_theme("tokyo-night", mode="dark",
                                                          scheme_type=theme.DEFAULT_TYPE, pick="colourful")) if e]
             return "; ".join(errs) or None

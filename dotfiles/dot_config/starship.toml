@@ -1,6 +1,6 @@
 add_newline = false
 # One line of facts, no "on/via/in/took" filler words; then the ❯ line. Colours: the terminal's 16, i.e. the theme.
-format = "$hostname$container$directory$git_branch$git_status$python$nodejs$java$golang$rust$kubernetes$cmd_duration$status$line_break$character"
+format = "$hostname$container$directory$git_branch$git_status$python$nodejs$java$golang$rust$kubernetes$cmd_duration$status$fill${env_var.FW13_KEY_HINTS}$line_break$character"
 [hostname]  # only over SSH (Starship's default)
 format = "[$ssh_symbol$hostname]($style) "
 [container]  # inside a distrobox / toolbox / podman container
@@ -31,6 +31,11 @@ format = "[$symbol($version )]($style)"
 format = "[$symbol($version )]($style)"
 [rust]
 format = "[$symbol($version )]($style)"
+[fill]  # pushes the key hint to the right edge
+symbol = " "
+[env_var.FW13_KEY_HINTS]  # set by ~/.bashrc.local unless Settings → Appearance → Terminal → Key hints is off
+format = "[$env_value]($style)"
+style = "dimmed"
 [status]  # exit code of a failed command
 disabled = false
 format = "[✘ $status]($style) "

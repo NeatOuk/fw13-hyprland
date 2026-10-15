@@ -270,7 +270,7 @@ The generated colors live in `~/.config/fw13/theme/`. Your own `~/.config/gtk-4.
 
 ### Terminal & shell
 
-**Prompt** (Starship): folder (from the git repo root), branch and changes with counts (`~` modified, `+` staged, `?` new, `-` deleted, `»` renamed, `≡` stashed, `!` conflict, `⇡`/`⇣` commits to push/pull), language versions only inside projects, `☸ k8s` only in folders with Kubernetes files, how long a slow command took, `✘ 1` after a failure, `⬢ name` inside a distrobox, the hostname over SSH, 🔒 in read-only folders.
+**Prompt** (Starship): folder (from the git repo root), branch and changes with counts (`~` modified, `+` staged, `?` new, `-` deleted, `»` renamed, `≡` stashed, `!` conflict, `⇡`/`⇣` commits to push/pull), language versions only inside projects, `☸ k8s` only in folders with Kubernetes files, how long a slow command took, `✘ 1` after a failure, `⬢ name` inside a distrobox, the hostname over SSH, 🔒 in read-only folders. At the right edge, a dim reminder of the fzf keys (Settings → Appearance → Terminal → Key hints turns it off; new terminals).
 
 | Keys / command | Does |
 |---|---|

@@ -351,6 +351,10 @@ TERMINAL_RANGE = {"size": (8, 24), "opacity": (0.5, 1.0), "padding": (0, 40), "l
 CURSORS = {"block": ("block", "block"), "beam": ("beam", "bar"), "underline": ("underline", "underline")}  # kitty, Ghostty
 
 
+HINTS_OFF = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "fw13",
+                         "terminal-hints-off")  # read by ~/.bashrc.local: no key hint in the prompt
+
+
 def terminal_look():
     """The stored terminal look, each value clamped to TERMINAL_RANGE (a hand-edited store can't break the configs)."""
     saved = store.get(TERMINAL)
@@ -363,15 +367,27 @@ def terminal_look():
     out["cursor"] = saved.get("cursor") if saved.get("cursor") in CURSORS else TERMINAL_DEFAULT["cursor"]
     for k in ("blink", "bold", "ligatures"):
         out[k] = saved.get(k) if isinstance(saved.get(k), bool) else TERMINAL_DEFAULT[k]
+    out["hints"] = not os.path.exists(HINTS_OFF)
     return out
 
 
 def set_terminal(key, value):
     """Store one terminal value, rewrite only the kitty and Ghostty theme files and reload both (cheap: a slider
     calls this while it moves). Returns None or an error message."""
+    if key == "hints":  # a marker file for the shell, not a terminal config line; new terminals pick it up
+        try:
+            if value:
+                if os.path.exists(HINTS_OFF):
+                    os.remove(HINTS_OFF)
+            else:
+                os.makedirs(os.path.dirname(HINTS_OFF), exist_ok=True)
+                open(HINTS_OFF, "w").close()
+        except OSError as e:
+            return f"Could not change the key hint: {e}"
+        return None
     if key not in TERMINAL_DEFAULT:
         return f"Unknown terminal setting: {key}"
-    store.set(TERMINAL, {**terminal_look(), key: value})
+    store.set(TERMINAL, {k: v for k, v in {**terminal_look(), key: value}.items() if k != "hints"})
     files = render(palette())
     try:
         os.makedirs(DIR, exist_ok=True)
