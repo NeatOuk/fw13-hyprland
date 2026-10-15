@@ -40,7 +40,7 @@ fi
 if [[ -e ${XDG_CONFIG_HOME:-$HOME/.config}/fw13/terminal-hints-off ]]; then
   unset FW13_KEY_HINTS
 else
-  export FW13_KEY_HINTS='Ctrl+R history · Ctrl+T file · Alt+C folder · **Tab'
+  export FW13_KEY_HINTS='fzf: Ctrl+R history · Ctrl+T file · Alt+C folder · ** Tab complete'
 fi
 
 # Aliases

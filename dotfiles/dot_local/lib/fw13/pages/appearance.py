@@ -358,7 +358,7 @@ class AppearancePage(HyprPage):
         for key, text, hint in (("bold", "Bold text", "Off: bold text uses the regular weight"),
                                 ("ligatures", "Ligatures", "Join pairs like -> != >= into one symbol (fonts that have them, "
                                                            "e.g. JetBrains Mono)"),
-                                ("hints", "Key hints", "Dim “Ctrl+R history · Ctrl+T file · Alt+C folder” at the right of "
+                                ("hints", "Key hints", "Dim “fzf: Ctrl+R history · Ctrl+T file · Alt+C folder · ** Tab complete” at the right of "
                                                        "the prompt (new terminals)")):
             sw = Gtk.Switch()
             sw.set_active(look[key])
