@@ -1,5 +1,27 @@
 add_newline = false
-format = "$directory$git_branch$git_status$nodejs$java$python$golang$kubernetes$cmd_duration$line_break$character"
+# One line of facts, no "on/via/in/took" filler words; then the ❯ line. Colours: the terminal's 16, i.e. the theme.
+format = "$hostname$container$directory$git_branch$git_status$python$nodejs$java$golang$rust$kubernetes$cmd_duration$status$line_break$character"
+[hostname]  # only over SSH (Starship's default)
+format = "[$ssh_symbol$hostname]($style) "
+[container]  # inside a distrobox / toolbox / podman container
+format = "[⬢ $name]($style) "
+[directory]  # from the git repo root when inside one; 🔒 = read-only folder
+read_only = " 🔒"
+[git_branch]
+format = "[$symbol$branch(:$remote_branch)]($style) "
+[python]  # version + the active venv, only in Python projects
+format = '[${symbol}${pyenv_prefix}(${version} )(\($virtualenv\) )]($style)'
+[nodejs]
+format = "[$symbol($version )]($style)"
+[java]
+format = "[$symbol($version )]($style)"
+[golang]
+format = "[$symbol($version )]($style)"
+[rust]
+format = "[$symbol($version )]($style)"
+[status]  # exit code of a failed command
+disabled = false
+format = "[✘ $status]($style) "
 # Kubernetes: only in folders with cluster files, and short ("☸ k8s", not "kubernetes-admin@kubernetes in")
 [kubernetes]
 disabled = false
@@ -14,3 +36,4 @@ context_pattern = ".*@(?P<cluster>.+)"
 context_alias = "$cluster"
 [cmd_duration]
 min_time = 2000
+format = "[$duration]($style) "
