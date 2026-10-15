@@ -260,6 +260,7 @@ class AppearancePage(HyprPage):
         self.vscode_want = None   # the switch's last state while one was running: applied next
         self.walling = False  # a wallpaper change (set / add / remove / effect) is running
         self.removing = None  # picture right-clicked → "Remove from library": show Cancel / Remove
+        self.term_pending, self.term_timer = {}, None  # terminal sliders: written 250 ms after the last move
         install_thumb_css(self)
         self.refresh()
 
@@ -323,6 +324,42 @@ class AppearancePage(HyprPage):
             self.row("Chromium", None, hint="Chromium protects its theme setting: choose GTK in its Settings → Appearance")
         for w in controls:
             w.set_sensitive(not self.theming)
+
+    def terminal_section(self):
+        self.heading("Terminal")
+        look = theme.terminal_look()
+        for key, text, step, fmt, hint in (
+                ("size", "Font size", 0.5, "{:g} pt", None),
+                ("opacity", "Background opacity", 0.05, "{:.0%}", "100% = no see-through"),
+                ("padding", "Padding", 1, "{:.0f} px", "Space between the text and the window edge")):
+            lo, hi = theme.TERMINAL_RANGE[key]
+            scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, step)
+            scale.set_draw_value(False)
+            scale.set_size_request(220, -1)
+            scale.set_value(look[key])
+            value = label(fmt.format(look[key]), width_chars=7, xalign=1)
+
+            def moved(s, key=key, step=step, fmt=fmt, value=value):
+                v = round(round(s.get_value() / step) * step, 3)
+                value.set_text(fmt.format(v))
+                self.term_pending[key] = int(v) if key == "padding" else v
+                if self.term_timer:
+                    GLib.source_remove(self.term_timer)
+                self.term_timer = GLib.timeout_add(250, self.write_terminal)
+            scale.connect("value-changed", moved)
+            box = Gtk.Box(spacing=12)
+            box.pack_start(scale, False, False, 0)
+            box.pack_start(value, False, False, 0)
+            self.row(text, box, hint=hint)
+        self.row("Applies to", None, hint="kitty and Ghostty, open windows too; the font is under Theme")
+
+    def write_terminal(self):
+        self.term_timer = None
+        pending, self.term_pending = self.term_pending, {}
+        errs = [e for k, v in pending.items() if (e := theme.set_terminal(k, v))]
+        if errs:
+            self.show_status(errs[0])
+        return False
 
     def set_chromium(self, on):
         self.show_status("Chromium GTK mode on…" if on else "Chromium GTK mode off…", "dim")
@@ -392,6 +429,7 @@ class AppearancePage(HyprPage):
     def refresh(self):
         self.clear()
         self.theme_section()
+        self.terminal_section()
         self.wallpaper_section()
         self.heading("Windows")
         self.slider("Gaps inside", "general.gaps_in", 0, 30, 1, hint="between windows")
@@ -413,7 +451,7 @@ class AppearancePage(HyprPage):
             box.pack_start(button("Cancel", lambda: self.ask_reset(False)), False, False, 0)
             box.pack_start(button("Reset", self.reset, "danger"), False, False, 0)
             self.row("Reset every Appearance and Input setting?", box,
-                     hint="Theme back to Tokyo Night and JetBrains Mono; touchpad, keyboard and layouts too; Hyprland reloads")
+                     hint="Theme back to Tokyo Night and JetBrains Mono, terminal look too; touchpad, keyboard and layouts too; Hyprland reloads")
         else:
             reset = button("Reset to defaults", lambda: self.ask_reset(True), "danger")
             reset.set_halign(Gtk.Align.START)
@@ -572,6 +610,7 @@ class AppearancePage(HyprPage):
 
         def work():
             store.set(theme.FONT, theme.DEFAULT_FONT)  # written with the theme files just below
+            store.set(theme.TERMINAL, dict(theme.TERMINAL_DEFAULT))
             errs = [e for e in (hs.reset(), wp.set_theme("tokyo-night", mode="dark",
                                                          scheme_type=theme.DEFAULT_TYPE, pick="colourful")) if e]
             return "; ".join(errs) or None

@@ -344,6 +344,42 @@ def set_font(name):
     return None
 
 
+TERMINAL = "terminal_look"  # fw13.store key: {size, opacity, padding} for kitty and Ghostty (Settings → Appearance)
+TERMINAL_DEFAULT = {"size": 11.5, "opacity": 0.9, "padding": 14}
+TERMINAL_RANGE = {"size": (8, 24), "opacity": (0.5, 1.0), "padding": (0, 40)}
+
+
+def terminal_look():
+    """The stored terminal look, each value clamped to TERMINAL_RANGE (a hand-edited store can't break the configs)."""
+    saved = store.get(TERMINAL)
+    saved = saved if isinstance(saved, dict) else {}
+    out = {}
+    for k, d in TERMINAL_DEFAULT.items():
+        v = saved.get(k, d)
+        lo, hi = TERMINAL_RANGE[k]
+        out[k] = min(max(float(v), lo), hi) if isinstance(v, (int, float)) and not isinstance(v, bool) else d
+    out["padding"] = int(out["padding"])
+    return out
+
+
+def set_terminal(key, value):
+    """Store one terminal value, rewrite only the kitty and Ghostty theme files and reload both (cheap: a slider
+    calls this while it moves). Returns None or an error message."""
+    if key not in TERMINAL_DEFAULT:
+        return f"Unknown terminal setting: {key}"
+    store.set(TERMINAL, {**terminal_look(), key: value})
+    files = render(palette())
+    try:
+        os.makedirs(DIR, exist_ok=True)
+        for name in ("kitty.conf", "ghostty"):
+            _atomic(os.path.join(DIR, name), files[name])
+    except OSError as e:
+        return f"Could not write the terminal files: {e}"
+    _quiet("pkill", "-SIGUSR1", "-x", "kitty")
+    _quiet("pkill", "-SIGUSR2", "-x", "ghostty")
+    return None
+
+
 def _gtk_colors(p):
     """libadwaita / adw-gtk3 named colours for palette `p` (same roles as fw-settings' own ui_theme)."""
     dark = _dark(p)
@@ -477,8 +513,12 @@ def render(p):
             f"font={f} 11\n"  # fw-osd volume/brightness bar, text stays readable
             "[urgency=critical]\n"
             f"border-color={p['bad']}\n")
+    t = terminal_look()
     kitty = [f"# {HEAD}",
              f"font_family {f}",
+             f"font_size {t['size']:g}",
+             f"background_opacity {t['opacity']:g}",
+             f"window_padding_width {t['padding']}",
              f"background {p['bg']}",
              f"foreground {p['fg']}",
              f"selection_background {p['surface2']}",
@@ -487,6 +527,10 @@ def render(p):
         kitty += [f"color{i:<2} {p['ansi'][i]}", f"color{i + 8:<2} {p['ansi'][i + 8]}"]
     ghostty = [f"# {HEAD}",
                f"font-family = {f}",
+               f"font-size = {t['size']:g}",
+               f"background-opacity = {t['opacity']:g}",
+               f"window-padding-x = {t['padding']}",
+               f"window-padding-y = {t['padding']}",
                f"background = {p['bg']}",
                f"foreground = {p['fg']}",
                f"selection-background = {p['surface2']}",

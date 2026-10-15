@@ -123,7 +123,7 @@ Appearance and Input are saved to `~/.config/hypr/settings.lua`, checked by Hypr
 | [Sound](#sound) | Devices, per-app volume, speaker sound, noise suppression |
 | [Display](#display) | Brightness, screens, scale, night light schedule |
 | [Power](#power) | Profiles, charge limit, timeouts, battery warnings, hibernate |
-| [Appearance](#appearance--input) | Wallpaper, theme, font, gaps, workspaces |
+| [Appearance](#appearance--input) | Wallpaper, theme, font, terminal look, gaps, workspaces |
 | [Input](#appearance--input) | Touchpad, keyboard, Khmer |
 | [Security](#security) | Fingerprint, disk unlock, Secure Boot, SSH keys |
 | [System](#system) | Date and time, updates, weather city |
@@ -181,7 +181,7 @@ Once ready, **Then hibernate after** 1 h / 3 h / never makes idle sleep and the 
 
 ### Appearance & Input
 
-**Appearance:** wallpaper (effect: none, blur, dim, grey, blur + dim), theme (colors from the wallpaper, dark or light, or Tokyo Night), **Colour from** (the most colourful part (default), most of the image, or one of its 4 main colours shown as swatches), font (one fixed-width font for the bar, launcher, notifications, lock screen, panels and terminals; JetBrains Mono by default), gaps, borders, and how many workspaces each bar shows (1–9; higher ones appear while in use). Details in [Look & theme](#look--theme).
+**Appearance:** wallpaper (effect: none, blur, dim, grey, blur + dim), theme (colors from the wallpaper, dark or light, or Tokyo Night), **Colour from** (the most colourful part (default), most of the image, or one of its 4 main colours shown as swatches), font (one fixed-width font for the bar, launcher, notifications, lock screen, panels and terminals; JetBrains Mono by default), **Terminal** (font size, background opacity and padding for kitty and Ghostty, open windows change at once), gaps, borders, and how many workspaces each bar shows (1–9; higher ones appear while in use). Details in [Look & theme](#look--theme).
 
 **Input:** touchpad, key repeat, keyboard layouts, input methods (Khmer).
 
