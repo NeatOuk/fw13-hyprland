@@ -19,13 +19,20 @@ bind 'TAB: menu-complete'
 bind '"\e[Z": menu-complete-backward'
 bind 'set menu-complete-display-prefix on'
 
-# fzf: Ctrl+R history search, Ctrl+T insert a file, Alt+C cd into a folder; files listed by fd (skips .git, .gitignore)
+# fzf: Ctrl+R history search, Ctrl+T insert a file, Alt+C cd into a folder, ** + Tab completes (also kill **, ssh **). Listed by fd from the current folder:
+# no hidden folders (~/.local, ~/.cache hold a million files), no build/dependency folders, .gitignore respected;
+# outside a git repo only 5 levels deep, so Ctrl+T in ~ isn't your whole disk.
 if command -v fzf >/dev/null; then
   eval "$(fzf --bash)"
   if command -v fd >/dev/null; then
-    export FZF_DEFAULT_COMMAND='fd --type f --hidden --exclude .git'
+    _fw_fd='fd --exclude node_modules --exclude .venv --exclude __pycache__ --exclude target --exclude Games $(git rev-parse --is-inside-work-tree >/dev/null 2>&1 || echo --max-depth 5)'
+    export FZF_DEFAULT_COMMAND="$_fw_fd --type f"
     export FZF_CTRL_T_COMMAND=$FZF_DEFAULT_COMMAND
-    export FZF_ALT_C_COMMAND='fd --type d --hidden --exclude .git'
+    export FZF_ALT_C_COMMAND="$_fw_fd --type d"
+    unset _fw_fd
+    # ** + Tab (vim **<Tab>, cd dir/**<Tab>) lists the same way, starting from the folder typed before **
+    _fzf_compgen_path() { fd --exclude node_modules --exclude .venv --exclude __pycache__ --exclude target --exclude Games --max-depth 6 --type f . "$1"; }
+    _fzf_compgen_dir() { fd --exclude node_modules --exclude .venv --exclude __pycache__ --exclude target --exclude Games --max-depth 6 --type d . "$1"; }
   fi
 fi
 
@@ -33,7 +40,7 @@ fi
 if [[ -e ${XDG_CONFIG_HOME:-$HOME/.config}/fw13/terminal-hints-off ]]; then
   unset FW13_KEY_HINTS
 else
-  export FW13_KEY_HINTS='Ctrl+R history · Ctrl+T file · Alt+C folder'
+  export FW13_KEY_HINTS='Ctrl+R history · Ctrl+T file · Alt+C folder · **Tab'
 fi
 
 # Aliases

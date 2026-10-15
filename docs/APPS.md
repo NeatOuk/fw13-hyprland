@@ -275,7 +275,8 @@ The generated colors live in `~/.config/fw13/theme/`. Your own `~/.config/gtk-4.
 | Keys / command | Does |
 |---|---|
 | Ctrl+R | Search your history as you type (fzf) |
-| Ctrl+T / Alt+C | Pick a file into the command line / jump into a folder |
+| Ctrl+T / Alt+C | Pick a file into the command line / jump into a folder (from the current folder: no hidden or dependency folders, .gitignore respected, 5 levels deep outside a git repo) |
+| `**` then Tab | fzf completion: `vim **`, `cd src/**`, `kill **`, `ssh **` |
 | Tab / Shift+Tab | Complete (case-insensitive), cycling through the matches |
 | `ll`, `la`, `..`, `...`, `mkcd dir` | Long list, with hidden files, up one/two folders, make a folder and enter it |
 | `cat` | `bat` with syntax colours, when bat is installed |
