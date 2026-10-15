@@ -355,6 +355,13 @@ class AppearancePage(HyprPage):
         blink.set_active(look["blink"])
         blink.connect("notify::active", lambda w, _p: self.queue_terminal("blink", w.get_active()))
         self.row("Cursor blinks", blink)
+        for key, text, hint in (("bold", "Bold text", "Off: bold text uses the regular weight"),
+                                ("ligatures", "Ligatures", "Join pairs like -> != >= into one symbol (fonts that have them, "
+                                                           "e.g. JetBrains Mono)")):
+            sw = Gtk.Switch()
+            sw.set_active(look[key])
+            sw.connect("notify::active", lambda w, _p, key=key: self.queue_terminal(key, w.get_active()))
+            self.row(text, sw, hint=hint)
         self.row("Applies to", None, hint="kitty and Ghostty, open windows too; the font is under Theme")
 
     def queue_terminal(self, key, value):

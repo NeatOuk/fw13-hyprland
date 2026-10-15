@@ -345,7 +345,8 @@ def set_font(name):
 
 
 TERMINAL = "terminal_look"  # fw13.store key: the Terminal section of Settings → Appearance, for kitty and Ghostty
-TERMINAL_DEFAULT = {"size": 11.5, "opacity": 0.9, "padding": 14, "line": 100, "cursor": "block", "blink": True}
+TERMINAL_DEFAULT = {"size": 11.5, "opacity": 0.9, "padding": 14, "line": 100, "cursor": "block", "blink": True,
+                    "bold": True, "ligatures": True}
 TERMINAL_RANGE = {"size": (8, 24), "opacity": (0.5, 1.0), "padding": (0, 40), "line": (80, 160)}  # line: % of cell
 CURSORS = {"block": ("block", "block"), "beam": ("beam", "bar"), "underline": ("underline", "underline")}  # kitty, Ghostty
 
@@ -360,7 +361,8 @@ def terminal_look():
         out[k] = min(max(float(v), lo_hi[0]), lo_hi[1]) if isinstance(v, (int, float)) and not isinstance(v, bool) else d
     out["padding"], out["line"] = int(out["padding"]), int(out["line"])
     out["cursor"] = saved.get("cursor") if saved.get("cursor") in CURSORS else TERMINAL_DEFAULT["cursor"]
-    out["blink"] = saved.get("blink") if isinstance(saved.get("blink"), bool) else TERMINAL_DEFAULT["blink"]
+    for k in ("blink", "bold", "ligatures"):
+        out[k] = saved.get(k) if isinstance(saved.get(k), bool) else TERMINAL_DEFAULT[k]
     return out
 
 
@@ -524,10 +526,13 @@ def render(p):
              f"modify_font cell_height {t['line']}%",
              f"cursor_shape {CURSORS[t['cursor']][0]}",
              f"cursor_blink_interval {-1 if t['blink'] else 0}",
-             f"background {p['bg']}",
-             f"foreground {p['fg']}",
-             f"selection_background {p['surface2']}",
-             f"cursor {p['fg_bright']}"]
+             f"disable_ligatures {'never' if t['ligatures'] else 'always'}"]
+    if not t["bold"]:  # bold drawn with the regular face
+        kitty += [f"bold_font family='{f}' style=Regular", f"bold_italic_font family='{f}' style=Italic"]
+    kitty += [f"background {p['bg']}",
+              f"foreground {p['fg']}",
+              f"selection_background {p['surface2']}",
+              f"cursor {p['fg_bright']}"]
     for i in range(8):
         kitty += [f"color{i:<2} {p['ansi'][i]}", f"color{i + 8:<2} {p['ansi'][i + 8]}"]
     ghostty = [f"# {HEAD}",
@@ -539,6 +544,9 @@ def render(p):
                f"adjust-cell-height = {t['line'] - 100}%",
                f"cursor-style = {CURSORS[t['cursor']][1]}",
                f"cursor-style-blink = {'true' if t['blink'] else 'false'}",
+               f"font-style-bold = {'default' if t['bold'] else 'false'}",
+               f"font-style-bold-italic = {'default' if t['bold'] else 'false'}",
+               f"font-feature = {'' if t['ligatures'] else '-calt, -liga, -dlig'}",
                f"background = {p['bg']}",
                f"foreground = {p['fg']}",
                f"selection-background = {p['surface2']}",
