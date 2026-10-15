@@ -1,0 +1,31 @@
+# fw13 git defaults (Settings-free; managed by chezmoi). Your ~/.gitconfig is read after this file and wins,
+# so name/email, credentials and anything you change there stay yours.
+[init]
+	defaultBranch = main
+[pull]
+	rebase = true
+[rebase]
+	autoStash = true
+[push]
+	autoSetupRemote = true
+[fetch]
+	prune = true
+[rerere]
+	enabled = true
+[diff]
+	colorMoved = default
+	algorithm = histogram
+[merge]
+	conflictStyle = zdiff3
+[help]
+	autocorrect = prompt
+[alias]
+	st = status -sb
+	co = checkout
+	sw = switch
+	br = branch
+	ci = commit
+	amend = commit --amend --no-edit
+	unstage = restore --staged
+	last = log -1 --stat
+	lg = log --graph --pretty=format:'%C(yellow)%h%Creset %C(auto)%d%Creset %s %C(dim)%cr · %an%Creset' --abbrev-commit
