@@ -9,6 +9,18 @@ format = "[⬢ $name]($style) "
 read_only = " 🔒"
 [git_branch]
 format = "[$symbol$branch(:$remote_branch)]($style) "
+[git_status]  # counts: ~3 modified, +1 staged, ?2 new, -1 deleted, »1 renamed, ≡1 stashed, !1 conflict, ⇡1 to push, ⇣2 to pull
+format = '([$all_status$ahead_behind]($style))'  # each item ends with a space: no brackets needed
+modified = "~${count} "
+staged = "+${count} "
+untracked = "?${count} "
+deleted = "-${count} "
+renamed = "»${count} "
+stashed = "≡${count} "
+conflicted = "!${count} "
+ahead = "⇡${count} "
+behind = "⇣${count} "
+diverged = "⇡${ahead_count}⇣${behind_count} "
 [python]  # version + the active venv, only in Python projects
 format = '[${symbol}${pyenv_prefix}(${version} )(\($virtualenv\) )]($style)'
 [nodejs]
