@@ -1,6 +1,16 @@
 add_newline = false
 format = "$directory$git_branch$git_status$nodejs$java$python$golang$kubernetes$cmd_duration$line_break$character"
+# Kubernetes: only in folders with cluster files, and short ("☸ k8s", not "kubernetes-admin@kubernetes in")
 [kubernetes]
 disabled = false
+format = '[$symbol$context( \($namespace\))]($style) '
+detect_files = ["kustomization.yaml", "kustomization.yml", "Chart.yaml", "helmfile.yaml", "skaffold.yaml", "Tiltfile"]
+detect_folders = ["k8s", "kubernetes", "manifests", "charts", "helm"]
+[[kubernetes.contexts]]  # first match wins: kubeadm's default name, then any user@cluster shows just the cluster
+context_pattern = "kubernetes-admin@kubernetes"
+context_alias = "k8s"
+[[kubernetes.contexts]]
+context_pattern = ".*@(?P<cluster>.+)"
+context_alias = "$cluster"
 [cmd_duration]
 min_time = 2000
