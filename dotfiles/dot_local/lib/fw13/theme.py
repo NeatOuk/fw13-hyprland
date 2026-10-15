@@ -344,9 +344,10 @@ def set_font(name):
     return None
 
 
-TERMINAL = "terminal_look"  # fw13.store key: {size, opacity, padding} for kitty and Ghostty (Settings → Appearance)
-TERMINAL_DEFAULT = {"size": 11.5, "opacity": 0.9, "padding": 14}
-TERMINAL_RANGE = {"size": (8, 24), "opacity": (0.5, 1.0), "padding": (0, 40)}
+TERMINAL = "terminal_look"  # fw13.store key: the Terminal section of Settings → Appearance, for kitty and Ghostty
+TERMINAL_DEFAULT = {"size": 11.5, "opacity": 0.9, "padding": 14, "line": 100, "cursor": "block", "blink": True}
+TERMINAL_RANGE = {"size": (8, 24), "opacity": (0.5, 1.0), "padding": (0, 40), "line": (80, 160)}  # line: % of cell
+CURSORS = {"block": ("block", "block"), "beam": ("beam", "bar"), "underline": ("underline", "underline")}  # kitty, Ghostty
 
 
 def terminal_look():
@@ -354,11 +355,12 @@ def terminal_look():
     saved = store.get(TERMINAL)
     saved = saved if isinstance(saved, dict) else {}
     out = {}
-    for k, d in TERMINAL_DEFAULT.items():
-        v = saved.get(k, d)
-        lo, hi = TERMINAL_RANGE[k]
-        out[k] = min(max(float(v), lo), hi) if isinstance(v, (int, float)) and not isinstance(v, bool) else d
-    out["padding"] = int(out["padding"])
+    for k, lo_hi in TERMINAL_RANGE.items():
+        v, d = saved.get(k), TERMINAL_DEFAULT[k]
+        out[k] = min(max(float(v), lo_hi[0]), lo_hi[1]) if isinstance(v, (int, float)) and not isinstance(v, bool) else d
+    out["padding"], out["line"] = int(out["padding"]), int(out["line"])
+    out["cursor"] = saved.get("cursor") if saved.get("cursor") in CURSORS else TERMINAL_DEFAULT["cursor"]
+    out["blink"] = saved.get("blink") if isinstance(saved.get("blink"), bool) else TERMINAL_DEFAULT["blink"]
     return out
 
 
@@ -519,6 +521,9 @@ def render(p):
              f"font_size {t['size']:g}",
              f"background_opacity {t['opacity']:g}",
              f"window_padding_width {t['padding']}",
+             f"modify_font cell_height {t['line']}%",
+             f"cursor_shape {CURSORS[t['cursor']][0]}",
+             f"cursor_blink_interval {-1 if t['blink'] else 0}",
              f"background {p['bg']}",
              f"foreground {p['fg']}",
              f"selection_background {p['surface2']}",
@@ -531,6 +536,9 @@ def render(p):
                f"background-opacity = {t['opacity']:g}",
                f"window-padding-x = {t['padding']}",
                f"window-padding-y = {t['padding']}",
+               f"adjust-cell-height = {t['line'] - 100}%",
+               f"cursor-style = {CURSORS[t['cursor']][1]}",
+               f"cursor-style-blink = {'true' if t['blink'] else 'false'}",
                f"background = {p['bg']}",
                f"foreground = {p['fg']}",
                f"selection-background = {p['surface2']}",

@@ -181,7 +181,7 @@ Once ready, **Then hibernate after** 1 h / 3 h / never makes idle sleep and the 
 
 ### Appearance & Input
 
-**Appearance:** wallpaper (effect: none, blur, dim, grey, blur + dim), theme (colors from the wallpaper, dark or light, or Tokyo Night), **Colour from** (the most colourful part (default), most of the image, or one of its 4 main colours shown as swatches), font (one fixed-width font for the bar, launcher, notifications, lock screen, panels and terminals; JetBrains Mono by default), **Terminal** (font size, background opacity and padding for kitty and Ghostty, open windows change at once), gaps, borders, and how many workspaces each bar shows (1–9; higher ones appear while in use). Details in [Look & theme](#look--theme).
+**Appearance:** wallpaper (effect: none, blur, dim, grey, blur + dim), theme (colors from the wallpaper, dark or light, or Tokyo Night), **Colour from** (the most colourful part (default), most of the image, or one of its 4 main colours shown as swatches), font (one fixed-width font for the bar, launcher, notifications, lock screen, panels and terminals; JetBrains Mono by default), **Terminal** (font size, background opacity, padding, line spacing, cursor shape (block, beam, underline) and blink, for kitty and Ghostty; open windows change at once), gaps, borders, and how many workspaces each bar shows (1–9; higher ones appear while in use). Details in [Look & theme](#look--theme).
 
 **Input:** touchpad, key repeat, keyboard layouts, input methods (Khmer).
 

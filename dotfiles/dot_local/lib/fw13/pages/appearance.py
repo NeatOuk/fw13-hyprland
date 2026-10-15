@@ -331,7 +331,8 @@ class AppearancePage(HyprPage):
         for key, text, step, fmt, hint in (
                 ("size", "Font size", 0.5, "{:g} pt", None),
                 ("opacity", "Background opacity", 0.05, "{:.0%}", "100% = no see-through"),
-                ("padding", "Padding", 1, "{:.0f} px", "Space between the text and the window edge")):
+                ("padding", "Padding", 1, "{:.0f} px", "Space between the text and the window edge"),
+                ("line", "Line spacing", 5, "{:.0f}%", "Height of each line; 100% = the font's own")):
             lo, hi = theme.TERMINAL_RANGE[key]
             scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, step)
             scale.set_draw_value(False)
@@ -342,16 +343,25 @@ class AppearancePage(HyprPage):
             def moved(s, key=key, step=step, fmt=fmt, value=value):
                 v = round(round(s.get_value() / step) * step, 3)
                 value.set_text(fmt.format(v))
-                self.term_pending[key] = int(v) if key == "padding" else v
-                if self.term_timer:
-                    GLib.source_remove(self.term_timer)
-                self.term_timer = GLib.timeout_add(250, self.write_terminal)
+                self.queue_terminal(key, int(v) if key in ("padding", "line") else v)
             scale.connect("value-changed", moved)
             box = Gtk.Box(spacing=12)
             box.pack_start(scale, False, False, 0)
             box.pack_start(value, False, False, 0)
             self.row(text, box, hint=hint)
+        self.row("Cursor", combo([("block", "Block"), ("beam", "Beam  |"), ("underline", "Underline  _")], look["cursor"],
+                                 lambda v: self.queue_terminal("cursor", v)))
+        blink = Gtk.Switch()
+        blink.set_active(look["blink"])
+        blink.connect("notify::active", lambda w, _p: self.queue_terminal("blink", w.get_active()))
+        self.row("Cursor blinks", blink)
         self.row("Applies to", None, hint="kitty and Ghostty, open windows too; the font is under Theme")
+
+    def queue_terminal(self, key, value):
+        self.term_pending[key] = value
+        if self.term_timer:
+            GLib.source_remove(self.term_timer)
+        self.term_timer = GLib.timeout_add(250, self.write_terminal)
 
     def write_terminal(self):
         self.term_timer = None
