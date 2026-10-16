@@ -86,7 +86,7 @@ Press **SUPER+/** (or SUPER+K) for a searchable cheat sheet; it also lists your 
 | SUPER+Tab | Previous workspace |
 | Ctrl+← / → | Previous / next workspace on this screen (so Ctrl+arrow no longer jumps by word) |
 | 3-finger swipe | Switch workspace |
-| Super+Alt+R | **Remote mode**: every key, Super included, goes to the window (e.g. Command in a Remote Desktop Manager session to a Mac) until Super+Alt+R again |
+| Super+Alt+R | **Remote mode**: every key, Super included, goes to the window (e.g. Command in a Remote Desktop Manager session to a Mac) until Super+Alt+R again. Turns on by itself while Remote Desktop Manager is focused and off when you click another window |
 
 **Capture**
 
@@ -350,7 +350,7 @@ Each screen has its own workspaces 1–9 and its own row of circles in the bar. 
 | **Claude Desktop** | Chat, Claude Code (visual diffs, terminal, app preview) and **Cowork**. Anthropic's official Linux build (Ubuntu/Debian only, Linux support in beta) repackaged as an RPM (`claude-desktop-official`, version and checksum pinned); re-run the installer to update. Cowork runs tasks in a small VM (Fedora's QEMU, OVMF and virtiofsd; the vsock module loads at boot). Group `claude-desktop` |
 | **Neovim** | With [LazyVim](https://www.lazyvim.org) (`nvim`): file finder, search (ripgrep, fd), syntax parsers, language servers through Mason, lazygit (`<leader>gg`), Tokyo Night. `~/.config/nvim` is created once and then yours (plugins in `lua/plugins/`, extras with `:LazyExtras`) |
 | **DBeaver CE** | Databases (PostgreSQL, MySQL, SQLite…). Official RPM, checksum-pinned, bundles its own Java. Runs on XWayland with a dark theme (Window → Preferences → User Interface → Appearance). Group `database` |
-| **Remote Desktop Manager** | Devolutions' RDP, SSH, VNC and more (their repo). Start it from the launcher (it goes through `fw-rdm`, which makes it draw and scales it per screen). While its entry editor is open it keeps the mouse inside; close it or move focus with Super+←/→ (or Super+1–9). For Command on a Mac, use remote mode (Super+Alt+R). Group `remote` |
+| **Remote Desktop Manager** | Devolutions' RDP, SSH, VNC and more (their repo). Start it from the launcher (it goes through `fw-rdm`, which makes it draw and scales it per screen). While its entry editor is open it keeps the mouse inside; close it or move focus with Super+←/→ (or Super+1–9). While it is focused, remote mode is on by itself, so Super+Q, Command shortcuts and the rest go to the remote session; Super+Alt+R gives the keys back to Fedora (or click another window). Group `remote` |
 | **Speakers** | **EasyEffects** with **Framework's FW13 preset** for the built-in speakers (room correction, compressor, limiter; +9.5 dB so voices stay as loud; a softer `fw13-clear` too; from [FrameworkComputer/linux-docs](https://github.com/FrameworkComputer/linux-docs), GPL-3.0). Off, Framework / Clear voice, or your own Bass, Warmth, Voice clarity, Air and Level in Settings → Sound → Speaker sound |
 | **Android** | `adb`/`fastboot` and **scrcpy** (official release, checksum-pinned) to show and control your phone: turn on USB debugging, plug it in, run `scrcpy` or pick it in the launcher |
 | **Syncthing** | File sync between your devices, as your user service; managed in [Settings → Syncthing](#syncthing), full UI at 127.0.0.1:8384. No firewall port is opened (it connects out or through relays) |

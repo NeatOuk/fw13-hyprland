@@ -64,6 +64,20 @@ hl.bind("SUPER + ALT + R", hl.dsp.submap("remote"), { description = "Remote mode
 hl.define_submap("remote", function()
   hl.bind("SUPER + ALT + R", hl.dsp.submap("reset"), { description = "Leave remote mode" })
 end)
+-- Focusing Remote Desktop Manager turns remote mode on, focusing anything else turns it off again (only when it was
+-- turned on here: remote mode started by hand on another window stays). SUPER+ALT+R inside RDM leaves until refocused.
+local auto_remote = false
+hl.on("window.active", function()
+  local w = hl.get_active_window()
+  local rdm = w ~= nil and w.class == "RemoteDesktopManager"
+  if rdm and hl.get_current_submap() ~= "remote" then
+    auto_remote = true
+    hl.dispatch(hl.dsp.submap("remote"))
+  elseif not rdm and auto_remote then
+    auto_remote = false
+    if hl.get_current_submap() == "remote" then hl.dispatch(hl.dsp.submap("reset")) end
+  end
+end)
 -- CTRL+←/→ is taken from apps (word jumps in terminals and text fields; user decision)
 hl.bind("CTRL + right",       hl.dsp.focus({ workspace = "m+1" }), { description = "Next workspace on this screen" })
 hl.bind("CTRL + left",        hl.dsp.focus({ workspace = "m-1" }), { description = "Previous workspace on this screen" })
