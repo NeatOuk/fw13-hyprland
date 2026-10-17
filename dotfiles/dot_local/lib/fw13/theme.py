@@ -11,6 +11,7 @@ GTK and Qt apps follow too (read at app start; GTK 3 also live, see apply_gtk())
                         ~/.config/gtk-4.0/gtk.css, which @imports gtk4.css (only when that file is ours, see
                         link_gtk()).
   ghostty               Ghostty colours; ~/.config/ghostty/config includes it (optional: "?" path).
+  grub-theme.txt        GRUB boot menu theme; `sudo fw-grub-theme` copies it to /boot (not on every theme change).
   qt6ct-colors.conf     qt6ct colour scheme; ~/.config/qt6ct/qt6ct.conf points at it and ~/.config/uwsm/env-hyprland
                         sets QT_QPA_PLATFORMTHEME=qt6ct for the Hyprland session only (new Qt apps after re-login).
   fcitx5-theme.conf     fcitx5 classic UI theme; ~/.local/share/fcitx5/themes/fw13/theme.conf links to it
