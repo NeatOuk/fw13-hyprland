@@ -44,8 +44,8 @@ DBEAVER_SHA256="${DBEAVER_SHA256:-ac034c7a0ec44da1231a0a7de844b2b394bc3744ccb025
 # Claude Desktop (user decision: Anthropic's official build, only published as a .deb for Ubuntu/Debian, repackaged as
 # the RPM claude-desktop-official; Cowork's QEMU/OVMF/virtiofsd from Fedora in 73-cowork.txt). Version + sha256 from the apt index
 # (downloads.claude.ai/claude-desktop/apt/stable/dists/stable/main/binary-amd64/Packages); bump both together.
-CLAUDE_DESKTOP_VERSION="${CLAUDE_DESKTOP_VERSION:-2.37337.1}"
-CLAUDE_DESKTOP_SHA256="${CLAUDE_DESKTOP_SHA256:-41745b0914f0ff51631a1ff1bb403b836bf5c995845cca6742dd39bca3a2da14}"
+CLAUDE_DESKTOP_VERSION="${CLAUDE_DESKTOP_VERSION:-2.42304.0}"
+CLAUDE_DESKTOP_SHA256="${CLAUDE_DESKTOP_SHA256:-74cd2ccc29d24165144e455cbc872c6cc2a24a263b83e73420e95f89166d4aa4}"
 # Default wallpapers (user decision): 20 picked from the ML4W Wallpaper Collection (github.com/mylinuxforwork/wallpaper,
 # Stephan Raabe, GPL-2.0), listed with their sha256 in wallpapers/ml4w.txt; downloaded at this commit, not stored here.
 ML4W_WALLPAPER_COMMIT="${ML4W_WALLPAPER_COMMIT:-9e9d463d80e6090e1a60cfdfbd17dcd82eddd779}"
