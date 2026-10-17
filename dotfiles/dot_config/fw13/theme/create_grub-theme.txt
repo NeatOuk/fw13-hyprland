@@ -1,0 +1,17 @@
+# Written by fw13.theme (Settings → Appearance). Changes here are replaced.
+# Installed into /boot/grub2/themes/fw13 by: sudo fw-grub-theme
+title-text: ""
+desktop-color: "#1a1b26"
+terminal-font: "JetBrains Mono Regular 32"
++ label { top = 22% left = 0 width = 100% height = 60 align = "center" text = "Framework Laptop 13" font = "JetBrains Mono Bold 32" color = "#c0caf5" }
++ boot_menu {
+  left = 25% top = 32% width = 50% height = 44%
+  item_font = "JetBrains Mono Regular 32"
+  item_color = "#a9b1d6"
+  selected_item_font = "JetBrains Mono Bold 32"
+  selected_item_color = "#7aa2f7"
+  item_height = 56 item_padding = 0 item_spacing = 16 icon_width = 0 icon_height = 0
+  scrollbar = false
+}
++ label { id = "__timeout__" top = 80% left = 0 width = 100% height = 48 align = "center" text = "Starting in %d s" font = "JetBrains Mono Regular 32" color = "#565f89" }
++ label { top = 86% left = 0 width = 100% height = 48 align = "center" text = "↑ ↓ choose · Enter start · e edit" font = "JetBrains Mono Regular 32" color = "#565f89" }

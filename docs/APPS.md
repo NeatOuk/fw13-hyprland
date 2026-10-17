@@ -259,6 +259,8 @@ Colors follow your wallpaper (Material You, by [matugen](https://github.com/Inio
 
 The theme recolors window borders, the bar, launcher, notifications, terminal, lock screen, our panels and GTK/Qt apps (GTK 3 at once; libadwaita and Qt apps when they next start; Qt apps need one re-login the first time). Also themed: terminal tools through the terminal's 16 colors (prompt, git, btop, fzf, bat), Chromium (its GTK theme at login, unless you picked one), the Khmer input popup, admin apps that run as root (also in GNOME), and VS Code if you turn on Settings → Appearance → VS Code (off by default, since Settings Sync could copy the colors). For Claude Code pick `/theme` → dark-ansi, for OpenCode the `system` theme. Steam and web pages keep their own look.
 
+**Boot menu (GRUB):** the theme's colours with JetBrains Mono, shown for 3 seconds at every start (↑ ↓ to pick an older kernel, `e` to edit). The installer sets it up once; after changing the theme, `sudo fw-grub-theme` brings the new colours to it. If you set your own `GRUB_THEME`, it is left alone. Undo: `sudo cp /etc/default/grub.fw13-orig /etc/default/grub && sudo grub2-mkconfig -o /boot/grub2/grub.cfg`.
+
 <details>
 <summary>Where the colors live</summary>
 

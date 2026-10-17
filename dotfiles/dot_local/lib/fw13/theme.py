@@ -584,7 +584,30 @@ def render(p):
             "kitty.conf": "\n".join(kitty) + "\n", "ghostty": "\n".join(ghostty) + "\n", "hyprlock.conf": hyprlock,
             "gtk3.css": _gtk_css(p, variables=False), "gtk4.css": _gtk_css(p, variables=True),
             "qt6ct-colors.conf": _qt_scheme(p), "fcitx5-theme.conf": _fcitx_theme(p),
-            "framework-logo.svg": _framework_logo(p, 18), "framework-logo@2x.svg": _framework_logo(p, 36)}
+            "framework-logo.svg": _framework_logo(p, 18), "framework-logo@2x.svg": _framework_logo(p, 36),
+            "grub-theme.txt": _grub_theme(p)}
+
+
+def _grub_theme(p):
+    """GRUB's theme.txt; `sudo fw-grub-theme` copies it to /boot with JetBrains Mono fonts made at these sizes
+    (32 px reads like the terminal on the 2880x1920 panel, where GRUB draws at native resolution)."""
+    return (f"# {HEAD}\n# Installed into /boot/grub2/themes/fw13 by: sudo fw-grub-theme\n"
+            'title-text: ""\n'
+            f'desktop-color: "{p['bg']}"\n'
+            'terminal-font: "JetBrains Mono Regular 32"\n'
+            f'+ label {{ top = 22% left = 0 width = 100% height = 60 align = "center" text = "Framework Laptop 13" '
+            f'font = "JetBrains Mono Bold 32" color = "{p['fg_bright']}" }}\n'
+            "+ boot_menu {\n  left = 25% top = 32% width = 50% height = 44%\n"
+            '  item_font = "JetBrains Mono Regular 32"\n'
+            f'  item_color = "{p['fg']}"\n'
+            '  selected_item_font = "JetBrains Mono Bold 32"\n'
+            f'  selected_item_color = "{p['accent']}"\n'
+            "  item_height = 56 item_padding = 0 item_spacing = 16 icon_width = 0 icon_height = 0\n"
+            f'  scrollbar = false\n}}\n'
+            f'+ label {{ id = "__timeout__" top = 80% left = 0 width = 100% height = 48 align = "center" '
+            f'text = "Starting in %d s" font = "JetBrains Mono Regular 32" color = "{p['fg_dim']}" }}\n'
+            f'+ label {{ top = 86% left = 0 width = 100% height = 48 align = "center" '
+            f'text = "↑ ↓ choose · Enter start · e edit" font = "JetBrains Mono Regular 32" color = "{p['fg_dim']}" }}\n')
 
 
 # Framework's gear mark (Framework Computer's trademark; path from Simple Icons, CC0, source frame.work), drawn by the

@@ -203,6 +203,7 @@ print_plan() {
   on ai && ! skipped ollama && echo "  enable ollama.service"
   on warp && ! skipped cloudflare-warp && echo "  enable warp-svc.service"
   on localsend && ! skipped org.localsend.localsend_app && echo "  flatpak install --user LocalSend"
+  echo "  fw-grub-theme: boot menu in the theme's colours, shown 3 s (skipped without GRUB or with your own GRUB_THEME)"
   if [[ -r $GROUPS_FILE ]]; then echo "saved choice: $GROUPS_FILE ($(grep -vc '^\s*\(#\|$\)' "$GROUPS_FILE" || true) left out)"
   elif [[ -r $OLD_GROUPS_FILE ]]; then echo "saved choice: $OLD_GROUPS_FILE (old format: groups selected; becomes $GROUPS_FILE on the next run)"
   else echo "saved choice: $GROUPS_FILE (absent = all)"; fi
@@ -702,6 +703,8 @@ user_phase() {
   # Only when nothing is enrolled: fprintd-enroll replaces an existing print, and an interrupted run leaves none.
   if ! fprintd-list "$USER" 2>/dev/null | grep -q ' - #[0-9]' && ask "Enroll a fingerprint now?"; then fprintd-enroll || warn "fingerprint enroll failed — retry later: fprintd-enroll"; fi
   if ask "Set up Timeshift snapshots now?"; then $SUDO fw-timeshift-setup || warn "retry later: sudo fw-timeshift-setup"; fi
+  # Boot menu in the desktop's colours, shown 3 s (user decision); no-op without GRUB or with your own GRUB_THEME
+  $SUDO fw-grub-theme "$HOME/.config/fw13/theme/grub-theme.txt" || warn "boot menu theme failed — retry: sudo fw-grub-theme"
 
   say "Firmware (LVFS)"
   fwupdmgr refresh --force >/dev/null 2>&1 || true

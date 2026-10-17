@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# GRUB boot menu in the desktop's colours, always shown for a few seconds.
+#   sudo fw-grub-theme [theme.txt]   default: the calling user's ~/.config/fw13/theme/grub-theme.txt (fw13.theme)
+# Copies theme.txt to /boot/grub2/themes/fw13 with JetBrains Mono fonts (grub2-mkfont), points /etc/default/grub at it
+# (gfxterm, 3 s timeout, menu style; the first run keeps /etc/default/grub.fw13-orig), drops Fedora's menu_auto_hide
+# from grubenv and regenerates grub.cfg. Idempotent. Skips without GRUB (systemd-boot, containers) and when
+# /etc/default/grub already names another theme (yours stays).
+set -euo pipefail
+
+THEMES=/boot/grub2/themes
+DIR=$THEMES/fw13
+DEFAULT=/etc/default/grub
+FONTS=/usr/share/fonts/jetbrains-mono-fonts
+SIZE=32   # px at the panel's native 2880x1920; must match the font names in theme.txt
+
+[[ $EUID -eq 0 ]] || { echo "run with sudo" >&2; exit 1; }
+if [[ ! -f $DEFAULT || ! -d /boot/grub2 ]] || ! command -v grub2-mkconfig >/dev/null; then
+  echo "fw-grub-theme: no GRUB here, nothing to do"; exit 0
+fi
+user=${SUDO_USER:-}
+[[ -z $user && -n ${PKEXEC_UID:-} ]] && user=$(id -nu "$PKEXEC_UID")
+src=${1:-$(getent passwd "${user:-root}" | cut -d: -f6)/.config/fw13/theme/grub-theme.txt}
+[[ -f $src ]] || { echo "fw-grub-theme: $src not found (open Settings → Appearance once, or pass a theme.txt)" >&2; exit 1; }
+current=$(sed -n 's/^GRUB_THEME="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' "$DEFAULT")
+if [[ -n $current && $current != "$DIR/theme.txt" ]]; then
+  echo "fw-grub-theme: $DEFAULT already uses $current; left as it is"; exit 0
+fi
+
+install -d -m 0755 "$DIR"
+install -m 0644 "$src" "$DIR/theme.txt"
+for style in Regular Bold; do
+  [[ -s $DIR/jetbrains-$style-$SIZE.pf2 ]] && continue
+  grub2-mkfont -s "$SIZE" -o "$DIR/jetbrains-$style-$SIZE.pf2" "$FONTS/JetBrainsMono-$style.otf" 2>/dev/null
+done
+
+[[ -e $DEFAULT.fw13-orig ]] || cp -p "$DEFAULT" "$DEFAULT.fw13-orig"
+set_key() {   # KEY VALUE: replace the line, or append it
+  if grep -q "^$1=" "$DEFAULT"; then sed -i "s|^$1=.*|$1=$2|" "$DEFAULT"; else echo "$1=$2" >>"$DEFAULT"; fi
+}
+set_key GRUB_THEME "\"$DIR/theme.txt\""
+set_key GRUB_TERMINAL_OUTPUT '"gfxterm"'
+set_key GRUB_GFXMODE '"auto"'
+set_key GRUB_TIMEOUT 3
+set_key GRUB_TIMEOUT_STYLE menu
+grub2-editenv - unset menu_auto_hide   # Fedora hides the menu unless the last boot failed
+if ! out=$(grub2-mkconfig -o /boot/grub2/grub.cfg 2>&1); then   # writes grub.cfg only on success
+  echo "$out" >&2; echo "fw-grub-theme: grub2-mkconfig failed; the old boot menu stays" >&2; exit 1
+fi
+echo "Boot menu: themed, shown for 3 s. Undo: sudo cp $DEFAULT.fw13-orig $DEFAULT && sudo grub2-mkconfig -o /boot/grub2/grub.cfg"
