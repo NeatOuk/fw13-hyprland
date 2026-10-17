@@ -29,6 +29,7 @@ SYNONYMS = [
     ("power", "Screen & sleep › On battery", "Screen at 60 Hz", None, "refresh rate hz 120hz battery saving"),
     ("power", "Screen & sleep › On battery", "Sleep report", None, "suspend drain battery overnight asleep"),
     ("apps", "Installed apps", "", None, "uninstall remove delete software programs applications"),
+    ("apps", "Updates", "", None, "new version release upgrade claude desktop telegram ghostty dbeaver scrcpy framework_tool"),
 ]
 
 
@@ -76,7 +77,7 @@ def find(page, section, text):
 
 CASES = [("hibernate", "power"), ("night light", "display"), ("noise", "sound"), ("vpn", "network"),
          ("ssh", "security"), ("warn at", "power"), ("weather", "system"), ("colour from", "appearance"), ("terminal opacity", "appearance"),
-         ("jarvis memory", "jarvis"), ("refresh rate", "power"), ("sleep drain", "power"), ("wifi", "network"), ("shortcuts", None), ("uninstall", "apps"),
+         ("jarvis memory", "jarvis"), ("refresh rate", "power"), ("sleep drain", "power"), ("wifi", "network"), ("shortcuts", None), ("uninstall", "apps"), ("new version", "apps"),
          ("coding agent", "agent"), ("pi", "agent"), ("ollama server", "agent"), ("laya", "jarvis")]
 
 

@@ -7,7 +7,7 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import GdkPixbuf, Gtk  # noqa: E402
 
-from .. import apps, system  # noqa: E402
+from .. import apps, system, upstream  # noqa: E402
 from ..ui_theme import button, label  # noqa: E402
 from .common import Page, bg, launch  # noqa: E402
 
@@ -41,6 +41,7 @@ class AppsPage(Page):
         self.list = None     # apps.installed(); None = loading
         self.pk = None       # ([(name, version)] or None, message) from dnf's cache
         self.fp = None       # {(installation, app id): version} from the Flatpak remotes; None = checking
+        self.up = None       # upstream.check(): newer releases of the apps install.sh builds; None = checking
         self.loading = False
         self.loaded_at = 0.0
         self.hooked = False
@@ -66,6 +67,8 @@ class AppsPage(Page):
         if flatpak:
             self.fp = None
             bg(apps.flatpak_updates, self.got_flatpak, fail=lambda _e: {})
+            self.up = None
+            bg(upstream.check, self.got_upstream, fail=lambda _e: {})
         if self.loading:
             return
         self.loading = True
@@ -81,8 +84,14 @@ class AppsPage(Page):
         self.fp = ups
         self.render()
 
+    def got_upstream(self, ups):
+        self.up = ups
+        self.render()
+
     def update_of(self, app):
         """New version for an app, '' when there is one without a version, None for none."""
+        if app["kind"] == "rpm" and self.up and app["package"] in self.up:
+            return self.up[app["package"]]["latest"]
         if app["kind"] == "rpm" and self.pk and self.pk[0]:
             return dict(self.pk[0]).get(app["package"])
         if app["kind"] == "flatpak" and self.fp:
@@ -142,17 +151,25 @@ class AppsPage(Page):
             hint.append("checking Flatpak…")
         elif self.fp:
             hint.append(f"{len(self.fp)} Flatpak update{'s' if len(self.fp) != 1 else ''}")
+        if self.up is None:
+            hint.append("checking official releases…")
         if total:
             box.pack_start(button("Update all…", lambda: launch(*UPDATE_ALL), "primary"), False, False, 0)
             hint.append("Update all takes a Timeshift snapshot first; the terminal asks for your password")
         text = f"{n_apps} app update{'s' if n_apps != 1 else ''}" if n_apps else "Apps are up to date"
         self.row(text, box, hint=" · ".join(hint))
+        shown = {a["package"] for a in self.list}
+        for what, v in (self.up or {}).items():  # framework_tool, scrcpy: no launcher entry
+            if what not in shown:
+                self.row(v["name"], None, hint=f"Update available → {v['latest']} · {v['note']}")
 
     def render_app(self, app):
         ver = self.update_of(app)
         hint = [app["source"]]
         if ver is not None:
             hint.append(f"Update available → {ver}" if ver else "Update available")
+            if self.up and app["package"] in self.up:
+                hint.append(f"Installed by fw13-hypr, not dnf: {self.up[app['package']]['note']}")
         if app["protected"]:
             hint.append(app["protected"])
         if app.get("optional"):
