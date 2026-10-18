@@ -64,6 +64,10 @@ radiobutton:hover radio:checked, checkbutton:hover check:checked { background: $
 list, list row { background: transparent; }
 .item { padding: 6px 4px; border-bottom: 1px solid $surface; }
 .found { background: $surface2; box-shadow: inset 3px 0 $accent; }
+/* Settings pages: section headings stand out (accent, larger, space above) and their rows sit indented under them */
+.page .title { font-size: 16pt; font-weight: bold; }
+.page .heading { color: $accent; font-size: 12.5pt; margin-top: 20px; margin-bottom: 2px; }
+.page .item { padding: 8px 4px 8px 20px; }
 """)
 
 _HEX = re.compile(r"#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?")
