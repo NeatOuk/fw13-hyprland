@@ -11,6 +11,12 @@ window#waybar { background: @bg; color: @fg; }
 #custom-ws1.occupied, #custom-ws2.occupied, #custom-ws3.occupied, #custom-ws4.occupied, #custom-ws5.occupied, #custom-ws6.occupied, #custom-ws7.occupied, #custom-ws8.occupied, #custom-ws9.occupied { color: @fg; }
 #custom-ws1.active, #custom-ws2.active, #custom-ws3.active, #custom-ws4.active, #custom-ws5.active, #custom-ws6.active, #custom-ws7.active, #custom-ws8.active, #custom-ws9.active { color: @accent; }
 #custom-ws1:hover, #custom-ws2:hover, #custom-ws3:hover, #custom-ws4:hover, #custom-ws5:hover, #custom-ws6:hover, #custom-ws7:hover, #custom-ws8:hover, #custom-ws9:hover { color: @fg; }
+/* Wi-Fi strength (network module states s1–s4): fw13.theme's arcs, lit up to the current level */
+#network.wifi { min-width: 16px; background-repeat: no-repeat; background-position: center; background-size: 16px 16px; }
+#network.wifi.s1 { background-image: -gtk-scaled(url("../fw13/theme/wifi-1.svg"), url("../fw13/theme/wifi-1@2x.svg")); }
+#network.wifi.s2 { background-image: -gtk-scaled(url("../fw13/theme/wifi-2.svg"), url("../fw13/theme/wifi-2@2x.svg")); }
+#network.wifi.s3 { background-image: -gtk-scaled(url("../fw13/theme/wifi-3.svg"), url("../fw13/theme/wifi-3@2x.svg")); }
+#network.wifi.s4 { background-image: -gtk-scaled(url("../fw13/theme/wifi-4.svg"), url("../fw13/theme/wifi-4@2x.svg")); }
 #tray, #bluetooth, #network, #custom-vpn, #pulseaudio, #custom-display, #custom-claude, #custom-opencode, #cpu, #battery { padding: 0 9px; }
 #custom-notifications, #custom-caffeine, #custom-profile, #custom-weather { padding: 0 9px; }
 #custom-power { padding: 0 14px 0 9px; color: @red; }

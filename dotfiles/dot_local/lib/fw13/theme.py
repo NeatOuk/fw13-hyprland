@@ -585,7 +585,8 @@ def render(p):
             "kitty.conf": "\n".join(kitty) + "\n", "ghostty": "\n".join(ghostty) + "\n", "hyprlock.conf": hyprlock,
             "gtk3.css": _gtk_css(p, variables=False), "gtk4.css": _gtk_css(p, variables=True),
             "qt6ct-colors.conf": _qt_scheme(p), "fcitx5-theme.conf": _fcitx_theme(p),
-            "framework-logo.svg": _framework_logo(p, 18), "framework-logo@2x.svg": _framework_logo(p, 36)}
+            "framework-logo.svg": _framework_logo(p, 18), "framework-logo@2x.svg": _framework_logo(p, 36),
+            **{f"wifi-{n}{x}.svg": _wifi(p, n, px) for n in range(1, 5) for x, px in (("", 16), ("@2x", 32))}}
 
 
 
@@ -611,6 +612,23 @@ FRAMEWORK_LOGO = (
 def _framework_logo(p, px):
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{px}" height="{px}" viewBox="0 0 24 24">'
             f'<path fill="#{_h(p["accent"])}" d="{FRAMEWORK_LOGO}"/></svg>\n')
+
+
+# Wi-Fi strength for the bar's network module (waybar states s1–s4 → style.css background): a dot and three arcs,
+# the first n lit in the text colour, the rest dim. Font Awesome Free has only the full Wi-Fi glyph.
+WIFI_PARTS = ('<circle cx="12" cy="19" r="2.2" fill="{c}"/>',
+              '<path d="M8.3 15.3a5.3 5.3 0 0 1 7.4 0" {s}/>',
+              '<path d="M4.9 11.9a10.1 10.1 0 0 1 14.2 0" {s}/>',
+              '<path d="M1.5 8.5a14.9 14.9 0 0 1 21 0" {s}/>')
+
+
+def _wifi(p, n, px):
+    parts = []
+    for i, part in enumerate(WIFI_PARTS):
+        c = "#" + _h(p["fg"] if i < n else p["muted"])
+        parts.append(part.format(c=c, s=f'fill="none" stroke="{c}" stroke-width="2.4" stroke-linecap="round"'))
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{px}" height="{px}" viewBox="0 0 24 24">'
+            + "".join(parts) + "</svg>\n")
 
 
 # ---- GTK theme + user gtk.css -------------------------------------------------------------------------------

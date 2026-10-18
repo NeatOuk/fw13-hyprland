@@ -55,7 +55,9 @@
   "network": {
     "format": "\uf1eb",
     "format-linked": "\uf1eb",
-    "format-wifi": "",
+    // Wi-Fi: a space that style.css draws over with fw13.theme's wifi-1..4.svg, picked by these signal states
+    "format-wifi": " ",
+    "states": { "s4": 75, "s3": 50, "s2": 25, "s1": 0 },
     "format-ethernet": "",
     "format-disconnected": "",
     "tooltip-format-wifi": "{essid} ({signalStrength}%) {ipaddr}",
