@@ -164,12 +164,13 @@ def has_backlight():
     return os.path.isdir("/sys/class/backlight") and bool(os.listdir("/sys/class/backlight"))
 
 
+# On the perceived scale the brightness keys and fw-osd use (brightnessctl -e4: linear = perceived^4), so the
+# slider, the keys and the on-screen popup show the same number.
 def get_brightness():
-    try:
-        return int(sh("brightnessctl", "-m").split(",")[3].rstrip("%"))
-    except (IndexError, ValueError):
-        return 50
+    from .als import read_pct  # sysfs: cheap enough to poll while the slider is shown
+    linear = read_pct()
+    return 50 if linear is None else round((linear / 100) ** 0.25 * 100)
 
 
 def set_brightness(pct):
-    subprocess.Popen(["brightnessctl", "-q", "set", f"{int(pct)}%"])
+    subprocess.Popen(["brightnessctl", "-q", "-e4", "-n2", "set", f"{int(pct)}%"])  # -n2 like the keys: 1 % is never black

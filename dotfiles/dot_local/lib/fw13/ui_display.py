@@ -33,6 +33,9 @@ class DisplayEditor(Gtk.Box):
             self.bright.set_value(displays.get_brightness())
             self.pct = Gtk.Label(label=f"{int(self.bright.get_value())}%", width_chars=4, xalign=1)
             self.bright.connect("value-changed", self.on_brightness)
+            self.syncing = False
+            sync = GLib.timeout_add_seconds(1, self.sync_brightness)  # follow the keys while shown
+            self.connect("destroy", lambda *_: GLib.source_remove(sync))
             row.pack_start(self.bright, True, True, 0)
             row.pack_start(self.pct, False, False, 0)
             self.pack_start(row, False, False, 0)
@@ -132,8 +135,19 @@ class DisplayEditor(Gtk.Box):
         self.revert_btn.set_sensitive(dirty)
 
     # brightness
+    def sync_brightness(self):
+        if self.pending is None and not self.bright.has_grab():
+            v = displays.get_brightness()
+            if abs(v - self.bright.get_value()) >= 1:
+                self.syncing = True
+                self.bright.set_value(v)
+                self.syncing = False
+        return True
+
     def on_brightness(self, scale):
         self.pct.set_text(f"{int(scale.get_value())}%")
+        if self.syncing:  # moved to match the keys: nothing to write
+            return
         if self.pending:
             GLib.source_remove(self.pending)
         self.pending = GLib.timeout_add(50, self.flush_brightness)
