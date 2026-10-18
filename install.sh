@@ -518,6 +518,13 @@ EOF
     $SUDO sed -i 's|^command *=.*|command = "tuigreet --time --remember --remember-session --asterisks --sessions /usr/share/wayland-sessions:/usr/local/share/wayland-sessions --cmd \\"uwsm start hyprland.desktop\\""|' "$cfg"
     local gu; gu="$(awk -F'"' '/^user *=/{print $2}' "$cfg")"
     echo "d /var/cache/tuigreet 0755 ${gu:-greetd} ${gu:-greetd} -" | $SUDO tee /etc/tmpfiles.d/tuigreet.conf >/dev/null
+    # tuigreet draws with the console font: Fedora's eurlatgr (8x16) is tiny at 2880x1920, latarcyrheb-sun32 (16x32,
+    # from kbd) is twice the size. Only Fedora's default (or no FONT line) is replaced; a font you chose stays.
+    if grep -qsx 'FONT="\{0,1\}eurlatgr"\{0,1\}' /etc/vconsole.conf; then
+      $SUDO sed -i 's/^FONT=.*/FONT="latarcyrheb-sun32"/' /etc/vconsole.conf
+    elif ! grep -qs '^FONT=' /etc/vconsole.conf; then
+      echo 'FONT="latarcyrheb-sun32"' | $SUDO tee -a /etc/vconsole.conf >/dev/null
+    fi
     if [[ $CI != 1 ]]; then
       $SUDO systemd-tmpfiles --create /etc/tmpfiles.d/tuigreet.conf
       # Only one service can own the login screen (display-manager.service): disable the old one (GDM/SDDM stay
