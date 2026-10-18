@@ -17,7 +17,7 @@ HOME = os.path.expanduser("~")
 PACKAGE_LISTS = (os.path.join(HOME, ".local/share/chezmoi/packages"), os.path.join(HOME, ".local/share/fw13-hypr/packages"))
 # install.sh builds or installs these itself, outside packages/*.txt
 BUILT = {"telegram-desktop-official", "ghostty-official", "citadel", "citadel-helper", "dbeaver-ce",
-         "claude-desktop-official"}  # + downloaded RPMs
+         "claude-desktop-official", "obsidian-official"}  # + downloaded RPMs
 OUR_FLATPAKS = {"org.localsend.localsend_app"}
 # Apps the installer chose that nothing else in the desktop needs: Uninstall… removes them (+ the extra packages that
 # only serve them) and records every name in SKIP_FILE, which install.sh skips from then on.
@@ -36,6 +36,7 @@ OPTIONAL = {
     "org.localsend.localsend_app": ((), ""),
     "dbeaver-ce": ((), "saved connections stay in ~/.local/share/DBeaverData"),
     "claude-desktop-official": ((), "your sign-in and settings stay in ~/.config/Claude"),
+    "obsidian-official": ((), "your vaults stay where they are; its settings stay in ~/.config/obsidian"),
     "neovim": ((), "LazyVim's config stays in ~/.config/nvim"),
     "syncthing": ((), "file sync stops; its folders and settings stay in ~/.local/state/syncthing"),
     # no launcher entry: listed by entryless() when installed

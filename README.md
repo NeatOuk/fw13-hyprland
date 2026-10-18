@@ -39,6 +39,7 @@ The core desktop (Hyprland, bar, login, fonts, theme, Framework tools, backup, c
 | `ghostty` | Ghostty terminal (built from the official release) |
 | `database` | DBeaver CE database tool (official RPM, ~120 MB) |
 | `claude-desktop` | Claude Desktop app (Anthropic's official .deb repackaged as an RPM) + QEMU for its Cowork tab, ~700 MB |
+| `obsidian` | Obsidian notes (official .deb repackaged as an RPM, ~350 MB) |
 | `localsend` | LocalSend file sharing (Flathub) |
 
 ```bash

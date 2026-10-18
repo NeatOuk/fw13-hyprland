@@ -72,6 +72,7 @@ SOURCES = (
     ("telegram-desktop-official", "Telegram", None, telegram),
     ("ghostty-official", "Ghostty", "GHOSTTY_VERSION", lambda: gh_tag("ghostty-org/ghostty")),
     ("dbeaver-ce", "DBeaver", "DBEAVER_VERSION", lambda: gh_release("dbeaver/dbeaver")),
+    ("obsidian-official", "Obsidian", "OBSIDIAN_VERSION", lambda: gh_release("obsidianmd/obsidian-releases")),
     ("/usr/local/bin/framework_tool", "framework_tool", "FWTOOL_VERSION",
      lambda: gh_release("FrameworkComputer/framework-system")),
     ("/opt/scrcpy", "scrcpy", "SCRCPY_VERSION", lambda: gh_release("Genymobile/scrcpy")),
@@ -147,7 +148,9 @@ def test():
     assert "not in fw13-hypr yet" in verdict("x", "1.0", "1.1", "1.2")["note"]
     assert "once it's bumped" in verdict("x", "1.1", "1.1", "1.2")["note"]
     assert verdict("x", "1.2", "1.1", "1.1") is None  # installed newer than the pin: nothing to do
-    assert {v for _, _, v, _ in SOURCES if v} <= set(read_pins()) or not read_pins(), "a pin variable is gone"
+    checkout = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../../install.sh")  # run from the repo
+    have = pins(open(checkout).read()) if os.path.exists(checkout) else read_pins()
+    assert {v for _, _, v, _ in SOURCES if v} <= set(have) or not have, "a pin variable is gone"
     print("ok")
 
 

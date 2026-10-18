@@ -46,6 +46,10 @@ DBEAVER_SHA256="${DBEAVER_SHA256:-ac034c7a0ec44da1231a0a7de844b2b394bc3744ccb025
 # (downloads.claude.ai/claude-desktop/apt/stable/dists/stable/main/binary-amd64/Packages); bump both together.
 CLAUDE_DESKTOP_VERSION="${CLAUDE_DESKTOP_VERSION:-2.42304.0}"
 CLAUDE_DESKTOP_SHA256="${CLAUDE_DESKTOP_SHA256:-74cd2ccc29d24165144e455cbc872c6cc2a24a263b83e73420e95f89166d4aa4}"
+# Obsidian (user decision: the official .deb from github.com/obsidianmd/obsidian-releases, repackaged as the RPM
+# obsidian-official; not in Fedora). sha256 = GitHub's asset digest; bump both together.
+OBSIDIAN_VERSION="${OBSIDIAN_VERSION:-1.14.4}"
+OBSIDIAN_SHA256="${OBSIDIAN_SHA256:-85b10dcba6edfc1c0460a6d18260cf31c30447a444bd858a6440b9c9c8806d25}"
 # Default wallpapers (user decision): 20 picked from the ML4W Wallpaper Collection (github.com/mylinuxforwork/wallpaper,
 # Stephan Raabe, GPL-2.0), listed with their sha256 in wallpapers/ml4w.txt; downloaded at this commit, not stored here.
 ML4W_WALLPAPER_COMMIT="${ML4W_WALLPAPER_COMMIT:-9e9d463d80e6090e1a60cfdfbd17dcd82eddd779}"
@@ -54,7 +58,7 @@ STATE_DIR="$HOME/.local/state/fw13-hypr"
 # Optional groups: everything else is core (what the desktop itself needs). A group owns its packages/*.txt files and
 # the repo, build, download and service steps that test `on <group>` below. An unselected group is skipped, never
 # removed (rule 3a). Order = prompt order. GROUP_INFO[g] = "<packages/*.txt files>|<one-line description>".
-OPT_GROUPS=(games ai android remote warp firewall messaging ghostty database claude-desktop localsend)
+OPT_GROUPS=(games ai android remote warp firewall messaging ghostty database claude-desktop obsidian localsend)
 declare -A GROUP_INFO=(
   [games]="40-gaming.txt|Steam, Lutris, gamescope, MangoHud, GameMode"
   [ai]="71-ai.txt|Ollama: local models for OpenCode and Jarvis (ollama.service)"
@@ -66,6 +70,7 @@ declare -A GROUP_INFO=(
   [ghostty]="94-rpm-build.txt 98-ghostty.txt|Ghostty terminal, built from the official release (kitty stays)"
   [database]="|DBeaver CE database tool (official RPM, ~120 MB)"
   [claude-desktop]="94-rpm-build.txt 73-cowork.txt|Claude Desktop app (Anthropic's official .deb repackaged as an RPM) + QEMU for its Cowork tab, ~700 MB"
+  [obsidian]="94-rpm-build.txt|Obsidian notes (official .deb repackaged as an RPM, ~350 MB)"
   [localsend]="|LocalSend file sharing (Flathub, send only)"
 )
 # The saved choice: the groups LEFT OUT, one per line, so a group added later is on. Absent = every group.
@@ -200,6 +205,7 @@ print_plan() {
   on android && ! skipped android-tools && echo "  scrcpy $SCRCPY_VERSION download into /opt/scrcpy (if not current)"
   on database && ! skipped dbeaver-ce && echo "  dbeaver-ce $DBEAVER_VERSION RPM download (if not current)"
   on claude-desktop && ! skipped claude-desktop-official && echo "  build claude-desktop-official $CLAUDE_DESKTOP_VERSION RPM (if not current)"
+  on obsidian && ! skipped obsidian-official && echo "  build obsidian-official $OBSIDIAN_VERSION RPM (if not current)"
   on ai && ! skipped ollama && echo "  enable ollama.service"
   on warp && ! skipped cloudflare-warp && echo "  enable warp-svc.service"
   on localsend && ! skipped org.localsend.localsend_app && echo "  flatpak install --user LocalSend"
@@ -298,6 +304,26 @@ build_telegram_rpm() {
   rpmbuild -bb --quiet --define "_topdir $top" --define "tg_version $ver" --define "dist .fc$FEDORA" \
     rpm/telegram-desktop-official.spec >&2 || return 1
   ls -t "$top"/RPMS/x86_64/telegram-desktop-official-"$ver"-*.rpm 2>/dev/null | head -1
+}
+
+# ============================================================================
+# build_obsidian_rpm → prints the built RPM's path, or nothing when the installed one is already current.
+# Obsidian's .deb (checked against OBSIDIAN_SHA256) repackaged; spec: rpm/obsidian-official.spec.
+build_obsidian_rpm() {
+  local top="$STATE_DIR/obsidian" ver=$OBSIDIAN_VERSION have rel deb
+  rel="$(sed -n 's/^Release:[[:space:]]*\([0-9]*\).*/\1/p' rpm/obsidian-official.spec)"   # a spec fix rebuilds too
+  have="$(rpm -q --qf '%{VERSION}-%{RELEASE}' obsidian-official 2>/dev/null || true)"
+  [[ ${have%%.fc*} == "$ver-$rel" ]] && return 0
+  deb="$top/SOURCES/obsidian_${ver}_amd64.deb"
+  mkdir -p "$top"/{SOURCES,RPMS,BUILD,SRPMS,SPECS}
+  if ! echo "$OBSIDIAN_SHA256  $deb" | sha256sum -c --status 2>/dev/null; then
+    curl -fsSL -o "$deb" "https://github.com/obsidianmd/obsidian-releases/releases/download/v$ver/obsidian_${ver}_amd64.deb" \
+      && echo "$OBSIDIAN_SHA256  $deb" | sha256sum -c --status || { rm -f "$deb"; warn "Obsidian download failed or checksum mismatch" >&2; return 1; }
+  fi
+  rpmbuild -bb --quiet --define "_topdir $top" --define "ob_version $ver" --define "dist .fc$FEDORA" \
+    rpm/obsidian-official.spec >&2 || return 1
+  rm -f "$deb"
+  ls -t "$top"/RPMS/x86_64/obsidian-official-"$ver"-*.rpm 2>/dev/null | head -1
 }
 
 # ============================================================================
@@ -426,6 +452,14 @@ system_phase() {
     # Cowork's VM needs vsock: load it now and at every boot
     $SUDO install -D -m 0644 system/etc/modules-load.d/fw13-cowork.conf /etc/modules-load.d/fw13-cowork.conf
     $SUDO modprobe vhost_vsock || warn "vhost_vsock didn't load: Cowork's VM can't start until it does"
+  fi
+
+  if ! on obsidian; then :
+  elif skipped obsidian-official; then echo "Obsidian: skipped (removed by you)"; else
+    say "Obsidian $OBSIDIAN_VERSION — the official build, repackaged as an RPM"
+    local ob
+    ob="$(build_obsidian_rpm)" || die "Obsidian RPM build failed (see above)"
+    if [[ -n $ob ]]; then $DNF install "$ob" && rm -f "$ob"; else echo "obsidian-official is current"; fi
   fi
 
   if ! on database; then :
