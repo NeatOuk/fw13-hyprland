@@ -698,6 +698,8 @@ def timeshift_state():
         return ""
     # Timeshift schedules itself: with a schedule_* flag on it writes /etc/cron.d/timeshift-hourly, run by crond.
     flags = any(str(v).lower() == "true" for k, v in conf.items() if k.startswith("schedule_"))
+    if not flags:  # the default (user decision): fw-updates snapshots before each update
+        return f"{mode}, before updates only"
     rc, _o, _e = _run("systemctl", "is-enabled", "--quiet", "crond.service", timeout=10)
     on = flags and os.path.exists("/etc/cron.d/timeshift-hourly") and rc == 0
     return f"{mode}, {'scheduled' if on else 'not scheduled'}"

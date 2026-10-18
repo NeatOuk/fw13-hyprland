@@ -8,7 +8,8 @@
                        now. What fw-updates.timer runs.
   fw-updates run       open `fw-updates apply` in a terminal
   fw-updates apply     in a terminal: Timeshift snapshot (fw-timeshift-setup if Timeshift isn't set up yet; a failed
-                       snapshot stops here unless you type y), then dnf upgrade --refresh, flatpak update (user,
+                       snapshot stops here unless you type y; only the newest KEEP "before dnf upgrade" snapshots
+                       are kept, older ones deleted: Timeshift never prunes on-demand snapshots itself), then dnf upgrade --refresh, flatpak update (user,
                        and system when it has apps), and whether a reboot is needed; firmware is left to Settings → System → Firmware updates.
 State: ~/.local/state/fw13/updates.json
 """
@@ -118,6 +119,23 @@ def sudo(*cmd):
         return 127
 
 
+KEEP = 3  # "before dnf upgrade" snapshots kept (user decision: Timeshift snapshots only before updates)
+
+
+def update_snapshots(listing):
+    """Names of the "before dnf upgrade" snapshots in `timeshift --list` output, oldest first."""
+    return [line.split()[2] for line in listing.splitlines()
+            if "before dnf upgrade" in line and len(line.split()) > 2 and line.split()[1] == ">"]
+
+
+def prune_snapshots():
+    p = subprocess.run(["sudo", "timeshift", "--list"], capture_output=True, text=True)
+    old = update_snapshots(p.stdout)[:-KEEP] if p.returncode == 0 else []
+    for name in old:
+        print(f"Deleting older update snapshot {name}")
+        sudo("timeshift", "--delete", "--snapshot", name, "--scripted")
+
+
 def apply():
     if sudo("-v") != 0:
         return 1
@@ -127,7 +145,9 @@ def apply():
     else:
         print("\n== Timeshift isn't set up yet: fw-timeshift-setup (makes the first snapshot) ==")
         rc = sudo("fw-timeshift-setup")
-    if rc != 0:
+    if rc == 0:
+        prune_snapshots()
+    else:
         answer = input(f"\nThe snapshot failed (exit {rc}). Update anyway, without a snapshot? [y/N] ")
         if answer.strip().lower() != "y":
             print("Not updating.")
@@ -158,6 +178,10 @@ def selftest():
     assert summary(0, [fp, {"device": "BIOS", "new": "3.05"}]) == \
         "2 firmware updates (Fingerprint Sensor 01000334, BIOS 3.05)"
     assert jarvis_argv(33, []) == ["fw-jarvis-panel", "--ask", "Is it safe to update now? 33 package updates."]
+    listing = ("Num     Name                 Tags  Description\n------\n"
+               "0    >  2026-10-08_21-34-40  O W\n1    >  2026-10-11_21-49-06  O D   before dnf upgrade 2026-10-11\n"
+               "2    >  2026-10-12_22-00-00  D\n3    >  2026-10-17_11-06-50  O     before dnf upgrade 2026-10-17\n")
+    assert update_snapshots(listing) == ["2026-10-11_21-49-06", "2026-10-17_11-06-50"]
     print("ok")
     return 0
 

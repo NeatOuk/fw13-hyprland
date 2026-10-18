@@ -309,7 +309,7 @@ Each screen has its own workspaces 1–9 and its own row of circles in the bar. 
 | Notice | When | What you can do |
 |---|---|---|
 | **USB drive** "STICK" (32.0 GB) | You plug in a stick, SD card or USB disk (mounted under `/run/media/$USER/`) | **Open** in Files; **Eject** unmounts and powers it off, then says **Safe to unplug** (or why not) |
-| **Software updates** | 20 min after login, then daily, when the count changed or a day passed | **Update now**: a Timeshift snapshot first, then `dnf upgrade`, `flatpak update`, and whether a reboot is needed |
+| **Software updates** | 20 min after login, then daily, when the count changed or a day passed | **Update now**: a Timeshift snapshot first (the newest 3 update snapshots are kept), then `dnf upgrade`, `flatpak update`, and whether a reboot is needed |
 | **Low battery** | 20, 10 and 5 % | **Ask Jarvis** |
 | **Health** | 15 min after login, then daily, only when something is wrong | **Diagnose** (Jarvis reads the report) |
 | **Crash** | An app crashes or a service fails | **Diagnose**, you pick which agent reads it |
@@ -370,12 +370,12 @@ Each screen has its own workspaces 1–9 and its own row of circles in the bar. 
 
 **Timeshift** snapshots the whole system plus your home folder. Run `sudo fw-timeshift-setup` (the installer offers to). It picks the mode by itself:
 
-| Disk layout | Mode | Schedule |
-|---|---|---|
-| btrfs with `@`/`@home` subvolumes | **btrfs** (instant, no extra space) | hourly ×12, daily ×7, weekly ×4, boot ×3 |
-| Fedora's default btrfs (`root`/`home`), ext4, xfs | **rsync** (copies files, then incremental) | daily ×7, weekly ×4, boot ×3 |
+| Disk layout | Mode |
+|---|---|
+| btrfs with `@`/`@home` subvolumes | **btrfs** (instant, no extra space) |
+| Fedora's default btrfs (`root`/`home`), ext4, xfs | **rsync** (copies files, then incremental) |
 
-It leaves out caches, the Steam library, mise, containers and `~/Downloads`. Timeshift schedules itself (its own cron jobs). To restore on Fedora's default layout, use `sudo fw-timeshift-restore` (Timeshift's own restore only works on the `@` layout); on an `@` layout, `sudo timeshift --restore` or `timeshift-launcher` (`SUPER+Shift+B`).
+There is no schedule: a snapshot is taken **before each update** (Settings → Update, the update notice, `fw-updates apply`), and only the newest 3 of those are kept. Snapshots you make yourself in Timeshift stay until you delete them; a schedule can still be turned on in Timeshift's settings. It leaves out caches, the Steam library, mise, containers and `~/Downloads`. To restore on Fedora's default layout, use `sudo fw-timeshift-restore` (Timeshift's own restore only works on the `@` layout); on an `@` layout, `sudo timeshift --restore` or `timeshift-launcher` (`SUPER+Shift+B`).
 
 **Restoring the system** (Fedora's default layout, rsync mode):
 

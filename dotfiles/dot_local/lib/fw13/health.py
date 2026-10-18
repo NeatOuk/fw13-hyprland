@@ -520,6 +520,8 @@ def check_timeshift(now):
         return Result("timeshift", WARN, summary, "Timeshift → Schedule, and: systemctl is-enabled crond")
     if errors:
         return Result("timeshift", WARN, f"{summary} · {errors[-1][:120]}", "journalctl -t timeshift -p warning")
+    if "before updates only" in state:  # no schedule, so no expected age
+        return Result("timeshift", OK, summary, "")
     stale = not newest or now - newest > _timeshift_max_age()
     if stale and _uptime() > 3600:  # right after boot, Timeshift's own boot/hourly job may not have run yet
         return Result("timeshift", WARN, summary, "journalctl -t timeshift -t CROND -n 40")
