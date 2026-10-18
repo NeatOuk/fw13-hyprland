@@ -7,7 +7,7 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import GdkPixbuf, Gtk  # noqa: E402
 
-from .. import apps, autostart, system, upstream  # noqa: E402
+from .. import apps, autostart, session, store, system, upstream  # noqa: E402
 from ..ui_theme import button, label  # noqa: E402
 from .common import Page, bg, launch  # noqa: E402
 
@@ -125,6 +125,11 @@ class AppsPage(Page):
 
     def render_startup(self):
         self.heading("Startup apps")
+        reopen = Gtk.Switch(active=session.enabled())
+        reopen.connect("notify::active", lambda w, _p: store.set(session.KEY, w.get_active()))
+        self.row("Reopen apps left open", reopen,
+                 hint="At login, the apps open when you shut down or logged out come back on their workspaces "
+                      "(terminals in their folder) instead of the terminal + Chromium layout")
         for e in autostart.entries():
             sw = None
             if not e["fixed"]:

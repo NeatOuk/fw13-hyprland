@@ -8,7 +8,8 @@ monitors (sorted by connector name) 11–19, 21–29, … Each bar shows its own
   fw-workspaces go N     SUPER+N:       workspace N of the focused screen
   fw-workspaces move N   SUPER+Shift+N: move the active window there
   fw-workspaces daemon   exec-once: binds the ranges to their screens, opens the login layout
-                         (the terminal on the laptop's 1, Chromium on the monitor's 1), and re-binds on hotplug —
+                         (the terminal on the laptop's 1, Chromium on the monitor's 1) or, with Reopen apps on,
+                         the apps left open last time (fw13.session, saved here once windows settle), and re-binds on hotplug —
                          an unplugged monitor's windows move into free workspaces of the screen they land on (rehome).
   fw-workspaces layout   just the login layout (testing)
   fw-workspaces apply    re-bind the ranges and redraw the dots (after Settings changes the count)
@@ -25,10 +26,11 @@ import os
 import socket
 import subprocess
 import sys
+import threading
 import time
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
-from fw13 import bar as waybar, panel as single, store, terminal  # noqa: E402
+from fw13 import apps as launcher, bar as waybar, panel as single, session, store, terminal  # noqa: E402
 from fw13.hypr import dispatch, hj, hypr, lua, q  # noqa: E402  (Lua-mode hyprctl helpers, shared)
 
 MAX_WS = 9  # SUPER+1…9
@@ -216,6 +218,40 @@ def layout():
     dispatch(f"hl.dsp.focus({{ workspace = {q(term_ws)} }})")  # end on the laptop's first workspace
 
 
+def restore(saved):
+    """Reopen the apps saved by fw13.session; each new window of an app goes to that app's next saved workspace
+    (on the laptop's screen when the saved one belonged to a monitor that isn't connected now)."""
+    base_of = bases(hj("monitors"))
+    laptop = base_of[list(base_of)[0]]
+    targets = {}
+    for w in saved:
+        ws = w["workspace"]
+        targets.setdefault(w["class"], []).append(ws if ws - ws % 10 in base_of.values() else laptop + ws % 10)
+    before = {c["address"] for c in hj("clients")}
+    for argv, _cls in session.launches(saved):
+        subprocess.Popen(["uwsm", "app", "--", *argv], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    deadline = time.time() + 30
+    while any(targets.values()) and time.time() < deadline:
+        time.sleep(0.5)
+        for c in hj("clients"):
+            todo = targets.get(c["class"].lower())
+            if c["address"] in before or not todo:
+                continue
+            dispatch(f"hl.dsp.window.move({{ workspace = {q(todo.pop(0))}, window = {q('address:' + c['address'])}, "
+                     "follow = false })")
+            before.add(c["address"])
+    dispatch(f"hl.dsp.focus({{ workspace = {q(laptop + 1)} }})")
+
+
+SAVE_EVENTS = ("openwindow>>", "closewindow>>", "movewindowv2>>")
+
+
+def save_session():
+    if session.enabled():
+        session.save(session.snapshot(hj("clients"), session.entry_ids(launcher.launcher_entries())))
+
+
 # --- daemon -------------------------------------------------------------------------------------
 def events():
     path = os.path.join(RUN, "hypr", os.environ["HYPRLAND_INSTANCE_SIGNATURE"], ".socket2.sock")
@@ -239,9 +275,17 @@ def daemon():
     base_of = setup()
     if not os.path.exists(LAYOUT_DONE):
         open(LAYOUT_DONE, "w").close()
-        layout()
+        saved = session.load() if session.enabled() else []
+        restore(saved) if saved else layout()
     refresh_dots()
+    timer = None
     for ev in events():
+        if ev.startswith(SAVE_EVENTS):  # save once windows have been still for SETTLE s (logout closes them faster)
+            if timer:
+                timer.cancel()
+            timer = threading.Timer(session.SETTLE, save_session)
+            timer.daemon = True
+            timer.start()
         # hotplug, or a config reload (it drops the rules set with hyprctl eval)
         if ev.startswith(("monitoradded>>", "monitorremoved>>", "configreloaded>>")):
             time.sleep(0.5)  # let Hyprland finish moving things around
