@@ -219,7 +219,7 @@ Date, time zone (or **Set time zone automatically**), automatic time, device nam
 
 ### Apps page
 
-Every app in the launcher plus Flatpak apps, with where it came from (a Fedora/vendor package, Flatpak, or Steam/Lutris/by hand) and **Update available → version**; apps with updates come first. Apps the installer builds itself (Claude Desktop, Telegram, Ghostty, DBeaver, plus framework_tool and scrcpy) are checked against their official releases too; dnf can't update them, so the row says whether re-running the installer updates it or the new release isn't in fw13-hypr yet. **Check now**, **Update all…** (the same snapshot-first update as System) and **Uninstall…**, which opens a terminal running `sudo dnf remove <package>` or `flatpak uninstall <app>`: both list what goes and ask first.
+Every app in the launcher plus Flatpak apps, with where it came from (a Fedora/vendor package, also when its launcher entry was customised in `~/.local/share/applications`; Flatpak; Steam/Lutris; or *Installed by hand*: no package owns it, e.g. an AppImage you added) and **Update available → version**; apps with updates come first. Apps the installer builds itself (Claude Desktop, Telegram, Ghostty, DBeaver, plus framework_tool and scrcpy) are checked against their official releases too; dnf can't update them, so the row says whether re-running the installer updates it or the new release isn't in fw13-hypr yet. **Check now**, **Update all…** (the same snapshot-first update as System) and **Uninstall…**, which opens a terminal running `sudo dnf remove <package>` or `flatpak uninstall <app>`: both list what goes and ask first.
 
 <details>
 <summary>Pre-installed apps</summary>

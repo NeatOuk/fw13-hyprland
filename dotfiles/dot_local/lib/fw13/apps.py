@@ -49,6 +49,7 @@ SKIP_FILE = os.path.join(HOME, ".config/fw13/skip-packages")
 GNOME_NEEDS = {"gnome-software", "nautilus", "gnome-control-center", "ptyxis", "loupe", "papers",
                "gnome-text-editor", "showtime", "decibels"}
 OUR_DIR = os.path.join(HOME, ".local/share/fw13/")
+OUR_ENTRIES = {"scrcpy.desktop"}  # written by install.sh into /usr/local/share/applications
 # (word in Exec or path, who installed it) for entries no package owns
 INSTALLERS = (("steam", "Steam"), ("lutris", "Lutris"), ("heroic", "Heroic"), ("wine", "Wine"),
               ("--app-id=", "Chromium (web app)"), ("jetbrains", "JetBrains Toolbox"))
@@ -95,6 +96,22 @@ def launcher_entries():
                 continue
             if visible(keys):
                 out.append((did, f, keys))
+    return out
+
+
+def shadowed(entries, dirs=None):
+    """{launcher path: the packaged entry it hides} for entries copied into an earlier data dir (a customised
+    ~/.local/share/applications copy, e.g. Exec through fw-rdm or with a proxy), so the app still shows its package."""
+    dirs = dirs or data_dirs()
+    out = {}
+    for _did, path, _keys in entries:
+        for i, d in enumerate(dirs):
+            base = os.path.join(d, "applications") + "/"
+            if path.startswith(base):
+                rel = path[len(base):]
+                out.update({path: c for c in (os.path.join(e, "applications", rel) for e in reversed(dirs[i + 1:]))
+                            if os.path.exists(c)})  # reversed: the first later dir wins
+                break
     return out
 
 
@@ -203,7 +220,7 @@ def classify(entries, owners, fps, ours):
             app.update(kind="rpm", source=f"Package {pkg}")
         else:
             who = other_installer(path, keys)
-            ours_file = did.startswith(("fw-", "fw13-")) or path.startswith(OUR_DIR)
+            ours_file = did.startswith(("fw-", "fw13-")) or path.startswith(OUR_DIR) or did in OUR_ENTRIES
             app.update(kind="other", source="fw13-hypr" if ours_file else f"Installed by {who}" if who
                        else "Installed by hand")
         app["protected"] = protected(did, path, pkg, fp and fp["id"], ours)
@@ -260,7 +277,9 @@ def rpm_installed(names):
 
 def installed():
     entries = launcher_entries()
-    owners = rpm_owners([p for _d, p, _k in entries if "/flatpak/exports/" not in p])
+    hidden = shadowed([e for e in entries if "/flatpak/exports/" not in e[1]])
+    owners = rpm_owners([p for _d, p, _k in entries if "/flatpak/exports/" not in p] + sorted(set(hidden.values())))
+    owners.update({p: owners[h] for p, h in hidden.items() if p not in owners and h in owners})
     ours = installer_packages()
     apps = classify(entries, owners, flatpaks(), ours)
     apps = guard_deps(apps + entryless(apps, rpm_installed(sorted(k for k in OPTIONAL if "." not in k))), ours)
@@ -397,6 +416,16 @@ def test():
     assert bare["ollama"]["name"] == "Ollama (local AI models)" and bare["ollama"]["optional"] == "ollama"
     assert uninstall_argv(bare["android-tools"])[:2] == ["bash", "-c"]
     assert "sudo dnf remove ollama" in remove_all_script(list(bare.values()))
+    import tempfile
+    with tempfile.TemporaryDirectory() as t:
+        dirs = [os.path.join(t, n) for n in ("home", "local", "usr")]
+        for d, names in zip(dirs, (["edge.desktop", "mine.desktop"], ["edge.desktop"], ["edge.desktop"])):
+            os.makedirs(os.path.join(d, "applications"))
+            for n in names:
+                open(os.path.join(d, "applications", n), "w").close()
+        home = os.path.join(dirs[0], "applications")
+        sh = shadowed([("edge.desktop", f"{home}/edge.desktop", {}), ("mine.desktop", f"{home}/mine.desktop", {})], dirs)
+        assert sh == {f"{home}/edge.desktop": os.path.join(dirs[1], "applications", "edge.desktop")}, sh
     real = installer_packages()
     assert {"chromium", "code"} <= real or not any(os.path.isdir(d) for d in PACKAGE_LISTS), "package lists not read"
     assert not any(w.startswith("#") for w in real)
