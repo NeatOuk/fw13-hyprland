@@ -368,14 +368,14 @@ Each screen has its own workspaces 1–9 and its own row of circles in the bar. 
 
 ## Backups
 
-**Timeshift** snapshots the system, not your home folder (that's restic's job, below), so a snapshot is the size of the system (~20–40 GB), not of your files. Run `sudo fw-timeshift-setup` (the installer offers to). It picks the mode by itself:
+**Timeshift** snapshots the system, not your home folder (that's restic's job, below), so a snapshot is the size of the system (~20 GB), not of your files. Run `sudo fw-timeshift-setup` (the installer offers to). It picks the mode by itself:
 
 | Disk layout | Mode |
 |---|---|
 | btrfs with `@`/`@home` subvolumes | **btrfs** (instant, no extra space) |
 | Fedora's default btrfs (`root`/`home`), ext4, xfs | **rsync** (copies files, then incremental) |
 
-There is no schedule: a snapshot is taken **before each update** (Settings → Update, the update notice, `fw-updates apply`), and only the newest of those is kept. Snapshots you make yourself in Timeshift stay until you delete them; a schedule can still be turned on in Timeshift's settings. It also leaves out `/var/cache` and containers. To restore on Fedora's default layout, use `sudo fw-timeshift-restore` (Timeshift's own restore only works on the `@` layout); on an `@` layout, `sudo timeshift --restore` or `timeshift-launcher` (`SUPER+Shift+B`).
+There is no schedule: a snapshot is taken **before each update** (Settings → Update, the update notice, `fw-updates apply`), and only the newest of those is kept. Snapshots you make yourself in Timeshift stay until you delete them; a schedule can still be turned on in Timeshift's settings. It also leaves out `/var/cache`, containers, Ollama's models and the logs. To restore on Fedora's default layout, use `sudo fw-timeshift-restore` (Timeshift's own restore only works on the `@` layout); on an `@` layout, `sudo timeshift --restore` or `timeshift-launcher` (`SUPER+Shift+B`).
 
 **Restoring the system** (Fedora's default layout, rsync mode):
 

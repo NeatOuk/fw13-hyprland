@@ -54,6 +54,8 @@ cat > /etc/timeshift/timeshift.json <<JSON
     "/root/**",
     "/var/cache/***",
     "/var/lib/containers/***",
+    "/var/lib/ollama/**",
+    "/var/log/**",
     "/swap/***"
   ],
   "exclude-apps" : []
