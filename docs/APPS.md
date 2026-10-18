@@ -224,6 +224,8 @@ Every app in the launcher plus Flatpak apps, with where it came from (a Fedora/v
 <details>
 <summary>Pre-installed apps</summary>
 
+**Startup apps** lists what starts when you log in to Hyprland (the XDG autostart entries uwsm runs), each with a switch; GNOME or KDE on the same account keep their own list. Changes apply at the next login. Tray apps the bar replaces (network, Bluetooth, Cloudflare) stay off, and the location agent that automatic time zone needs stays on.
+
 **Remove pre-installed apps… → Remove all…** takes out every optional app this desktop installed in one go (one list to confirm). The optional apps (Steam, Lutris, Telegram, Chromium, VS Code, Remote Desktop Manager, Ghostty, DBeaver, Citadel, Cloudflare WARP, Easy Effects, LocalSend, Claude Desktop, Obsidian) can be uninstalled one by one too, and re-running `install.sh` then skips them (`~/.config/fw13/skip-packages`). **Removed apps** lists them with **Reinstall on next installer run**, which needs the app's group selected. Removing Chromium leaves links and SUPER+B without their browser. The rest of the desktop (and packages it needs), our own tools and GNOME's core apps (Files, Software, Settings, Ptyxis, the default viewers) are marked and have no Uninstall button.
 
 </details>

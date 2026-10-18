@@ -7,7 +7,7 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import GdkPixbuf, Gtk  # noqa: E402
 
-from .. import apps, system, upstream  # noqa: E402
+from .. import apps, autostart, system, upstream  # noqa: E402
 from ..ui_theme import button, label  # noqa: E402
 from .common import Page, bg, launch  # noqa: E402
 
@@ -102,6 +102,7 @@ class AppsPage(Page):
         self.clear()
         self.heading("Updates")
         self.render_updates()
+        self.render_startup()
         self.heading("Installed apps")
         script = apps.remove_all_script(self.list) if self.list else None
         if script:
@@ -121,6 +122,23 @@ class AppsPage(Page):
                                   "dim", wrap=True))
         self.render_removed()
         self.show_all()
+
+    def render_startup(self):
+        self.heading("Startup apps")
+        for e in autostart.entries():
+            sw = None
+            if not e["fixed"]:
+                sw = Gtk.Switch(active=e["on"])
+                sw.connect("notify::active", lambda w, _p, e=e: self.toggle_startup(e, w.get_active()))
+            self.row(e["name"], sw, hint=e["fixed"] or ("Starts when you log in" if e["on"] else "Off"))
+        self.add_widget(label("Started by your Hyprland login (GNOME or KDE on this account keep their own list). "
+                              "Changes apply at the next login.", "dim", wrap=True))
+
+    def toggle_startup(self, entry, on):
+        try:  # re-read: an earlier switch may have made or removed the copy since this row was drawn
+            autostart.set_on(next((e for e in autostart.entries() if e["id"] == entry["id"]), entry), on)
+        except (OSError, ValueError) as e:
+            self.add_widget(label(f"Couldn't change {entry['name']}: {e}", "dim", wrap=True)).show()
 
     def render_removed(self):
         names = apps.skipped()
