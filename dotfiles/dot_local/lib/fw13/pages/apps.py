@@ -129,7 +129,7 @@ class AppsPage(Page):
         reopen.connect("notify::active", lambda w, _p: store.set(session.KEY, w.get_active()))
         self.row("Reopen apps left open", reopen,
                  hint="At login, the apps open when you shut down or logged out come back on their workspaces "
-                      "(terminals in their folder) instead of the terminal + Chromium layout")
+                      "(terminals in their folder); off, a login opens no apps")
         for e in autostart.entries():
             sw = None
             if not e["fixed"]:

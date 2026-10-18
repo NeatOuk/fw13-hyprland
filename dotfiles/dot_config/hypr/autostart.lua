@@ -7,7 +7,7 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("systemctl --user start hyprpolkitagent")
   hl.exec_cmd("uwsm app -- fcitx5 -d --replace")
   hl.exec_cmd("uwsm app -- wl-paste --watch cliphist store")
-  -- Per-screen workspace ranges + login layout (the terminal on the laptop's 1, Chromium on the monitor's 1)
+  -- Per-screen workspace ranges; with Settings → Apps → Reopen apps left open, last session's apps
   hl.exec_cmd("uwsm app -- fw-workspaces daemon")
   hl.exec_cmd("uwsm app -- fw-speakers")  -- EasyEffects + Framework's FW13 speaker preset (no-op without easyeffects)
   -- GNOME's apps hidden from the launcher in Hyprland only (except Files and Software); Files / Chromium / GNOME viewers as defaults

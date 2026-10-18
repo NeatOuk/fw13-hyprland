@@ -7,11 +7,10 @@ monitors (sorted by connector name) 11–19, 21–29, … Each bar shows its own
 
   fw-workspaces go N     SUPER+N:       workspace N of the focused screen
   fw-workspaces move N   SUPER+Shift+N: move the active window there
-  fw-workspaces daemon   exec-once: binds the ranges to their screens, opens the login layout
-                         (the terminal on the laptop's 1, Chromium on the monitor's 1) or, with Reopen apps on,
-                         the apps left open last time (fw13.session, saved here once windows settle), and re-binds on hotplug —
+  fw-workspaces daemon   exec-once: binds the ranges to their screens, with Reopen apps on reopens the apps left
+                         open last time (fw13.session, saved here once windows settle; nothing opens otherwise),
+                         and re-binds on hotplug —
                          an unplugged monitor's windows move into free workspaces of the screen they land on (rehome).
-  fw-workspaces layout   just the login layout (testing)
   fw-workspaces apply    re-bind the ranges and redraw the dots (after Settings changes the count)
   fw-workspaces test     self-check
 On unplug, windows left on a workspace no screen owns move into the first empty workspaces of the screen they land
@@ -30,7 +29,7 @@ import threading
 import time
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
-from fw13 import apps as launcher, bar as waybar, panel as single, session, store, terminal  # noqa: E402
+from fw13 import apps as launcher, bar as waybar, panel as single, session, store  # noqa: E402
 from fw13.hypr import dispatch, hj, hypr, lua, q  # noqa: E402  (Lua-mode hyprctl helpers, shared)
 
 MAX_WS = 9  # SUPER+1…9
@@ -43,7 +42,7 @@ def shown():
     except (TypeError, ValueError):
         return 5
 RUN = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
-LAYOUT_DONE = os.path.join(RUN, "fw-workspaces.layout-done")
+LAYOUT_DONE = os.path.join(RUN, "fw-workspaces.layout-done")  # once per session: a daemon restart doesn't reopen apps
 
 
 def bases(monitors):
@@ -186,38 +185,6 @@ def rehome(base_of):
                      "follow = false })")
 
 
-# --- login layout -------------------------------------------------------------------------------
-def layout():
-    """The terminal (kitty or Ghostty) → laptop's workspace 1, Chromium → the monitor's workspace 1 (laptop's 2 without
-    one)."""
-    base_of = bases(hj("monitors"))
-    names = list(base_of)
-    term_ws = base_of[names[0]] + 1
-    web_ws = base_of[names[1]] + 1 if len(names) > 1 else term_ws + 1
-    before = {c["address"] for c in hj("clients")}
-    term = terminal.current()  # its window class contains the name: kitty, com.mitchellh.ghostty
-    apps = {term: (terminal.argv(), term_ws), "chromium": (["chromium-browser"], web_ws)}
-    for _, (cmd, _) in apps.items():
-        subprocess.Popen(["uwsm", "app", "--", *cmd], start_new_session=True,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    # Move each new window by address once it maps (no PID matching through uwsm/systemd).
-    waiting = dict(apps)
-    deadline = time.time() + 20
-    while waiting and time.time() < deadline:
-        time.sleep(0.3)
-        for c in hj("clients"):
-            if c["address"] in before:
-                continue
-            for key in list(waiting):
-                if key in c["class"].lower():
-                    ws = waiting.pop(key)[1]
-                    dispatch(f"hl.dsp.window.move({{ workspace = {q(ws)}, window = {q('address:' + c['address'])}, "
-                             "follow = false })")
-                    before.add(c["address"])
-                    break
-    dispatch(f"hl.dsp.focus({{ workspace = {q(term_ws)} }})")  # end on the laptop's first workspace
-
-
 def restore(saved):
     """Reopen the apps saved by fw13.session; each new window of an app goes to that app's next saved workspace
     (on the laptop's screen when the saved one belonged to a monitor that isn't connected now)."""
@@ -276,7 +243,8 @@ def daemon():
     if not os.path.exists(LAYOUT_DONE):
         open(LAYOUT_DONE, "w").close()
         saved = session.load() if session.enabled() else []
-        restore(saved) if saved else layout()
+        if saved:
+            restore(saved)
     refresh_dots()
     timer = None
     for ev in events():
@@ -302,8 +270,6 @@ def main():
         (dot if cmd == "dot" else click)(int(sys.argv[2]))
     elif cmd == "daemon":
         daemon()
-    elif cmd == "layout":
-        layout()
     elif cmd == "test":
         assert free_slots(10, {11, 12}) == [13, 14, 15, 16, 17, 18, 19]
         assert free_slots(10, set(range(11, 20)))[0] == 19

@@ -1,5 +1,5 @@
 """Reopen the apps left open: fw-workspaces' daemon saves the open windows (app + workspace, terminals with their
-folder) once they've been unchanged for SETTLE seconds, and at the next login reopens them instead of the login layout
+folder) once they've been unchanged for SETTLE seconds, and at the next login reopens them (nothing opens at login otherwise)
 (store `session_restore`, Settings → Apps → Startup apps). Shutting down closes windows one by one, but the daemon is
 stopped before they settle, so the last settled set is what comes back.
 
