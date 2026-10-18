@@ -64,7 +64,7 @@ class SystemPage(Page):
         """Rebuild the page from cached state; never runs a subprocess."""
         self.clear()
         self.heading("Date & time")
-        self.clock = label("", "title")
+        self.clock = label("", "clock")
         self.row_widget(self.clock)
         self.update_clock()
         if self.st is None:
@@ -83,11 +83,13 @@ class SystemPage(Page):
 
         self.heading("Software updates")
         self.pk_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.pk_box.set_margin_start(20)  # under its heading, like the rows
         self.add_widget(self.pk_box)
         self.render_packages()
 
         self.heading("Firmware updates")
         self.fw_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.fw_box.set_margin_start(20)  # under its heading, like the rows
         self.add_widget(self.fw_box)
         self.render_firmware()
 
@@ -109,7 +111,7 @@ class SystemPage(Page):
         self.tz_set.connect("clicked", lambda _b: self.set_timezone())
         self.tz_entry.set_sensitive(not busy_tz)
         self.tz_set.set_sensitive(not busy_tz and self.zones is not None)
-        self.tz_note = label(BUSY_NOTE["tz"] if busy_tz else self.notes.get("tz", ""), "dim")
+        self.tz_note = self.note(BUSY_NOTE["tz"] if busy_tz else self.notes.get("tz", ""))
         self.row("Time zone", self.hbox(self.tz_entry, self.tz_set))
         self.add_widget(self.tz_note)
         auto = Gtk.Switch(active=bool(store.get("timezone_auto")))
@@ -126,7 +128,7 @@ class SystemPage(Page):
         self.row("Set time automatically", self.ntp,
                  hint="Synchronized with network time" if synced and self.ntp.get_active() else
                  "Uses network time servers (NTP)")
-        self.ntp_note = label(BUSY_NOTE["ntp"] if busy_ntp else self.notes.get("ntp", ""), "dim")
+        self.ntp_note = self.note(BUSY_NOTE["ntp"] if busy_ntp else self.notes.get("ntp", ""))
         self.add_widget(self.ntp_note)
 
     def render_host(self):
@@ -140,7 +142,7 @@ class SystemPage(Page):
         self.host_save.set_sensitive(not busy)
         self.row("Hostname", self.hbox(self.host, self.host_save),
                  hint="Letters, digits and hyphens · shown on the network")
-        self.host_note = label(BUSY_NOTE["host"] if busy else self.notes.get("host", ""), "dim")
+        self.host_note = self.note(BUSY_NOTE["host"] if busy else self.notes.get("host", ""))
         self.add_widget(self.host_note)
 
     def render_about(self):
@@ -164,6 +166,15 @@ class SystemPage(Page):
         for w in widgets:
             b.pack_start(w, False, False, 0)
         return b
+
+    @staticmethod
+    def note(text):
+        """A status line under a row, hidden while empty (no blank gap)."""
+        n = label(text, "dim")
+        n.get_style_context().add_class("note")
+        n.set_no_show_all(True)
+        n.set_visible(bool(text))
+        return n
 
     def row_widget(self, w):
         r = Gtk.Box()
@@ -244,6 +255,7 @@ class SystemPage(Page):
             if tz not in self.zones:
                 self.notes["tz"] = f"Unknown time zone “{tz}” — pick one from the list"
                 self.tz_note.set_text(self.notes["tz"])
+                self.tz_note.show()
                 return
         if tz == self.tz:
             return
@@ -278,6 +290,7 @@ class SystemPage(Page):
         if not system.valid_hostname(name):
             self.notes["host"] = "Use letters, digits and hyphens (1-63, no hyphen at either end)"
             self.host_note.set_text(self.notes["host"])
+            self.host_note.show()
             return
         self.start("host", system.set_hostname, self.done_hostname, name)
 
@@ -299,7 +312,7 @@ class SystemPage(Page):
         shown = p.get("label") if isinstance(p, dict) and p.get("query") == weather.city() else None
         self.row("City", self.hbox(self.city, save),
                  hint=f"Bar shows the weather in {shown} · Open-Meteo" if shown else "Shown right of the clock")
-        self.add_widget(label(BUSY_NOTE["weather"] if busy else self.notes.get("weather", ""), "dim"))
+        self.add_widget(self.note(BUSY_NOTE["weather"] if busy else self.notes.get("weather", "")))
         units = Gtk.ComboBoxText()
         for k, name in UNITS:
             units.append(k, name)

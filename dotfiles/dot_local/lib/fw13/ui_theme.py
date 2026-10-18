@@ -68,6 +68,8 @@ list, list row { background: transparent; }
 .page .title { font-size: 16pt; font-weight: bold; }
 .page .heading { color: $accent; font-size: 12.5pt; margin-top: 20px; margin-bottom: 2px; }
 .page .item { padding: 8px 4px 8px 20px; }
+.page .note { margin-left: 24px; }
+.clock { color: $fg_bright; font-size: 13pt; }
 """)
 
 _HEX = re.compile(r"#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?")
