@@ -745,7 +745,7 @@ user_phase() {
   if ! fprintd-list "$USER" 2>/dev/null | grep -q ' - #[0-9]' && ask "Enroll a fingerprint now?"; then fprintd-enroll || warn "fingerprint enroll failed — retry later: fprintd-enroll"; fi
   if ask "Set up Timeshift snapshots now?"; then $SUDO fw-timeshift-setup || warn "retry later: sudo fw-timeshift-setup"; fi
   # Boot menu in the desktop's colours, shown 3 s (user decision); no-op without GRUB or with your own GRUB_THEME
-  $SUDO fw-grub-theme "$HOME/.config/fw13/theme/grub-theme.txt" || warn "boot menu theme failed — retry: sudo fw-grub-theme"
+  $SUDO fw-grub-theme || warn "boot menu theme failed — retry: sudo fw-grub-theme"
 
   say "Firmware (LVFS)"
   fwupdmgr refresh --force >/dev/null 2>&1 || true

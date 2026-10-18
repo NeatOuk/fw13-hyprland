@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# GRUB boot menu in the desktop's colours, always shown for a few seconds.
-#   sudo fw-grub-theme [theme.txt]   default: the calling user's ~/.config/fw13/theme/grub-theme.txt (fw13.theme)
-# Copies theme.txt to /boot/grub2/themes/fw13 with JetBrains Mono fonts (grub2-mkfont), points /etc/default/grub at it
+# GRUB boot menu in the desktop's look (blurred wallpaper, rounded card, accent selection), always shown for a few seconds.
+#   sudo fw-grub-theme [DIR]   default: renders the calling user's theme as that user (runuser python3 -m fw13.grub)
+#                              into ~/.config/fw13/theme/grub; DIR = an already rendered folder
+# Copies theme.txt + its PNG/JPEG files to /boot/grub2/themes/fw13 with JetBrains Mono fonts (grub2-mkfont), points /etc/default/grub at it
 # (gfxterm, 3 s timeout, menu style; the first run keeps /etc/default/grub.fw13-orig), drops Fedora's menu_auto_hide
 # from grubenv and regenerates grub.cfg. Idempotent. Skips without GRUB (systemd-boot, containers) and when
 # /etc/default/grub already names another theme (yours stays).
@@ -19,15 +20,22 @@ if [[ ! -f $DEFAULT || ! -d /boot/grub2 ]] || ! command -v grub2-mkconfig >/dev/
 fi
 user=${SUDO_USER:-}
 [[ -z $user && -n ${PKEXEC_UID:-} ]] && user=$(id -nu "$PKEXEC_UID")
-src=${1:-$(getent passwd "${user:-root}" | cut -d: -f6)/.config/fw13/theme/grub-theme.txt}
-[[ -f $src ]] || { echo "fw-grub-theme: $src not found (open Settings → Appearance once, or pass a theme.txt)" >&2; exit 1; }
+home=$(getent passwd "${user:-root}" | cut -d: -f6)
+src=${1:-$home/.config/fw13/theme/grub}
+if [[ -z ${1:-} && -n $user && -f $home/.local/lib/fw13/grub.py ]]; then
+  runuser -u "$user" -- env HOME="$home" PYTHONPATH="$home/.local/lib" python3 -m fw13.grub "$src" >/dev/null \
+    || echo "fw-grub-theme: drawing the theme failed; installing the last one drawn" >&2
+fi
+[[ -f $src/theme.txt ]] || { echo "fw-grub-theme: $src/theme.txt not found" >&2; exit 1; }
 current=$(sed -n 's/^GRUB_THEME="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' "$DEFAULT")
 if [[ -n $current && $current != "$DIR/theme.txt" ]]; then
   echo "fw-grub-theme: $DEFAULT already uses $current; left as it is"; exit 0
 fi
 
 install -d -m 0755 "$DIR"
-install -m 0644 "$src" "$DIR/theme.txt"
+rm -f "$DIR"/*.png "$DIR"/*.jpg "$DIR"/*.txt
+install -m 0644 "$src/theme.txt" "$DIR/"
+for f in "$src"/*.png "$src"/*.jpg; do if [[ -f $f ]]; then install -m 0644 "$f" "$DIR/"; fi; done
 for style in Regular Bold; do
   [[ -s $DIR/jetbrains-$style-$SIZE.pf2 ]] && continue
   grub2-mkfont -s "$SIZE" -o "$DIR/jetbrains-$style-$SIZE.pf2" "$FONTS/JetBrainsMono-$style.otf" 2>/dev/null
