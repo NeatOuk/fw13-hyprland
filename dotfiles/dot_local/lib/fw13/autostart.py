@@ -17,12 +17,27 @@ from .apps import parse_entry
 
 DESKTOP = "Hyprland"
 MARK = "X-fw13-Disabled=true"
+# Plain names and one line on what each is: {id: (name, what it does)}; others show their own Name and Comment
+FRIENDLY = {
+    "geoclue-demo-agent.desktop": ("Location service", "Lets automatic time zone and night light know roughly where "
+                                   "you are (Fedora's GeoClue helper); nothing else gets your location through it"),
+    "nm-applet.desktop": ("Network tray icon", "NetworkManager's own Wi-Fi icon from other desktops"),
+    "com.cloudflare.WarpTaskbar.desktop": ("Cloudflare WARP tray icon", "Cloudflare One's own tray app"),
+    "blueman.desktop": ("Bluetooth tray icon", "Blueman's tray icon from other desktops"),
+    "io.github.neatouk.Citadel-tray.desktop": ("Firewall tray icon", "Citadel's icon in the bar's tray; the firewall itself "
+                                               "keeps running without it"),
+    "xapp-sn-watcher.desktop": ("Tray icon helper", "Lets apps built for Cinnamon/MATE (XApp) show their icon in the bar's tray"),
+    "vboxclient.desktop": ("VirtualBox guest helper", "Only does something when this system runs inside VirtualBox"),
+    "vmware-user.desktop": ("VMware guest helper", "Only does something when this system runs inside VMware"),
+    "spice-vdagent.desktop": ("Virtual machine helper", "Only does something inside a SPICE virtual machine"),
+    "org.gnome.Evolution-alarm-notify.desktop": ("Calendar reminders", "Evolution's pop-ups for events and tasks"),
+}
 # Off for good in Hyprland: chezmoi manages these copies (dotfiles/dot_config/autostart); {id: what replaces it}
-REPLACED = {"blueman.desktop": "the bar's Bluetooth menu and fw-bt-agent",
-            "nm-applet.desktop": "the bar's network menu",
+REPLACED = {"blueman.desktop": "the bar's Bluetooth icon",
+            "nm-applet.desktop": "the bar's network icon",
             "com.cloudflare.WarpTaskbar.desktop": "the bar's cloud icon"}
 # Needed by the desktop: shown, no switch
-NEEDED = {"geoclue-demo-agent.desktop": "lets automatic time zone and night light find your location"}
+NEEDED = {"geoclue-demo-agent.desktop": "automatic time zone and night light"}
 
 
 def user_dir():
@@ -76,9 +91,10 @@ def entries(udir=None, sdirs=None):
         base = parse_entry(stext) if utext is not None and MARK in utext and stext else eff
         if not runs_here(base, ignore_not_show=utext is not None):
             continue
-        fixed = (f"Off: {REPLACED[did]} does this" if did in REPLACED
-                 else f"Needed: {NEEDED[did]}" if did in NEEDED else None)
-        out.append({"id": did, "name": eff.get("Name", did[:-8]), "on": runs_here(eff),
+        fixed = (f"Always off here: {REPLACED[did]} does this" if did in REPLACED
+                 else f"Always on: {NEEDED[did]} need it" if did in NEEDED else None)
+        name, about = FRIENDLY.get(did, (eff.get("Name", did[:-8]), eff.get("Comment", "")))
+        out.append({"id": did, "name": name, "about": about, "on": runs_here(eff),
                     "user_path": upath if utext is not None else None, "system_path": spath, "fixed": fixed})
     return out
 

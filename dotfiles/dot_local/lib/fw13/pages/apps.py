@@ -135,7 +135,8 @@ class AppsPage(Page):
             if not e["fixed"]:
                 sw = Gtk.Switch(active=e["on"])
                 sw.connect("notify::active", lambda w, _p, e=e: self.toggle_startup(e, w.get_active()))
-            self.row(e["name"], sw, hint=e["fixed"] or ("Starts when you log in" if e["on"] else "Off"))
+            state = e["fixed"] or ("Starts when you log in" if e["on"] else "Off")
+            self.row(e["name"], sw, hint=" · ".join(x for x in (e["about"], state) if x))
         self.add_widget(label("Started by your Hyprland login (GNOME or KDE on this account keep their own list). "
                               "Changes apply at the next login.", "dim", wrap=True))
 
