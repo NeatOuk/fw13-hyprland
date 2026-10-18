@@ -119,7 +119,7 @@ def sudo(*cmd):
         return 127
 
 
-KEEP = 3  # "before dnf upgrade" snapshots kept (user decision: Timeshift snapshots only before updates)
+KEEP = 1  # "before dnf upgrade" snapshots kept (user decision: Timeshift snapshots only before updates)
 
 
 def update_snapshots(listing):

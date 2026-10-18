@@ -72,7 +72,7 @@ timeshift --create --comments "baseline after fw13-hypr install" --scripted
 timeshift --list
 cat <<EOF
 
-Schedule: none. A snapshot is taken before each update (Settings → Update / fw-updates apply; the newest 3 kept).
+Schedule: none. A snapshot is taken before each update (Settings → Update / fw-updates apply; only the newest kept).
 Restore a broken system: $([[ $MODE == btrfs ]] && echo "'sudo timeshift --restore' (or the GUI: timeshift-launcher)" || echo "'sudo fw-timeshift-restore' (Timeshift's own restore can't mount Fedora's root subvolume)").
 $([[ $MODE == rsync ]] && echo "rsync mode copies files: first snapshot is slow and as big as your data; later ones are incremental (hard links).")
 EOF
