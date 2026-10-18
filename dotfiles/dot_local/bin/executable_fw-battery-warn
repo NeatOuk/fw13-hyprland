@@ -10,11 +10,15 @@ Sleep report (store `sleep_report`, default on): logind's PrepareForSleep marks 
 sleep on battery; 10 s after waking (UPower catches up) it notifies "Asleep 7 h: used 4 %", and when the drain was
 high while the hardware's deep-sleep time (/sys/power/suspend_stats/total_hw_sleep, readable without root) covers
 under 80 % of it, says something kept the laptop from deep sleep.
+Keyboard backlight: the Framework's keyboard controller turns it back on after a sleep (to the last Fn+Space level),
+so the level from before the sleep is put back 2 and 8 s after waking; every change of it is logged
+(journalctl --user -u fw-battery-warn) to tell the controller's changes from Fn+Space.
   fw-battery-warn            run
   fw-battery-warn enabled    exit 0 when the service should run (Hyprland, a battery)
   fw-battery-warn test       self-check of the threshold logic
 """
 import os
+import subprocess
 import sys
 import time
 
@@ -36,6 +40,22 @@ def step(pct, on_battery, levels, warned):
         return None, frozenset()
     hit = {t for t in levels if pct <= t and t not in warned}
     return (min(hit) if hit else None), warned | hit
+
+
+KBD = "/sys/class/leds/chromeos::kbd_backlight"
+
+
+def kbd_level():
+    try:
+        with open(os.path.join(KBD, "brightness")) as f:
+            return int(f.read())
+    except (OSError, ValueError):
+        return None
+
+
+def restore_after_wake(before, now):
+    """The level to put back after a wake, or None: only when the controller changed it."""
+    return before if None not in (before, now) and now != before else None
 
 
 HW_SLEEP = "/sys/power/suspend_stats/total_hw_sleep"  # µs in the deepest state, summed since boot
@@ -91,6 +111,9 @@ class Watcher:
             self.bus.signal_subscribe(power.UP, "org.freedesktop.DBus.Properties", "PropertiesChanged", path,
                                       None, Gio.DBusSignalFlags.NONE, lambda *_: self.check())
         self.before = None  # (time, %, total_hw_sleep) when a sleep on battery began
+        self.kbd_before = None  # keyboard backlight level when the sleep began
+        self.kbd_seen = kbd_level()
+        GLib.timeout_add_seconds(5, self.watch_kbd)
         self.bus.signal_subscribe("org.freedesktop.login1", "org.freedesktop.login1.Manager", "PrepareForSleep",
                                   "/org/freedesktop/login1", None, Gio.DBusSignalFlags.NONE,
                                   lambda _c, _s, _p, _i, _n, args: self.sleeping(args[0]))
@@ -114,7 +137,27 @@ class Watcher:
                          GLib.Variant("(ss)", (power.UP, "OnBattery")), "(v)")
         return bool(on and on[0])
 
+    def watch_kbd(self):
+        level = kbd_level()
+        if level != self.kbd_seen:
+            print(f"keyboard backlight {self.kbd_seen} → {level}", flush=True)
+            self.kbd_seen = level
+        return True
+
+    def restore_kbd(self):
+        level = restore_after_wake(self.kbd_before, kbd_level())
+        if level is not None:
+            print(f"keyboard backlight turned on after waking: back to {level}", flush=True)
+            subprocess.run(["brightnessctl", "-q", "-d", os.path.basename(KBD), "set", str(level)])
+            self.kbd_seen = level
+        return False
+
     def sleeping(self, going):
+        if going:
+            self.kbd_before = kbd_level()
+        else:
+            for delay in (2, 8):  # the controller may switch it on a few seconds after the wake
+                GLib.timeout_add_seconds(delay, self.restore_kbd)
         b = power.battery()
         if going:
             self.before = (time.time(), b["Percentage"], read_hw_sleep()) if b and self.on_battery() else None
@@ -149,6 +192,8 @@ class Watcher:
 
 
 def selftest():
+    assert restore_after_wake(0, 50) == 0 and restore_after_wake(30, 30) is None
+    assert restore_after_wake(None, 50) is None and restore_after_wake(0, None) is None
     w, lv = frozenset(), (20, 10, 5)
     assert step(50, True, lv, w) == (None, w)
     level, w = step(19.6, True, lv, w)
