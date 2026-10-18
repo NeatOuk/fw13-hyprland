@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time Timeshift setup — whole system, mode picked automatically:
+# One-time Timeshift setup — the system without /home (user decision: home is restic's job), mode picked automatically:
 #   btrfs mode  if / is the @ subvolume (Ubuntu/Arch-style layout: @, @home) — instant, no extra space
 #   rsync mode  otherwise (Fedora names its subvolumes root/home; also ext4/xfs) — copies files
 # Scheduling: Timeshift's own /etc/cron.d jobs (written by timeshift itself when a schedule is on; cronie is a
@@ -7,7 +7,6 @@
 set -euo pipefail
 [[ $EUID -eq 0 ]] || exec sudo "$0" "$@"
 
-OWNER="${SUDO_USER:-$(logname 2>/dev/null || echo root)}"
 ROOT_SRC="$(findmnt -no SOURCE /)"          # e.g. /dev/nvme0n1p3[/root]
 ROOT_DEV="${ROOT_SRC%%[*}"
 ROOT_FS="$(findmnt -no FSTYPE /)"
@@ -16,10 +15,10 @@ ROOT_SUBVOL="$(findmnt -no OPTIONS / | tr ',' '\n' | sed -n 's/^subvol=//p')"
 if [[ "$ROOT_FS" == btrfs && "$ROOT_SUBVOL" =~ ^/?@$ ]]; then
   MODE=btrfs
   UUID="$(blkid -s UUID -o value "$ROOT_DEV")"
-  echo "btrfs @ layout detected on $ROOT_DEV → Timeshift btrfs mode (snapshots @ and @home)."
+  echo "btrfs @ layout detected on $ROOT_DEV → Timeshift btrfs mode (snapshots @ only)."
 else
   MODE=rsync
-  echo "Root is $ROOT_FS (subvol='${ROOT_SUBVOL:-n/a}') → Timeshift rsync mode, whole system + /home."
+  echo "Root is $ROOT_FS (subvol='${ROOT_SUBVOL:-n/a}') → Timeshift rsync mode, system only (no /home)."
   echo
   timeshift --list-devices || true
   echo "Pick a SECOND drive/partition if you have one (survives disk failure)."
@@ -30,7 +29,6 @@ else
 fi
 [[ -n "${UUID:-}" ]] || { echo "Could not determine device UUID"; exit 1; }
 
-H="/home/$OWNER"
 mkdir -p /etc/timeshift
 cat > /etc/timeshift/timeshift.json <<JSON
 {
@@ -38,7 +36,7 @@ cat > /etc/timeshift/timeshift.json <<JSON
   "parent_device_uuid" : "",
   "do_first_run" : "false",
   "btrfs_mode" : "$([[ $MODE == btrfs ]] && echo true || echo false)",
-  "include_btrfs_home_for_backup" : "true",
+  "include_btrfs_home_for_backup" : "false",
   "include_btrfs_home_for_restore" : "false",
   "stop_cron_emails" : "true",
   "schedule_monthly" : "false",
@@ -52,17 +50,11 @@ cat > /etc/timeshift/timeshift.json <<JSON
   "count_hourly" : "12",
   "count_boot" : "3",
   "exclude" : [
-    "$H/.cache/***",
-    "$H/.local/share/Steam/***",
-    "$H/.local/share/mise/***",
-    "$H/.local/share/containers/***",
-    "$H/.local/share/Trash/***",
-    "$H/Downloads/***",
-    "$H/.var/app/*/cache/***",
+    "/home/*/**",
+    "/root/**",
     "/var/cache/***",
     "/var/lib/containers/***",
-    "/swap/***",
-    "+ $H/**"
+    "/swap/***"
   ],
   "exclude-apps" : []
 }
@@ -74,5 +66,5 @@ cat <<EOF
 
 Schedule: none. A snapshot is taken before each update (Settings → Update / fw-updates apply; only the newest kept).
 Restore a broken system: $([[ $MODE == btrfs ]] && echo "'sudo timeshift --restore' (or the GUI: timeshift-launcher)" || echo "'sudo fw-timeshift-restore' (Timeshift's own restore can't mount Fedora's root subvolume)").
-$([[ $MODE == rsync ]] && echo "rsync mode copies files: first snapshot is slow and as big as your data; later ones are incremental (hard links).")
+$([[ $MODE == rsync ]] && echo "rsync mode copies files: first snapshot is slow and as big as the system; later ones are incremental (hard links).")
 EOF
