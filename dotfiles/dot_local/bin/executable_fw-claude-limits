@@ -65,6 +65,7 @@ def gauge(p, width=10):
 # Basic ANSI colours, so the terminal theme (fw13 theme files) decides the actual shades
 C = {"dim": "2", "bold": "1", "red": "31", "green": "32", "yellow": "33", "blue": "34", "magenta": "1;35"}
 USAGE = "https://claude.ai/settings/usage"
+BLANK = "\u2800"  # braille blank: looks empty, but Claude Code drops lines that are only spaces
 
 
 def paint(text, color, link=None):
@@ -183,7 +184,8 @@ def onoff(flag):
 
 def gauge10(p, warn=75, crit=90):
     filled = round(min(max(p, 0), 100) / 10)
-    return paint("█" * filled + "░" * (10 - filled), level(p, warn, crit)) + f"  {p:.0f}%"
+    # thin rules, not full blocks: █ fills the whole cell and touches the rows above/below with taller line spacing
+    return paint("━" * filled, level(p, warn, crit)) + paint("─" * (10 - filled), "dim") + f"  {p:.0f}%"
 
 
 def tokens(n):
@@ -290,7 +292,7 @@ def lines(data, repo, adv, lap, now):
     for group in ((one, two), (three, four), (five, six)):
         rows = [dot.join(x) for x in group if x]
         if rows:
-            out += ([" "] if out else []) + rows
+            out += ([BLANK] if out else []) + rows
     return out
 
 
@@ -327,11 +329,11 @@ def selftest():
     assert plain == [
         "Model: Opus 5.5 · Effort: medium · Advisor: fable · Thinking: on · Fast: off · Style: Concise · v2.1",
         "Session: s1 · Open: 34m · Working: 10m · Cost: $1.20 · Lines: +120 −14",
-        " ",
+        BLANK,
         "Repo: o/proj · Branch: main* · Unpushed: 5 · Changed: 3 files · Last commit: 12m ago",
-        "Context: █░░░░░░░░░  14% (142k / 1M) · Cache: warm, 91% hits (expires in 52m)",
-        " ",
-        "5h: ░░░░░░░░░░  1% (resets in 4h12m) · 7d: ████████░░  84% (resets in 2d5h)",
+        "Context: ━─────────  14% (142k / 1M) · Cache: warm, 91% hits (expires in 52m)",
+        BLANK,
+        "5h: ──────────  1% (resets in 4h12m) · 7d: ━━━━━━━━──  84% (resets in 2d5h)",
         "Battery: 82% ⚡ · CPU: 12% · RAM: 18/63 GB · Disk: 94 GB free · Syncthing: up to date"], plain
     assert USAGE in "".join(lines(data, None, None, {}, 1000))
     assert len(lines({}, None, None, {}, 0)) == 1  # empty input: model line only
