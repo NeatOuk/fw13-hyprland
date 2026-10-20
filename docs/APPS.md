@@ -32,7 +32,7 @@ A thin bar per screen: launcher, the focused app's name and workspaces on the le
 | Bell | Notification history, Do not disturb, Dismiss all | Toggles Do not disturb |
 | Power | Lock / suspend / log out / reboot / shut down | |
 
-Inside Claude Code the status line shows these limits too, in 3 lines: model · effort · advisor / folder ⎇ branch · context · cost · time · lines changed / 5h and 7d gauges. Click 5h or 7d to open claude.ai's usage page.
+Inside Claude Code the status line shows these limits too, in 3 "Label: value" lines: Model · Effort · Advisor / Repo · Branch · Context · Cost · Session (time since it started) · Lines changed / 5h and 7d gauges with time to reset. Click 5h or 7d to open claude.ai's usage page.
 
 <details>
 <summary><b>Power panel, display panel and the shield panel</b></summary>

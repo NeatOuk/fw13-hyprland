@@ -105,30 +105,35 @@ def git(cwd):
         return None
 
 
+def kv(label, value, link=None):
+    """"Label: value" with a dim label (value already painted)."""
+    return paint(f"{label}:", "dim", link) + " " + value
+
+
 def lines(data, branch, adv, now):
-    """The three status lines (pure)."""
+    """The three status lines (pure): Label: value items joined by dim dots."""
     rl = data.get("rate_limits") or {}
     effort = (data.get("effort") or {}).get("level")
-    one = [paint((data.get("model") or {}).get("display_name", "Claude"), "magenta")]
+    one = [kv("Model", paint((data.get("model") or {}).get("display_name", "Claude"), "magenta"))]
     if effort:
-        one.append(paint(f"effort {effort}", "blue"))
-    one.append(paint(f"advisor {re.sub(r'^claude-', '', adv) if adv else 'off'}", "blue" if adv else "dim"))
+        one.append(kv("Effort", paint(effort, "blue")))
+    one.append(kv("Advisor", paint(re.sub(r"^claude-", "", adv), "blue") if adv else paint("off", "dim")))
     cwd = (data.get("workspace") or {}).get("current_dir") or data.get("cwd") or ""
-    two = [paint(os.path.basename(cwd) or cwd, "blue")] if cwd else []
+    two = [kv("Repo" if branch else "Folder", paint(os.path.basename(cwd) or cwd, "blue"))] if cwd else []
     if branch:
         name, dirty = branch
-        two[-1:] = [" ".join(two[-1:] + [paint(f"⎇ {name}{'*' if dirty else ''}", "yellow" if dirty else "green")])]
+        two.append(kv("Branch", paint(name + ("*" if dirty else ""), "yellow" if dirty else "green")))
     ctx = (data.get("context_window") or {}).get("used_percentage")
     if ctx is not None:
-        two.append(paint(f"ctx {ctx:.0f}%", level(ctx, 50, 80)))
+        two.append(kv("Context", paint(f"{ctx:.0f}%", level(ctx, 50, 80))))
     cost = data.get("cost") or {}
     if cost.get("total_cost_usd") is not None:
-        two.append(paint(f"${cost['total_cost_usd']:.2f}", "dim"))
+        two.append(kv("Cost", f"${cost['total_cost_usd']:.2f}"))
     if cost.get("total_duration_ms"):
-        two.append(paint(short(cost["total_duration_ms"] / 1000), "dim"))
+        two.append(kv("Session", short(cost["total_duration_ms"] / 1000)))
     if cost.get("total_lines_added") is not None:
-        two.append(paint(f"+{cost['total_lines_added']}", "green") + " "
-                   + paint(f"−{cost.get('total_lines_removed', 0)}", "red"))
+        two.append(kv("Lines", paint(f"+{cost['total_lines_added']}", "green") + " "
+                      + paint(f"−{cost.get('total_lines_removed', 0)}", "red")))
     three = []
     for key, label in (("five_hour", "5h"), ("seven_day", "7d")):
         b = rl.get(key)
@@ -136,11 +141,10 @@ def lines(data, branch, adv, now):
         if p is None:
             continue
         filled = round(min(max(p, 0), 100) / 10)
-        part = paint(label, "bold", USAGE) + " " + paint("▰" * filled + "▱" * (10 - filled), level(p)) \
-            + f" {p:>3.0f}%"
+        val = paint("▰" * filled + "▱" * (10 - filled), level(p)) + f" {p:.0f}%"
         if b.get("resets_at"):
-            part += " " + paint(f"↻ {short(b['resets_at'] - now)}", "dim")
-        three.append(part)
+            val += " " + paint(f"(resets in {short(b['resets_at'] - now)})", "dim")
+        three.append(kv(label, val, USAGE))
     dot = paint(" · ", "dim")
     return [dot.join(x) for x in (one, two, three) if x]
 
@@ -169,10 +173,11 @@ def selftest():
                             "seven_day": {"used_percentage": 84, "resets_at": 1000 + 2 * 86400 + 5 * 3600}}}
     plain = [re.sub(r"\x1b\]8;;[^\x1b]*\x1b\\|\x1b\[[0-9;]*m", "", x)
              for x in lines(data, ("main", True), None, 1000)]
-    assert plain == ["Opus 5.5 · effort medium · advisor off", "proj ⎇ main* · ctx 14% · $1.20 · 34m · +120 −14",
-                     "5h ▱▱▱▱▱▱▱▱▱▱   1% ↻ 4h12m · 7d ▰▰▰▰▰▰▰▰▱▱  84% ↻ 2d5h"], plain
+    assert plain == ["Model: Opus 5.5 · Effort: medium · Advisor: off",
+                     "Repo: proj · Branch: main* · Context: 14% · Cost: $1.20 · Session: 34m · Lines: +120 −14",
+                     "5h: ▱▱▱▱▱▱▱▱▱▱ 1% (resets in 4h12m) · 7d: ▰▰▰▰▰▰▰▰▱▱ 84% (resets in 2d5h)"], plain
     out = "".join(lines(data, ("main", False), "claude-fable-5-1", 1000))
-    assert "advisor fable-5-1" in out and USAGE in out
+    assert "Advisor:\x1b[0m \x1b[34mfable-5-1" in out and USAGE in out
     assert len(lines({}, None, None, 0)) == 1  # empty input: model line only
     print("fw-claude-limits: ok")
 
