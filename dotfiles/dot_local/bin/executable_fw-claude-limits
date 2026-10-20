@@ -289,8 +289,21 @@ def lines(data, repo, adv, lap, now):
         six.append(kv("Syncthing", paint(word, color)))
 
     dot = paint("  ·  ", "dim")  # wide separators give the items room
-    return [dot.join(x).replace("\033[LBLm", f"\033[{lbl}m")
-            for x, lbl in zip((one, two, three, four, five, six), LABELS) if x]
+    rows = [dot.join(x).replace("\033[LBLm", f"\033[{lbl}m") if x else None
+            for x, lbl in zip((one, two, three, four, five, six), LABELS)]
+    # a dim rule between the groups (Claude / work / limits + laptop), as wide as the longest line
+    rule = paint("─" * max(len(visible(r)) for r in rows if r), "dim")
+    out = []
+    for group in (rows[0:2], rows[2:4], rows[4:6]):
+        group = [r for r in group if r]
+        if group:
+            out += ([rule] if out else []) + group
+    return out
+
+
+def visible(text):
+    """text without colour codes and OSC 8 links."""
+    return re.sub(r"\x1b\]8;;[^\x1b]*\x1b\\|\x1b\[[0-9;]*m", "", text)
 
 
 def statusline():
@@ -321,7 +334,9 @@ def selftest():
     repo = {"branch": "main", "changed": 3, "ahead": 5, "behind": 0, "last": 1000 - 720}
     lap = {"battery": 82, "charging": True, "cpu": 12.4, "ram_used": 18.2, "ram_total": 62.6, "disk_free": 94.3,
            "syncthing": ("idle", "")}
-    plain = [re.sub(r"\x1b\]8;;[^\x1b]*\x1b\\|\x1b\[[0-9;]*m", "", x) for x in lines(data, repo, "fable", lap, 1000)]
+    plain = [visible(x) for x in lines(data, repo, "fable", lap, 1000)]
+    assert set(plain[2]) == {"─"} and len(plain[2]) == max(len(x) for x in plain)
+    plain = [x for x in plain if set(x) != {"─"}]
     plain = [x.replace("  ·  ", " · ") for x in plain]
     assert plain == [
         "Model: Opus 5.5 · Effort: medium · Advisor: fable · Thinking: on · Fast: off · Style: Concise · v2.1",
