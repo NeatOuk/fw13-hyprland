@@ -63,7 +63,10 @@ def gauge(p, width=10):
 
 # --- statusLine ---------------------------------------------------------------------------------
 # Basic ANSI colours, so the terminal theme (fw13 theme files) decides the actual shades
-C = {"dim": "2", "bold": "1", "red": "31", "green": "32", "yellow": "33", "blue": "34", "magenta": "1;35"}
+C = {"dim": "2", "bold": "1", "red": "31", "green": "32", "yellow": "33", "blue": "34", "magenta": "1;35",
+     "cyan": "36", "label": "LBL"}  # "label": swapped for the line's label colour in lines()
+# label colour per line (Claude, session, repo, context, limits, laptop): each line its own hue
+LABELS = ("2;35", "2;34", "2;36", "2;32", "2;33", "2;36")  # faint, so values in the same hue still stand out
 USAGE = "https://claude.ai/settings/usage"
 
 
@@ -173,8 +176,8 @@ def laptop():
 
 
 def kv(label, value, link=None):
-    """"Label: value" with a dim label (value already painted)."""
-    return paint(f"{label}:", "dim", link) + " " + value
+    """"Label: value" with the label in its line's colour (value already painted)."""
+    return paint(f"{label}:", "label", link) + " " + value
 
 
 def onoff(flag):
@@ -209,17 +212,17 @@ def lines(data, repo, adv, lap, now):
     if "fast_mode" in data:
         one.append(kv("Fast", onoff(data["fast_mode"])))
     if style.get("name"):
-        one.append(kv("Style", style["name"]))
+        one.append(kv("Style", paint(style["name"], "cyan")))
     if data.get("version"):
         one.append(paint(f"v{data['version']}", "dim"))
 
     two = [kv("Session", paint(data["session_name"], "blue"))] if data.get("session_name") else []
     if cost.get("total_duration_ms"):
-        two.append(kv("Open", short(cost["total_duration_ms"] / 1000)))
+        two.append(kv("Open", paint(short(cost["total_duration_ms"] / 1000), "cyan")))
     if cost.get("total_api_duration_ms"):
-        two.append(kv("Working", short(cost["total_api_duration_ms"] / 1000)))
+        two.append(kv("Working", paint(short(cost["total_api_duration_ms"] / 1000), "cyan")))
     if cost.get("total_cost_usd") is not None:
-        two.append(kv("Cost", f"${cost['total_cost_usd']:.2f}"))
+        two.append(kv("Cost", paint(f"${cost['total_cost_usd']:.2f}", "yellow")))
     if cost.get("total_lines_added") is not None:
         two.append(kv("Lines", paint(f"+{cost['total_lines_added']}", "green") + " "
                       + paint(f"−{cost.get('total_lines_removed', 0)}", "red")))
@@ -237,10 +240,10 @@ def lines(data, repo, adv, lap, now):
             if repo["behind"]:  # only when there is something to pull: keeps the line short
                 three.append(kv("Behind", paint(str(repo["behind"]), "yellow")))
         n = repo["changed"]
-        three.append(kv("Changed", f"{n} file{'s' if n != 1 else ''}" if n else paint("clean", "green")))
+        three.append(kv("Changed", paint(f"{n} file{'s' if n != 1 else ''}", "yellow") if n else paint("clean", "green")))
         if repo["last"]:
             age = now - repo["last"]
-            three.append(kv("Last commit", "just now" if age < 60 else short(age) + " ago"))
+            three.append(kv("Last commit", paint("just now" if age < 60 else short(age) + " ago", "cyan")))
 
     four = []
     if cw.get("used_percentage") is not None:
@@ -251,7 +254,7 @@ def lines(data, repo, adv, lap, now):
     if "warm" in pc:
         cache = paint("warm", "green") if pc["warm"] else paint("cold", "yellow")
         if pc.get("hit_ratio") is not None:
-            cache += f", {pc['hit_ratio'] * 100:.0f}% hits"
+            cache += ", " + paint(f"{pc['hit_ratio'] * 100:.0f}% hits", "cyan")
         if pc["warm"] and pc.get("expires_at"):
             cache += paint(f" (expires in {short(pc['expires_at'] - now)})", "dim")
         four.append(kv("Cache", cache))
@@ -286,7 +289,8 @@ def lines(data, repo, adv, lap, now):
         six.append(kv("Syncthing", paint(word, color)))
 
     dot = paint("  ·  ", "dim")  # wide separators give the items room
-    return [dot.join(x) for x in (one, two, three, four, five, six) if x]
+    return [dot.join(x).replace("\033[LBLm", f"\033[{lbl}m")
+            for x, lbl in zip((one, two, three, four, five, six), LABELS) if x]
 
 
 def statusline():
