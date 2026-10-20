@@ -32,7 +32,7 @@ A thin bar per screen: launcher, the focused app's name and workspaces on the le
 | Bell | Notification history, Do not disturb, Dismiss all | Toggles Do not disturb |
 | Power | Lock / suspend / log out / reboot / shut down | |
 
-Inside Claude Code the status line shows these limits too, in 6 "Label: value" lines: Model · Effort · Advisor · Thinking · Fast · Style / Session · Open (time since it started) · Working (time Claude spent) · Cost · Lines changed · version / Repo · Branch · Ahead · Behind · Changed files · Last commit / Context gauge (tokens) · prompt Cache (warm or cold, hits, when it expires) / 5h and 7d gauges with time to reset / Battery · CPU · RAM · Disk free · Syncthing. Click 5h or 7d to open claude.ai's usage page.
+Inside Claude Code the status line shows these limits too, in 6 "Label: value" lines, in 3 groups with a blank line between: Model · Effort · Advisor · Thinking · Fast · Style · version / Session · Open (time since it started) · Working (time Claude spent) · Cost · Lines changed / Repo · Branch · Unpushed (Behind only when there is something to pull) · Changed files · Last commit / Context gauge (tokens) · prompt Cache (warm or cold, hits, when it expires) / 5h and 7d gauges with time to reset / Battery · CPU · RAM · Disk free · Syncthing. Click 5h or 7d to open claude.ai's usage page.
 
 <details>
 <summary><b>Power panel, display panel and the shield panel</b></summary>

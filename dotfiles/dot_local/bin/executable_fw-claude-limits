@@ -183,7 +183,7 @@ def onoff(flag):
 
 def gauge10(p, warn=75, crit=90):
     filled = round(min(max(p, 0), 100) / 10)
-    return paint("▰" * filled + "▱" * (10 - filled), level(p, warn, crit)) + f" {p:.0f}%"
+    return paint("█" * filled + "░" * (10 - filled), level(p, warn, crit)) + f"  {p:.0f}%"
 
 
 def tokens(n):
@@ -209,6 +209,8 @@ def lines(data, repo, adv, lap, now):
         one.append(kv("Fast", onoff(data["fast_mode"])))
     if style.get("name"):
         one.append(kv("Style", style["name"]))
+    if data.get("version"):
+        one.append(paint(f"v{data['version']}", "dim"))
 
     two = [kv("Session", paint(data["session_name"], "blue"))] if data.get("session_name") else []
     if cost.get("total_duration_ms"):
@@ -220,8 +222,6 @@ def lines(data, repo, adv, lap, now):
     if cost.get("total_lines_added") is not None:
         two.append(kv("Lines", paint(f"+{cost['total_lines_added']}", "green") + " "
                       + paint(f"−{cost.get('total_lines_removed', 0)}", "red")))
-    if data.get("version"):
-        two.append(paint(f"v{data['version']}", "dim"))
 
     ws = data.get("workspace") or {}
     cwd = ws.get("current_dir") or data.get("cwd") or ""
@@ -232,11 +232,14 @@ def lines(data, repo, adv, lap, now):
         three.append(kv("Branch", paint(repo["branch"] + ("*" if repo["changed"] else ""),
                                         "yellow" if repo["changed"] else "green")))
         if repo["ahead"] is not None:
-            three.append(kv("Ahead", paint(str(repo["ahead"]), "yellow" if repo["ahead"] else "dim")))
-            three.append(kv("Behind", paint(str(repo["behind"]), "yellow" if repo["behind"] else "dim")))
-        three.append(kv("Changed", f"{repo['changed']} file{'s' if repo['changed'] != 1 else ''}"))
+            three.append(kv("Unpushed", paint(str(repo["ahead"]), "yellow" if repo["ahead"] else "dim")))
+            if repo["behind"]:  # only when there is something to pull: keeps the line short
+                three.append(kv("Behind", paint(str(repo["behind"]), "yellow")))
+        n = repo["changed"]
+        three.append(kv("Changed", f"{n} file{'s' if n != 1 else ''}" if n else paint("clean", "green")))
         if repo["last"]:
-            three.append(kv("Last commit", short(now - repo["last"]) + " ago"))
+            age = now - repo["last"]
+            three.append(kv("Last commit", "just now" if age < 60 else short(age) + " ago"))
 
     four = []
     if cw.get("used_percentage") is not None:
@@ -281,8 +284,14 @@ def lines(data, repo, adv, lap, now):
         word, color = SYNC.get(cls, (text.split()[-1] if text.split() else "syncing", "blue"))
         six.append(kv("Syncthing", paint(word, color)))
 
-    dot = paint(" · ", "dim")
-    return [dot.join(x) for x in (one, two, three, four, five, six) if x]
+    # Room to breathe: wide separators, and a blank line between the groups (Claude / work / machine)
+    dot = paint("  ·  ", "dim")
+    out = []
+    for group in ((one, two), (three, four), (five, six)):
+        rows = [dot.join(x) for x in group if x]
+        if rows:
+            out += ([" "] if out else []) + rows
+    return out
 
 
 def statusline():
@@ -314,12 +323,15 @@ def selftest():
     lap = {"battery": 82, "charging": True, "cpu": 12.4, "ram_used": 18.2, "ram_total": 62.6, "disk_free": 94.3,
            "syncthing": ("idle", "")}
     plain = [re.sub(r"\x1b\]8;;[^\x1b]*\x1b\\|\x1b\[[0-9;]*m", "", x) for x in lines(data, repo, "fable", lap, 1000)]
+    plain = [x.replace("  ·  ", " · ") for x in plain]
     assert plain == [
-        "Model: Opus 5.5 · Effort: medium · Advisor: fable · Thinking: on · Fast: off · Style: Concise",
-        "Session: s1 · Open: 34m · Working: 10m · Cost: $1.20 · Lines: +120 −14 · v2.1",
-        "Repo: o/proj · Branch: main* · Ahead: 5 · Behind: 0 · Changed: 3 files · Last commit: 12m ago",
-        "Context: ▰▱▱▱▱▱▱▱▱▱ 14% (142k / 1M) · Cache: warm, 91% hits (expires in 52m)",
-        "5h: ▱▱▱▱▱▱▱▱▱▱ 1% (resets in 4h12m) · 7d: ▰▰▰▰▰▰▰▰▱▱ 84% (resets in 2d5h)",
+        "Model: Opus 5.5 · Effort: medium · Advisor: fable · Thinking: on · Fast: off · Style: Concise · v2.1",
+        "Session: s1 · Open: 34m · Working: 10m · Cost: $1.20 · Lines: +120 −14",
+        " ",
+        "Repo: o/proj · Branch: main* · Unpushed: 5 · Changed: 3 files · Last commit: 12m ago",
+        "Context: █░░░░░░░░░  14% (142k / 1M) · Cache: warm, 91% hits (expires in 52m)",
+        " ",
+        "5h: ░░░░░░░░░░  1% (resets in 4h12m) · 7d: ████████░░  84% (resets in 2d5h)",
         "Battery: 82% ⚡ · CPU: 12% · RAM: 18/63 GB · Disk: 94 GB free · Syncthing: up to date"], plain
     assert USAGE in "".join(lines(data, None, None, {}, 1000))
     assert len(lines({}, None, None, {}, 0)) == 1  # empty input: model line only
