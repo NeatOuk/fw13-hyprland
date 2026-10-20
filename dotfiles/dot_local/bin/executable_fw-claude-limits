@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Claude plan limits (5-hour / weekly / monthly spend) in the bar.
 
-  fw-claude-limits --statusline   Claude Code statusLine command: saves rate_limits, prints 3 lines (model · effort ·
-                                  advisor / folder ⎇ branch · context · cost · time · lines / 5h + 7d gauges)
+  fw-claude-limits --statusline   Claude Code statusLine command: saves rate_limits, prints 6 "Label: value" lines
+                                  (Claude settings / session / repo / context + cache / 5h + 7d limits / laptop)
   fw-claude-limits --bar          waybar JSON (icon only; yellow ≥ 75 %, red ≥ 90 %; tooltip = details)
   fw-claude-limits                panel (bar icon with FW_BAR=1 → opens below it)
 
@@ -12,6 +12,7 @@ Claude Code ≥ 2.1.251, Pro/Max), so the numbers refresh while Claude Code runs
 for an allowlist of schemes (https, editors, …), so links to our own handlers are refused.
 The advisor isn't in the statusLine JSON: it's read from the settings files (`advisorModel`, saved by /advisor).
 """
+import glob
 import json
 import os
 import re
@@ -94,15 +95,79 @@ def advisor(cwd):
 
 
 def git(cwd):
-    """(branch, dirty) or None outside a repo."""
+    """{branch, changed, ahead, behind, last} or None outside a repo (2 git calls, 1 s cap each)."""
     try:
-        b = subprocess.run(["git", "-C", cwd, "branch", "--show-current"], capture_output=True, text=True, timeout=1)
-        if b.returncode:
+        st = subprocess.run(["git", "-C", cwd, "status", "--porcelain=v2", "--branch"], capture_output=True,
+                            text=True, timeout=1)
+        if st.returncode:
             return None
-        d = subprocess.run(["git", "-C", cwd, "status", "--porcelain"], capture_output=True, text=True, timeout=1)
-        return b.stdout.strip() or "detached", bool(d.stdout.strip())
-    except (OSError, subprocess.SubprocessError):
+        info = {"branch": "detached", "changed": 0, "ahead": None, "behind": None, "last": None}
+        for ln in st.stdout.splitlines():
+            if ln.startswith("# branch.head ") and ln[14:] != "(detached)":
+                info["branch"] = ln[14:]
+            elif ln.startswith("# branch.ab "):
+                a, b = ln.split()[2:4]
+                info["ahead"], info["behind"] = int(a), -int(b)
+            elif not ln.startswith("#"):
+                info["changed"] += 1
+        lg = subprocess.run(["git", "-C", cwd, "log", "-1", "--format=%ct"], capture_output=True, text=True,
+                            timeout=1)
+        info["last"] = int(lg.stdout) if lg.stdout.strip().isdigit() else None
+        return info
+    except (OSError, subprocess.SubprocessError, ValueError):
         return None
+
+
+CPU = os.path.expanduser("~/.cache/fw-claude/cpu.json")
+
+
+def cpu_percent():
+    """Busy % since the previous status line (the last /proc/stat sample is kept in CPU); None on the first call."""
+    try:
+        f = [int(x) for x in open("/proc/stat").readline().split()[1:]]
+    except (OSError, ValueError):
+        return None
+    total, idle = sum(f), f[3] + f[4]
+    try:
+        prev = json.load(open(CPU))
+    except (OSError, ValueError):
+        prev = None
+    try:
+        json.dump([total, idle], open(CPU, "w"))
+    except OSError:
+        pass
+    if not prev or total <= prev[0]:
+        return None
+    return 100 * (1 - (idle - prev[1]) / (total - prev[0]))
+
+
+def laptop():
+    """{battery, charging, cpu, ram_used, ram_total, disk_free, syncthing}: values that can't be read are left out."""
+    out = {}
+    for bat in sorted(glob.glob("/sys/class/power_supply/BAT*")):
+        try:
+            out["battery"] = int(open(f"{bat}/capacity").read())
+            out["charging"] = open(f"{bat}/status").read().strip() in ("Charging", "Full")
+        except (OSError, ValueError):
+            pass
+        break
+    out["cpu"] = cpu_percent()
+    try:
+        mem = {ln.split(":")[0]: int(ln.split()[1]) for ln in open("/proc/meminfo")}
+        out["ram_total"], out["ram_used"] = mem["MemTotal"] / 2**20, (mem["MemTotal"] - mem["MemAvailable"]) / 2**20
+    except (OSError, ValueError, KeyError, IndexError):
+        pass
+    try:
+        st = os.statvfs(os.path.expanduser("~"))
+        out["disk_free"] = st.f_bavail * st.f_frsize / 1e9
+    except OSError:
+        pass
+    try:  # fw-syncthing's bar state: idle / syncing / error / paused / stopped
+        sync = json.load(open(os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "fw-syncthing.json")))
+        out["syncthing"] = (sync.get("class"), sync.get("text", ""))
+    except (OSError, ValueError, AttributeError):
+        pass
+    return {k: v for k, v in out.items() if v is not None}
 
 
 def kv(label, value, link=None):
@@ -110,43 +175,112 @@ def kv(label, value, link=None):
     return paint(f"{label}:", "dim", link) + " " + value
 
 
-def lines(data, branch, adv, now):
-    """The three status lines (pure): Label: value items joined by dim dots."""
-    rl = data.get("rate_limits") or {}
-    effort = (data.get("effort") or {}).get("level")
-    one = [kv("Model", paint((data.get("model") or {}).get("display_name", "Claude"), "magenta"))]
-    if effort:
-        one.append(kv("Effort", paint(effort, "blue")))
+def onoff(flag):
+    return paint("on", "green") if flag else paint("off", "dim")
+
+
+def gauge10(p, warn=75, crit=90):
+    filled = round(min(max(p, 0), 100) / 10)
+    return paint("▰" * filled + "▱" * (10 - filled), level(p, warn, crit)) + f" {p:.0f}%"
+
+
+def tokens(n):
+    return f"{n / 1e6:g}M" if n >= 1e6 else f"{n / 1e3:.0f}k" if n >= 1e3 else str(n)
+
+
+SYNC = {"idle": ("up to date", "green"), "error": ("problems", "red"), "paused": ("paused", "yellow"),
+        "stopped": ("off", "dim")}
+
+
+def lines(data, repo, adv, lap, now):
+    """The six status lines (pure): Label: value items joined by dim dots; missing data is left out."""
+    get = lambda *keys: [(data.get(k) or {}) for k in keys]  # noqa: E731
+    model, effort, think, style, cost, cw, pc = get("model", "effort", "thinking", "output_style", "cost",
+                                                    "context_window", "prompt_cache")
+    one = [kv("Model", paint(model.get("display_name", "Claude"), "magenta"))]
+    if effort.get("level"):
+        one.append(kv("Effort", paint(effort["level"], "blue")))
     one.append(kv("Advisor", paint(re.sub(r"^claude-", "", adv), "blue") if adv else paint("off", "dim")))
-    cwd = (data.get("workspace") or {}).get("current_dir") or data.get("cwd") or ""
-    two = [kv("Repo" if branch else "Folder", paint(os.path.basename(cwd) or cwd, "blue"))] if cwd else []
-    if branch:
-        name, dirty = branch
-        two.append(kv("Branch", paint(name + ("*" if dirty else ""), "yellow" if dirty else "green")))
-    ctx = (data.get("context_window") or {}).get("used_percentage")
-    if ctx is not None:
-        two.append(kv("Context", paint(f"{ctx:.0f}%", level(ctx, 50, 80))))
-    cost = data.get("cost") or {}
+    if "enabled" in think:
+        one.append(kv("Thinking", onoff(think["enabled"])))
+    if "fast_mode" in data:
+        one.append(kv("Fast", onoff(data["fast_mode"])))
+    if style.get("name"):
+        one.append(kv("Style", style["name"]))
+
+    two = [kv("Session", paint(data["session_name"], "blue"))] if data.get("session_name") else []
+    if cost.get("total_duration_ms"):
+        two.append(kv("Open", short(cost["total_duration_ms"] / 1000)))
+    if cost.get("total_api_duration_ms"):
+        two.append(kv("Working", short(cost["total_api_duration_ms"] / 1000)))
     if cost.get("total_cost_usd") is not None:
         two.append(kv("Cost", f"${cost['total_cost_usd']:.2f}"))
-    if cost.get("total_duration_ms"):
-        two.append(kv("Session", short(cost["total_duration_ms"] / 1000)))
     if cost.get("total_lines_added") is not None:
         two.append(kv("Lines", paint(f"+{cost['total_lines_added']}", "green") + " "
                       + paint(f"−{cost.get('total_lines_removed', 0)}", "red")))
-    three = []
+    if data.get("version"):
+        two.append(paint(f"v{data['version']}", "dim"))
+
+    ws = data.get("workspace") or {}
+    cwd = ws.get("current_dir") or data.get("cwd") or ""
+    gh = ws.get("repo") or {}
+    name = f"{gh['owner']}/{gh['name']}" if gh.get("owner") and gh.get("name") else os.path.basename(cwd) or cwd
+    three = [kv("Repo" if repo else "Folder", paint(name, "blue"))] if name else []
+    if repo:
+        three.append(kv("Branch", paint(repo["branch"] + ("*" if repo["changed"] else ""),
+                                        "yellow" if repo["changed"] else "green")))
+        if repo["ahead"] is not None:
+            three.append(kv("Ahead", paint(str(repo["ahead"]), "yellow" if repo["ahead"] else "dim")))
+            three.append(kv("Behind", paint(str(repo["behind"]), "yellow" if repo["behind"] else "dim")))
+        three.append(kv("Changed", f"{repo['changed']} file{'s' if repo['changed'] != 1 else ''}"))
+        if repo["last"]:
+            three.append(kv("Last commit", short(now - repo["last"]) + " ago"))
+
+    four = []
+    if cw.get("used_percentage") is not None:
+        ctx = gauge10(cw["used_percentage"], 50, 80)
+        if cw.get("total_input_tokens") and cw.get("context_window_size"):
+            ctx += paint(f" ({tokens(cw['total_input_tokens'])} / {tokens(cw['context_window_size'])})", "dim")
+        four.append(kv("Context", ctx))
+    if "warm" in pc:
+        cache = paint("warm", "green") if pc["warm"] else paint("cold", "yellow")
+        if pc.get("hit_ratio") is not None:
+            cache += f", {pc['hit_ratio'] * 100:.0f}% hits"
+        if pc["warm"] and pc.get("expires_at"):
+            cache += paint(f" (expires in {short(pc['expires_at'] - now)})", "dim")
+        four.append(kv("Cache", cache))
+
+    five = []
     for key, label in (("five_hour", "5h"), ("seven_day", "7d")):
-        b = rl.get(key)
-        p = pct(b)
-        if p is None:
+        b = (data.get("rate_limits") or {}).get(key)
+        if pct(b) is None:
             continue
-        filled = round(min(max(p, 0), 100) / 10)
-        val = paint("▰" * filled + "▱" * (10 - filled), level(p)) + f" {p:.0f}%"
+        val = gauge10(pct(b))
         if b.get("resets_at"):
             val += " " + paint(f"(resets in {short(b['resets_at'] - now)})", "dim")
-        three.append(kv(label, val, USAGE))
+        five.append(kv(label, val, USAGE))
+
+    six = []
+    if "battery" in lap:
+        b = lap["battery"]
+        six.append(kv("Battery", paint(f"{b}%", "green" if b > 30 else "yellow" if b > 15 else "red")
+                      + (" ⚡" if lap.get("charging") else "")))
+    if "cpu" in lap:
+        six.append(kv("CPU", paint(f"{lap['cpu']:.0f}%", level(lap["cpu"]))))
+    if "ram_used" in lap:
+        p = 100 * lap["ram_used"] / lap["ram_total"]
+        six.append(kv("RAM", paint(f"{lap['ram_used']:.0f}/{lap['ram_total']:.0f} GB", level(p))))
+    if "disk_free" in lap:
+        free = lap["disk_free"]
+        size = f"{free / 1000:.1f} TB" if free >= 1000 else f"{free:.0f} GB"
+        six.append(kv("Disk", paint(f"{size} free", "red" if free < 20 else "green")))
+    if "syncthing" in lap:
+        cls, text = lap["syncthing"]
+        word, color = SYNC.get(cls, (text.split()[-1] if text.split() else "syncing", "blue"))
+        six.append(kv("Syncthing", paint(word, color)))
+
     dot = paint(" · ", "dim")
-    return [dot.join(x) for x in (one, two, three) if x]
+    return [dot.join(x) for x in (one, two, three, four, five, six) if x]
 
 
 def statusline():
@@ -155,30 +289,38 @@ def statusline():
     except ValueError:
         data = {}
     rl = data.get("rate_limits")
+    os.makedirs(os.path.dirname(CACHE), exist_ok=True)
     if rl:
-        os.makedirs(os.path.dirname(CACHE), exist_ok=True)
         tmp = CACHE + ".tmp"
         json.dump({"updated": time.time(), "rate_limits": rl}, open(tmp, "w"))
         os.replace(tmp, CACHE)
     cwd = (data.get("workspace") or {}).get("current_dir") or data.get("cwd") or os.getcwd()
-    print("\n".join(lines(data, git(cwd), advisor(cwd), time.time())))
+    print("\n".join(lines(data, git(cwd), advisor(cwd), laptop(), time.time())))
 
 
 def selftest():
-    data = {"model": {"display_name": "Opus 5.5"}, "effort": {"level": "medium"},
-            "workspace": {"current_dir": "/h/proj"}, "context_window": {"used_percentage": 14},
-            "cost": {"total_cost_usd": 1.2, "total_duration_ms": 2040000, "total_lines_added": 120,
-                     "total_lines_removed": 14},
+    data = {"model": {"display_name": "Opus 5.5"}, "effort": {"level": "medium"}, "thinking": {"enabled": True},
+            "fast_mode": False, "output_style": {"name": "Concise"}, "session_name": "s1", "version": "2.1",
+            "workspace": {"current_dir": "/h/proj", "repo": {"owner": "o", "name": "proj"}},
+            "context_window": {"used_percentage": 14, "total_input_tokens": 141620, "context_window_size": 1000000},
+            "prompt_cache": {"warm": True, "hit_ratio": 0.907, "expires_at": 1000 + 52 * 60},
+            "cost": {"total_cost_usd": 1.2, "total_duration_ms": 2040000, "total_api_duration_ms": 600000,
+                     "total_lines_added": 120, "total_lines_removed": 14},
             "rate_limits": {"five_hour": {"used_percentage": 1, "resets_at": 1000 + 4 * 3600 + 720},
                             "seven_day": {"used_percentage": 84, "resets_at": 1000 + 2 * 86400 + 5 * 3600}}}
-    plain = [re.sub(r"\x1b\]8;;[^\x1b]*\x1b\\|\x1b\[[0-9;]*m", "", x)
-             for x in lines(data, ("main", True), None, 1000)]
-    assert plain == ["Model: Opus 5.5 · Effort: medium · Advisor: off",
-                     "Repo: proj · Branch: main* · Context: 14% · Cost: $1.20 · Session: 34m · Lines: +120 −14",
-                     "5h: ▱▱▱▱▱▱▱▱▱▱ 1% (resets in 4h12m) · 7d: ▰▰▰▰▰▰▰▰▱▱ 84% (resets in 2d5h)"], plain
-    out = "".join(lines(data, ("main", False), "claude-fable-5-1", 1000))
-    assert "Advisor:\x1b[0m \x1b[34mfable-5-1" in out and USAGE in out
-    assert len(lines({}, None, None, 0)) == 1  # empty input: model line only
+    repo = {"branch": "main", "changed": 3, "ahead": 5, "behind": 0, "last": 1000 - 720}
+    lap = {"battery": 82, "charging": True, "cpu": 12.4, "ram_used": 18.2, "ram_total": 62.6, "disk_free": 94.3,
+           "syncthing": ("idle", "")}
+    plain = [re.sub(r"\x1b\]8;;[^\x1b]*\x1b\\|\x1b\[[0-9;]*m", "", x) for x in lines(data, repo, "fable", lap, 1000)]
+    assert plain == [
+        "Model: Opus 5.5 · Effort: medium · Advisor: fable · Thinking: on · Fast: off · Style: Concise",
+        "Session: s1 · Open: 34m · Working: 10m · Cost: $1.20 · Lines: +120 −14 · v2.1",
+        "Repo: o/proj · Branch: main* · Ahead: 5 · Behind: 0 · Changed: 3 files · Last commit: 12m ago",
+        "Context: ▰▱▱▱▱▱▱▱▱▱ 14% (142k / 1M) · Cache: warm, 91% hits (expires in 52m)",
+        "5h: ▱▱▱▱▱▱▱▱▱▱ 1% (resets in 4h12m) · 7d: ▰▰▰▰▰▰▰▰▱▱ 84% (resets in 2d5h)",
+        "Battery: 82% ⚡ · CPU: 12% · RAM: 18/63 GB · Disk: 94 GB free · Syncthing: up to date"], plain
+    assert USAGE in "".join(lines(data, None, None, {}, 1000))
+    assert len(lines({}, None, None, {}, 0)) == 1  # empty input: model line only
     print("fw-claude-limits: ok")
 
 
