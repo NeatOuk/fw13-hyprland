@@ -95,9 +95,10 @@ def advisor(cwd):
 
 
 def git(cwd):
-    """{branch, changed, ahead, behind, last} or None outside a repo (2 git calls, 1 s cap each)."""
+    """{branch, changed, ahead, behind, last} or None outside a repo (2 git calls, 1 s cap each). No optional locks:
+    status runs at every redraw and must never hold index.lock while a commit runs."""
     try:
-        st = subprocess.run(["git", "-C", cwd, "status", "--porcelain=v2", "--branch"], capture_output=True,
+        st = subprocess.run(["git", "--no-optional-locks", "-C", cwd, "status", "--porcelain=v2", "--branch"], capture_output=True,
                             text=True, timeout=1)
         if st.returncode:
             return None
