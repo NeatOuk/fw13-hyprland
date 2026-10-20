@@ -13,5 +13,5 @@ except ValueError:
 if "statusLine" in settings:
     sys.stdout.write(text)
     sys.exit(0)
-settings["statusLine"] = {"type": "command", "command": "fw-claude-limits --statusline"}
+settings["statusLine"] = {"type": "command", "command": "fw-claude-limits --statusline", "padding": 0}
 sys.stdout.write(json.dumps(settings, indent=2) + "\n")

@@ -198,7 +198,7 @@ SYNC = {"idle": ("up to date", "green"), "error": ("problems", "red"), "paused":
         "stopped": ("off", "dim")}
 
 
-def lines(data, repo, adv, lap, now):
+def lines(data, repo, adv, lap, now, width=None):
     """The six status lines (pure): Label: value items joined by dim dots; missing data is left out."""
     get = lambda *keys: [(data.get(k) or {}) for k in keys]  # noqa: E731
     model, effort, think, style, cost, cw, pc = get("model", "effort", "thinking", "output_style", "cost",
@@ -291,8 +291,9 @@ def lines(data, repo, adv, lap, now):
     dot = paint("  ·  ", "dim")  # wide separators give the items room
     rows = [dot.join(x).replace("\033[LBLm", f"\033[{lbl}m") if x else None
             for x, lbl in zip((one, two, three, four, five, six), LABELS)]
-    # a dim rule between the groups (Claude / work / limits + laptop), as wide as the longest line
-    rule = paint("─" * max(len(visible(r)) for r in rows if r), "dim")
+    # a dim rule between the groups (Claude / work / limits + laptop): full terminal width (Claude Code passes
+    # COLUMNS; settings statusLine.padding 0), else as wide as the longest line
+    rule = paint("─" * (width or max(len(visible(r)) for r in rows if r)), "dim")
     out = []
     for group in (rows[0:2], rows[2:4], rows[4:6]):
         group = [r for r in group if r]
@@ -318,7 +319,8 @@ def statusline():
         json.dump({"updated": time.time(), "rate_limits": rl}, open(tmp, "w"))
         os.replace(tmp, CACHE)
     cwd = (data.get("workspace") or {}).get("current_dir") or data.get("cwd") or os.getcwd()
-    print("\n".join(lines(data, git(cwd), advisor(cwd), laptop(), time.time())))
+    cols = os.environ.get("COLUMNS", "")
+    print("\n".join(lines(data, git(cwd), advisor(cwd), laptop(), time.time(), int(cols) if cols.isdigit() else None)))
 
 
 def selftest():
@@ -337,6 +339,7 @@ def selftest():
     plain = [visible(x) for x in lines(data, repo, "fable", lap, 1000)]
     assert set(plain[2]) == {"─"} and len(plain[2]) == max(len(x) for x in plain)
     plain = [x for x in plain if set(x) != {"─"}]
+    assert visible(lines(data, repo, None, lap, 1000, 155)[2]) == "─" * 155
     plain = [x.replace("  ·  ", " · ") for x in plain]
     assert plain == [
         "Model: Opus 5.5 · Effort: medium · Advisor: fable · Thinking: on · Fast: off · Style: Concise · v2.1",
