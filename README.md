@@ -72,7 +72,7 @@ What you'll see at each step, and the Framework-only checks to do afterwards: [d
 | Codecs | Replaces `ffmpeg-free` with RPM Fusion `ffmpeg`, the only package it swaps out |
 | Fingerprint | Turns on fingerprint for sudo, login and polkit (`authselect … with-fingerprint`) |
 | Dotfiles | chezmoi applies `dotfiles/` to your home folder. It asks once for your Chromium OAuth keys and restic repository, which are never stored in git |
-| Tools | mise installs node LTS, chezmoi, starship, uv, kubectl, lazygit and the coding agents OpenCode and Pi; Claude Code comes from Anthropic's native installer (updates itself) |
+| Tools | mise installs node LTS, chezmoi, starship, uv, kubectl, lazygit, herdr (agent multiplexer) and the coding agents OpenCode and Pi; Claude Code comes from Anthropic's native installer (updates itself) |
 | Apps | Neovim (LazyVim), EasyEffects speaker sound, Syncthing, Telegram, the Citadel firewall, adb + scrcpy, `framework_tool` and more: see **[docs/APPS.md](docs/APPS.md)** |
 | Shell | Lets you pick zsh, fish or bash |
 | Extras | Adds the Flathub remote (no apps installed), offers fingerprint enrollment, sets up Timeshift, and checks for firmware updates |

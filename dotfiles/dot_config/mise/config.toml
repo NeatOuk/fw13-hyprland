@@ -8,6 +8,7 @@ opencode = "latest"   # AI coding agent; Ollama servers via fw-opencode (bar ico
 uv = "latest"        # Python packaging (user decision)
 kubectl = "1.34"     # Kubernetes CLI, pinned minor (user decision)
 lazygit = "latest"   # git TUI, LazyVim's <leader>gg (official release binary; user decision)
+herdr = "latest"     # agent multiplexer: Claude/OpenCode side by side, local + SSH machines (user decision)
 
 [settings]
 experimental = false

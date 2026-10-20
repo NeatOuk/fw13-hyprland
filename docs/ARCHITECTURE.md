@@ -23,6 +23,7 @@ Paths: `lib/fw13/…` = `dotfiles/dot_local/lib/fw13/…` (→ `~/.local/lib/fw1
 
 - Vendor repo files: `repos/vscode.repo` (packages.microsoft.com), `repos/mise.repo` (mise.jdx.dev/rpm), `repos/devolutions-rdm.repo` (Devolutions' repo on Cloudsmith), `repos/cloudflare-warp.repo` (pkg.cloudflareclient.com).
 - mise tools live in the user's `~/.config/mise/config.toml`. Pi = pi.dev, github.com/earendil-works/pi, MIT.
+- **herdr**: from mise (`dot_config/mise/config.toml`, aqua backend: GitHub release, checksum verified); `dot_config/herdr/create_config.toml` turns off its own version check (mise updates it), anything else stays herdr's default.
 - **LazyVim**: Fedora's neovim + ripgrep/fd-find/tree-sitter-cli/gcc (70-dev), lazygit from mise; config = LazyVim's starter as `create_` files in `dot_config/nvim/` (init.lua, lua/config/lazy.lua, lua/plugins/user.lua), so the user's edits are never overwritten. The user phase runs `nvim --headless "+Lazy! sync" +qa` after `mise install` (non-fatal). Icons come from kitty's bundled Symbols Nerd Font and Ghostty's built-in symbols (no Nerd Font package).
 - gcr provides gcr-ssh-agent; strongswan is driven via swanctl; ollama runs as a system service.
 - LocalSend `org.localsend.localsend_app` is not in Fedora.

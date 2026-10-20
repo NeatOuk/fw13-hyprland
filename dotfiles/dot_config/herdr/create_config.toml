@@ -1,0 +1,6 @@
+# herdr (agent multiplexer, installed and updated by mise: ~/.config/mise/config.toml). Created once by fw13-hypr,
+# then yours to edit; every key and its default: herdr --default-config. Apply changes: herdr server reload-config
+
+[update]
+# mise updates herdr (mise upgrade / the installer), so herdr's own new-version notice is off
+version_check = false
