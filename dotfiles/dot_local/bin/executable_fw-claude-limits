@@ -148,7 +148,8 @@ def laptop():
     for bat in sorted(glob.glob("/sys/class/power_supply/BAT*")):
         try:
             out["battery"] = int(open(f"{bat}/capacity").read())
-            out["charging"] = open(f"{bat}/status").read().strip() in ("Charging", "Full")
+            # plugged in = the AC adapter's online flag: with a charge limit the battery says "Not charging" on AC
+            out["charging"] = any(open(f).read().strip() == "1" for f in glob.glob("/sys/class/power_supply/AC*/online"))
         except (OSError, ValueError):
             pass
         break
