@@ -39,7 +39,7 @@
     "on-click": "fw-record"
   },
   // Syncthing (fw-syncthing writes it): syncing NN %, problems or paused on battery/metered; a dim icon when up to date or stopped (always shown)
-  "custom/syncthing": { "exec": "fw-syncthing bar", "return-type": "json", "signal": 17, "on-click": "fw-settings syncthing", "on-click-right": "xdg-open http://127.0.0.1:8384" },
+  "custom/syncthing": { "exec": "fw-syncthing bar", "return-type": "json", "signal": 17, "on-click": "FW_BAR=1 fw-control-center syncthing", "on-click-right": "fw-settings syncthing" },
   // Remote mode (SUPER+ALT+R, hypr/bindings.lua): every key goes to the window until SUPER+ALT+R again
   "hyprland/submap": { "format": "\uf108 REMOTE · Super+Alt+R leaves", "tooltip": false },
   "tray": { "spacing": 12 },

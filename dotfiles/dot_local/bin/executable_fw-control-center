@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Control center (fuzzel). Bar sliders icon opens the main menu; bar icons open a section directly:
-#   fw-control-center [volume|wifi|bluetooth]
+#   fw-control-center [volume|wifi|bluetooth|syncthing]
 # Uses only what's installed: wpctl, nmcli, bluetoothctl. Display → fw-display-panel, Power → fw-power-panel.
 set -euo pipefail
 
@@ -119,6 +119,31 @@ bluetooth() {
   esac
 }
 
+syncthing() {
+  local out line label pick toggle rows=() extra=()
+  local -A path=()
+  # Glance: status in the prompt, folders (pick = open it) and devices; quick on/off = the same as Settings' switch
+  mapfile -t out < <(fw-syncthing glance 2>/dev/null)
+  for line in "${out[@]:1}"; do
+    label="${line%%$'\t'*}"; rows+=("$label"); path[$label]="${line#*$'\t'}"
+  done
+  if [[ ${out[0]:-not running} == "not running" ]]; then
+    toggle="Turn Syncthing on"
+  else
+    toggle="Turn Syncthing off"; extra=("Rescan all" "Open web UI")
+  fi
+  pick="$(printf '%s\n' "${rows[@]}" "$toggle" "${extra[@]}" "Settings…" | sed '/^$/d' \
+    | menu "Syncthing · ${out[0]:-not running}" $(( ${#rows[@]} + ${#extra[@]} + 2 > 12 ? 12 : ${#rows[@]} + ${#extra[@]} + 2 )))" || return 0
+  if [[ -n ${path[$pick]:-} ]]; then xdg-open "${path[$pick]}" >/dev/null 2>&1 & return; fi
+  case $pick in
+    "Turn Syncthing on")  systemctl --user enable --now syncthing.service && fw-notify "Syncthing" "On" ;;
+    "Turn Syncthing off") systemctl --user disable --now syncthing.service && fw-notify "Syncthing" "Off (until you turn it on)" ;;
+    "Rescan all")         PYTHONPATH="$HOME/.local/lib" python3 -c 'from fw13 import syncthing; syncthing.rescan()' ;;
+    "Open web UI")        xdg-open http://127.0.0.1:8384 >/dev/null 2>&1 & ;;
+    Sett*)                fw-settings syncthing ;;
+  esac
+}
+
 main() {
   local pick
   pick="$(printf '%s\n' \
@@ -138,6 +163,6 @@ main() {
 
 case ${1:-} in
   "")                                     main ;;
-  volume|wifi|bluetooth) "$1" ;;
-  *) echo "usage: fw-control-center [volume|wifi|bluetooth]" >&2; exit 2 ;;
+  volume|wifi|bluetooth|syncthing) "$1" ;;
+  *) echo "usage: fw-control-center [volume|wifi|bluetooth|syncthing]" >&2; exit 2 ;;
 esac

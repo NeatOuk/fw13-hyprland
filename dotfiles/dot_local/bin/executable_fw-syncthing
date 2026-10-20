@@ -12,6 +12,8 @@ default) pause every device while on battery / on a metered connection (NetworkM
 phone hotspot); only the devices it paused are resumed (their IDs persist in ~/.local/state/fw13/syncthing-paused.json).
   fw-syncthing            run
   fw-syncthing bar        print the bar module's JSON
+  fw-syncthing glance     the bar menu's lines (fw-control-center syncthing): status, then "label<TAB>path" per
+                          folder and "label<TAB>" per device; "not running" alone when Syncthing is unreachable
   fw-syncthing enabled    exit 0 when the service should run (Hyprland + syncthing installed)
   fw-syncthing test       self-check
 """
@@ -79,6 +81,17 @@ def bar_status(folders, paused_reason):
         return {"text": f"\uf021 {pct}%", "tooltip": f"Syncthing: syncing {len(pcts)} folder(s), {pct} %",
                 "class": "syncing"}
     return {"text": "\uf021", "tooltip": f"Syncthing: up to date ({len(folders)} folder(s))", "class": "idle"}
+
+
+def glance(snap, reason):
+    """The bar menu's lines (pure): summary, then folders (with their path, to open) and devices."""
+    tip = bar_status(snap["folders"], reason).get("tooltip", "")
+    lines = [re.sub(r"^Syncthing:? ", "", tip)]
+    lines += [f"\uf07b  {f['label']} — {f['state']}\t{f['path']}" for f in snap["folders"]]
+    for d in snap["devices"]:
+        how = "paused" if d["paused"] else f"connected ({d['via']})" if d["connected"] else f"last seen {d['seen']}"
+        lines.append(f"\uf109  {d['name']} — {how}\t")
+    return lines
 
 
 def pause_plan(want, ours, devices):
@@ -281,6 +294,10 @@ def selftest():
     assert bar_status(folders, "")["text"] == "\uf021 50%"
     assert bar_status(folders + [{"label": "D", "state": "idle", "failing": 2}], "")["class"] == "error"
     assert bar_status(folders, "on battery")["class"] == "paused"
+    snap = {"folders": [{"label": "N", "state": "idle", "path": "/n"}],
+            "devices": [{"name": "P", "paused": False, "connected": True, "via": "relay", "seen": "x"}]}
+    assert glance(snap, "") == ["up to date (1 folder(s))", "\uf07b  N — idle\t/n", "\uf109  P — connected (relay)\t"]
+    assert glance(snap, "on battery")[0] == "paused: on battery"
     devs = {"a": False, "b": True}
     assert pause_plan(True, [], devs) == (["a"], [], ["a"])
     assert pause_plan(True, ["a"], {"a": True, "b": True}) == ([], [], ["a"])
@@ -305,6 +322,11 @@ if __name__ == "__main__":
             print(open(BAR).read())
         except OSError:
             print(json.dumps(STOPPED))
+    elif cmd == "glance":
+        try:
+            print("\n".join(glance(syncthing.snapshot(), pause_reason())))
+        except (syncthing.Error, KeyError, ValueError):
+            print("not running")
     elif cmd == "enabled":
         sys.exit(0 if notify.in_hyprland() and syncthing.installed() else 1)
     else:

@@ -20,7 +20,7 @@ A thin bar per screen: launcher, the focused app's name and workspaces on the le
 | Profile | **Normal**, **Focus** or **Zen** | |
 | Clock · weather | Weather opens Settings → System | |
 | REMOTE | Shown while remote mode is on (Super+Alt+R leaves) | |
-| Syncthing | Settings → Syncthing (always shown: dim when up to date or stopped; sync %, problem or paused) | Right-click: full Syncthing UI in the browser |
+| Syncthing | **Syncthing menu**: status, folders (pick one to open it), devices, turn Syncthing on/off, Rescan all, web UI (icon always shown: dim when up to date or stopped; sync %, problem or paused) | Right-click: Settings → Syncthing |
 | Bluetooth | Connected devices (with battery), paired ones to connect | Settings → Bluetooth |
 | Wi-Fi | Networks, the connected one first | Settings → Network |
 | Shield | **Cloudflare \| VPN** panel | Settings → Network |
