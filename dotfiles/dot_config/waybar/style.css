@@ -29,7 +29,7 @@ tooltip { background: @bg; border: 1px solid @accent; }
 /* Cloudflare WARP: accent when connected, dim when off */
 #submap { padding: 0 10px; color: @bg; background: @yellow; }
 #custom-syncthing { padding: 0 9px; color: @accent; }
-#custom-syncthing.paused { color: @muted; }
+#custom-syncthing.paused, #custom-syncthing.idle, #custom-syncthing.stopped { color: @muted; }
 #custom-syncthing.error { color: @yellow; }
 #custom-vpn { color: @muted; }
 #custom-vpn.connected { color: @accent; }

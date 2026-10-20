@@ -7,7 +7,7 @@ Long-polls Syncthing's event API (fw13.syncthing) in a worker thread and notifie
   items fail to sync (FolderErrors) or a conflict copy appears (LocalIndexUpdated) → notice with Show (Settings)
 Each request is notified once per run; Settings → Syncthing lists the same open requests. Syncthing stopped → retries.
 Bar: $XDG_RUNTIME_DIR/fw-syncthing.json (waybar custom/syncthing, signal 17): syncing NN %, errors or paused by us;
-empty (hidden) when idle. Pause: store syncthing_pause_battery / syncthing_pause_metered (Settings → Syncthing, off by
+a dim icon when up to date or when Syncthing isn't running (always shown, like a tray icon). Pause: store syncthing_pause_battery / syncthing_pause_metered (Settings → Syncthing, off by
 default) pause every device while on battery / on a metered connection (NetworkManager Metered yes/guess-yes, e.g. a
 phone hotspot); only the devices it paused are resumed (their IDs persist in ~/.local/state/fw13/syncthing-paused.json).
   fw-syncthing            run
@@ -32,6 +32,7 @@ EVENTS = "PendingDevicesChanged,PendingFoldersChanged,FolderErrors,LocalIndexUpd
 RETRY = 30      # s, while Syncthing is stopped or unreachable
 WAKE = 20       # s, longest event wait: battery / metered changes are noticed within this
 NOTE_MS = 120000
+STOPPED = {"text": "\uf021", "tooltip": "Syncthing is not running", "class": "stopped"}
 BAR = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "fw-syncthing.json")
 PAUSED = os.path.expanduser("~/.local/state/fw13/syncthing-paused.json")
 NM = "org.freedesktop.NetworkManager"
@@ -66,7 +67,7 @@ def problem(event, errors):
 
 
 def bar_status(folders, paused_reason):
-    """The bar module's JSON (pure): paused by us > errors > syncing NN % > hidden."""
+    """The bar module's JSON (pure): paused by us > errors > syncing NN % > up to date."""
     if paused_reason:
         return {"text": "\uf04c", "tooltip": f"Syncthing paused: {paused_reason}", "class": "paused"}
     bad = [f["label"] for f in folders if f["state"].startswith("error") or f.get("failing")]
@@ -77,7 +78,7 @@ def bar_status(folders, paused_reason):
         pct = sum(pcts) // len(pcts)
         return {"text": f"\uf021 {pct}%", "tooltip": f"Syncthing: syncing {len(pcts)} folder(s), {pct} %",
                 "class": "syncing"}
-    return {"text": ""}
+    return {"text": "\uf021", "tooltip": f"Syncthing: up to date ({len(folders)} folder(s))", "class": "idle"}
 
 
 def pause_plan(want, ours, devices):
@@ -168,7 +169,7 @@ class Watcher:
                 self.housekeep()
             except (syncthing.Error, KeyError, ValueError):
                 since = None
-                write_bar({"text": ""})
+                write_bar(STOPPED)
                 time.sleep(RETRY)
                 continue
             if events:
@@ -276,7 +277,7 @@ def selftest():
     assert fresh(reqs, {key(r) for r in reqs}) == []
     folders = [{"label": "A", "state": "idle"}, {"label": "B", "state": "syncing 40 %"},
                {"label": "C", "state": "syncing 60 %"}]
-    assert bar_status(folders[:1], "") == {"text": ""}
+    assert bar_status(folders[:1], "")["class"] == "idle"
     assert bar_status(folders, "")["text"] == "\uf021 50%"
     assert bar_status(folders + [{"label": "D", "state": "idle", "failing": 2}], "")["class"] == "error"
     assert bar_status(folders, "on battery")["class"] == "paused"
@@ -303,7 +304,7 @@ if __name__ == "__main__":
         try:
             print(open(BAR).read())
         except OSError:
-            print('{"text": ""}')
+            print(json.dumps(STOPPED))
     elif cmd == "enabled":
         sys.exit(0 if notify.in_hyprland() and syncthing.installed() else 1)
     else:
