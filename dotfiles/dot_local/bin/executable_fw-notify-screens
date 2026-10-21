@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""Notifications on the screen of the app that sent them (user service fw-notify-screens, Hyprland only).
+
+mako picks one screen per notification from its config, so this keeps ~/.config/fw13/mako-screens (included by
+mako/config) up to date: for every app with a window, `[desktop-entry=<class>]` and `[app-name="<launcher name>"]`
+sections with `output=<the screen of its most recently focused window>`. Rewritten on Hyprland's window/monitor events
+(socket2, debounced), `makoctl reload` only when it changed. Apps without a window (tray-only, scripts) get no rule:
+mako's default, the screen under the mouse.
+  fw-notify-screens           run
+  fw-notify-screens enabled   exit 0 inside Hyprland
+  fw-notify-screens test      self-check
+"""
+import glob
+import os
+import socket
+import subprocess
+import sys
+import time
+
+sys.path.insert(0, os.path.expanduser("~/.local/lib"))
+from fw13 import apps, notify  # noqa: E402
+from fw13.hypr import hj  # noqa: E402
+
+OUT = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "fw13", "mako-screens")
+HEAD = "# Written by fw-notify-screens: which screen each app's notifications use. Do not edit.\n"
+EVENTS = {"openwindow", "closewindow", "movewindowv2", "moveworkspacev2", "activewindowv2", "monitoradded",
+          "monitorremoved", "monitoraddedv2", "monitorremovedv2"}
+DEBOUNCE = 0.3  # s: a burst of events (e.g. a workspace moving) → one rewrite
+
+
+def launcher_names():
+    """{lower-case window class: launcher Name} from desktop entries (StartupWMClass or the id), as fw-active-app."""
+    out = {}
+    for did, _path, keys in apps.launcher_entries():
+        if keys.get("Name"):
+            out.setdefault(did[:-len(".desktop")].lower(), keys["Name"])
+            if keys.get("StartupWMClass"):
+                out[keys["StartupWMClass"].lower()] = keys["Name"]
+    return out
+
+
+def quote(value):
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def rules(clients, monitors, names):
+    """The include file's text (pure): per window class, the screen of its most recently focused window."""
+    screen = {m["id"]: m["name"] for m in monitors}
+    best = {}
+    for c in clients:
+        cls, mon = c.get("class") or c.get("initialClass"), screen.get(c.get("monitor"))
+        if cls and mon and (cls not in best or c.get("focusHistoryID", 99) < best[cls][0]):
+            best[cls] = (c.get("focusHistoryID", 99), mon)
+    text = HEAD
+    for cls, (_, mon) in sorted(best.items()):
+        keys = [f"desktop-entry={quote(cls)}"]
+        if names.get(cls.lower()):
+            keys.append(f"app-name={quote(names[cls.lower()])}")
+        text += "".join(f"[{k}]\noutput={mon}\n" for k in keys)
+    return text
+
+
+def update(names):
+    text = rules(hj("clients"), hj("monitors"), names)
+    try:
+        if open(OUT).read() == text:
+            return
+    except OSError:
+        pass
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
+    with open(OUT + ".tmp", "w") as f:
+        f.write(text)
+    os.replace(OUT + ".tmp", OUT)
+    subprocess.run(["makoctl", "reload"], capture_output=True, timeout=5)
+
+
+def socket_path():
+    run = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
+    sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+    if sig:
+        return os.path.join(run, "hypr", sig, ".socket2.sock")
+    found = sorted(glob.glob(os.path.join(run, "hypr", "*", ".socket2.sock")), key=os.path.getmtime)
+    return found[-1] if found else None
+
+
+def run():
+    names = launcher_names()
+    update(names)
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.connect(socket_path())
+    buf, due = b"", None
+    while True:
+        s.settimeout(max(due - time.monotonic(), 0) if due else None)
+        try:
+            chunk = s.recv(4096)
+        except socket.timeout:
+            due = None
+            update(names)
+            continue
+        if not chunk:
+            return 1  # Hyprland went away: systemd restarts us with the next session
+        buf += chunk
+        *lines, buf = buf.split(b"\n")
+        if any(ln.split(b">>", 1)[0].decode(errors="replace") in EVENTS for ln in lines):
+            due = due or time.monotonic() + DEBOUNCE
+
+
+def selftest():
+    mons = [{"id": 0, "name": "eDP-1"}, {"id": 1, "name": "DP-1"}]
+    clients = [{"class": "org.telegram.desktop", "monitor": 1, "focusHistoryID": 3},
+               {"class": "chromium-browser", "monitor": 0, "focusHistoryID": 5},
+               {"class": "chromium-browser", "monitor": 1, "focusHistoryID": 1},  # focused more recently: wins
+               {"class": "", "monitor": 0, "focusHistoryID": 0}]
+    text = rules(clients, mons, {"org.telegram.desktop": "Telegram Desktop"})
+    assert '[desktop-entry="org.telegram.desktop"]\noutput=DP-1\n' in text
+    assert '[app-name="Telegram Desktop"]\noutput=DP-1\n' in text
+    assert '[desktop-entry="chromium-browser"]\noutput=DP-1\n' in text and "eDP-1" not in text
+    assert rules([], mons, {}) == HEAD
+    assert quote('a "b"') == '"a \\"b\\""'
+    print("fw-notify-screens: ok")
+
+
+if __name__ == "__main__":
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "run"
+    if cmd == "test":
+        selftest()
+    elif cmd == "enabled":
+        sys.exit(0 if notify.in_hyprland() else 1)
+    else:
+        sys.exit(run())

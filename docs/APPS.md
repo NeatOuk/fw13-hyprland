@@ -32,6 +32,8 @@ A thin bar per screen: launcher, the focused app's name and workspaces on the le
 | Bell | Notification history, Do not disturb, Dismiss all | Toggles Do not disturb |
 | Power | Lock / suspend / log out / reboot / shut down | |
 
+Notifications appear on the screen where the app that sent them has its window (the one you used last, if it has several), e.g. Telegram's on the monitor Telegram is on. Apps without a window (tray only) and system notices use the screen under the mouse.
+
 Inside Claude Code the status line shows these limits too, in 6 "Label: value" lines, a thin line between each pair: Model · Effort · Advisor · Thinking · Fast · Style · version / Session · Open (time since it started) · Working (time Claude spent) · Cost · Lines changed / Repo · Branch · Unpushed (Behind only when there is something to pull) · Changed files · Last commit / Context gauge (tokens) · prompt Cache (warm or cold, hits, when it expires) / 5h and 7d gauges with time to reset / Battery · CPU · RAM · Disk free · Syncthing. Click 5h or 7d to open claude.ai's usage page.
 
 <details>

@@ -8,6 +8,7 @@
 #  - fw-bt-agent: Bluetooth pairing prompts (confirm code, PIN; Hyprland only; replaces blueman-applet)
 #  - fw-syncthing: Syncthing requests (new device, shared folder) as notifications (Hyprland + Syncthing only)
 #  - fw-usb: USB drive notice (mount, Open in Files, Eject; Hyprland only)
+#  - fw-notify-screens: notifications on the screen of the app that sent them (Hyprland only)
 #  - fw-timezone: automatic time zone from GeoClue (Hyprland only, off until Settings → System turns it on)
 #  - fw-health.timer: health report 15 min after login, then daily (fw-health --timer; notifies in Hyprland only)
 #  - fw-updates.timer: dnf update check 20 min after login, then daily (fw-updates --check; Update now = snapshot first)
@@ -15,7 +16,8 @@
 systemctl --user show-environment >/dev/null 2>&1 || exit 0
 systemctl --user daemon-reload
 systemctl --user enable fw-crash-watch.service mako.service fw-theme-session.service fw-autobrightness.service \
-  fw-battery-warn.service fw-usb.service fw-timezone.service fw-bt-agent.service fw-syncthing.service
+  fw-battery-warn.service fw-usb.service fw-timezone.service fw-bt-agent.service fw-syncthing.service \
+  fw-notify-screens.service
 systemctl --user enable --now fw-health.timer fw-updates.timer fw-nightlight.timer
 # Syncthing (packages/30-apps.txt; not when the user removed it): its own user unit from the Fedora package
 command -v syncthing >/dev/null && systemctl --user enable --now syncthing.service 2>/dev/null || true
@@ -23,6 +25,7 @@ systemctl --user reset-failed mako.service 2>/dev/null || true
 systemctl --user restart fw-crash-watch.service 2>/dev/null || true
 systemctl --user restart fw-battery-warn.service 2>/dev/null || true
 systemctl --user restart fw-usb.service 2>/dev/null || true
+systemctl --user restart fw-notify-screens.service 2>/dev/null || true
 systemctl --user restart fw-bt-agent.service 2>/dev/null || true
 systemctl --user restart fw-syncthing.service 2>/dev/null || true
 systemctl --user restart fw-timezone.service 2>/dev/null || true

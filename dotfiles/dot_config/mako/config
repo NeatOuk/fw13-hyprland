@@ -10,6 +10,8 @@ default-timeout=5000
 max-history=50
 # Refresh the bar bell (fw-notifications, waybar signal 12)
 on-notify=exec pkill -RTMIN+12 -x waybar
+# Per app: the screen its window is on (written by fw-notify-screens); other apps: the screen under the mouse
+include=~/.config/fw13/mako-screens
 [urgency=critical]
 default-timeout=0
 [mode=do-not-disturb]
