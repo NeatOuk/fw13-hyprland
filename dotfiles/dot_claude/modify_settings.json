@@ -13,5 +13,6 @@ except ValueError:
 if "statusLine" in settings:
     sys.stdout.write(text)
     sys.exit(0)
-settings["statusLine"] = {"type": "command", "command": "fw-claude-limits --statusline", "padding": 0}
+settings["statusLine"] = {"type": "command", "command": "fw-claude-limits --statusline", "padding": 0,
+                          "refreshInterval": 10}  # s: countdowns, CPU and git stay fresh while idle
 sys.stdout.write(json.dumps(settings, indent=2) + "\n")
