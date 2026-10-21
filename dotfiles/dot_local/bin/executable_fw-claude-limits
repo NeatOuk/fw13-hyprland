@@ -145,9 +145,33 @@ def cpu_percent():
     return 100 * (1 - (idle - prev[1]) / (total - prev[0]))
 
 
+def run(*cmd):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=1).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def mac():
+    """Battery, CPU and RAM on macOS (pmset, ps, sysctl + vm_stat): the same keys as the Linux reads in laptop()."""
+    out = {}
+    batt = re.search(r"(\d+)%", run("pmset", "-g", "batt"))
+    if batt:
+        out["battery"], out["charging"] = int(batt.group(1)), "AC Power" in run("pmset", "-g", "batt")
+    cpu = [float(x) for x in run("ps", "-A", "-o", "%cpu=").split() if x.replace(".", "", 1).isdigit()]
+    if cpu:
+        out["cpu"] = min(sum(cpu) / (os.cpu_count() or 1), 100)
+    total, vm = run("sysctl", "-n", "hw.memsize").strip(), run("vm_stat")
+    page = re.search(r"page size of (\d+)", vm)
+    pages = {k: int(v) for k, v in re.findall(r'Pages (wired down|active|occupied by compressor):\s+(\d+)', vm)}
+    if total.isdigit() and page and pages:
+        out["ram_total"], out["ram_used"] = int(total) / 2**30, sum(pages.values()) * int(page.group(1)) / 2**30
+    return out
+
+
 def laptop():
     """{battery, charging, cpu, ram_used, ram_total, disk_free, syncthing}: values that can't be read are left out."""
-    out = {}
+    out = mac() if sys.platform == "darwin" else {}
     for bat in sorted(glob.glob("/sys/class/power_supply/BAT*")):
         try:
             out["battery"] = int(open(f"{bat}/capacity").read())
@@ -156,7 +180,8 @@ def laptop():
         except (OSError, ValueError):
             pass
         break
-    out["cpu"] = cpu_percent()
+    if "cpu" not in out:
+        out["cpu"] = cpu_percent()
     try:
         mem = {ln.split(":")[0]: int(ln.split()[1]) for ln in open("/proc/meminfo")}
         out["ram_total"], out["ram_used"] = mem["MemTotal"] / 2**20, (mem["MemTotal"] - mem["MemAvailable"]) / 2**20
