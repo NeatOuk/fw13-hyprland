@@ -16,6 +16,7 @@ import glob
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -125,13 +126,16 @@ def git(cwd):
 CPU = os.path.expanduser("~/.cache/fw-claude/cpu.json")
 
 
-def cpu_percent():
-    """Busy % since the previous status line (the last /proc/stat sample is kept in CPU); None on the first call."""
-    try:
-        f = [int(x) for x in open("/proc/stat").readline().split()[1:]]
-    except (OSError, ValueError):
-        return None
-    total, idle = sum(f), f[3] + f[4]
+def cpu_percent(sample=None):
+    """Busy % since the previous status line (the last (total, idle) sample is kept in CPU); None on the first call.
+    sample: (total, idle) from the OS; default /proc/stat."""
+    if sample is None:
+        try:
+            f = [int(x) for x in open("/proc/stat").readline().split()[1:]]
+        except (OSError, ValueError):
+            return None
+        sample = (sum(f), f[3] + f[4])
+    total, idle = sample
     try:
         prev = json.load(open(CPU))
     except (OSError, ValueError):
@@ -169,9 +173,36 @@ def mac():
     return out
 
 
+def windows():
+    """Battery, CPU and RAM on Windows from kernel32 (no PowerShell: it takes ~1 s per call)."""
+    import ctypes
+    from ctypes import wintypes
+    k32, out = ctypes.windll.kernel32, {}
+
+    class Power(ctypes.Structure):
+        _fields_ = [("ac", ctypes.c_ubyte), ("flag", ctypes.c_ubyte), ("pct", ctypes.c_ubyte),
+                    ("saver", ctypes.c_ubyte), ("life", wintypes.DWORD), ("full", wintypes.DWORD)]
+
+    class Memory(ctypes.Structure):
+        _fields_ = [("size", wintypes.DWORD), ("load", wintypes.DWORD), ("total", ctypes.c_ulonglong),
+                    ("avail", ctypes.c_ulonglong)] + [(f"x{i}", ctypes.c_ulonglong) for i in range(5)]
+
+    pw = Power()
+    if k32.GetSystemPowerStatus(ctypes.byref(pw)) and pw.flag != 128 and pw.pct <= 100:  # 128 = no battery
+        out["battery"], out["charging"] = pw.pct, pw.ac == 1
+    mem = Memory()
+    mem.size = ctypes.sizeof(Memory)
+    if k32.GlobalMemoryStatusEx(ctypes.byref(mem)):
+        out["ram_total"], out["ram_used"] = mem.total / 2**30, (mem.total - mem.avail) / 2**30
+    idle, kern, user = (ctypes.c_ulonglong() for _ in range(3))
+    if k32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kern), ctypes.byref(user)):
+        out["cpu"] = cpu_percent((kern.value + user.value, idle.value))  # kernel time includes idle
+    return out
+
+
 def laptop():
     """{battery, charging, cpu, ram_used, ram_total, disk_free, syncthing}: values that can't be read are left out."""
-    out = mac() if sys.platform == "darwin" else {}
+    out = mac() if sys.platform == "darwin" else windows() if os.name == "nt" else {}
     for bat in sorted(glob.glob("/sys/class/power_supply/BAT*")):
         try:
             out["battery"] = int(open(f"{bat}/capacity").read())
@@ -188,8 +219,7 @@ def laptop():
     except (OSError, ValueError, KeyError, IndexError):
         pass
     try:
-        st = os.statvfs(os.path.expanduser("~"))
-        out["disk_free"] = st.f_bavail * st.f_frsize / 1e9
+        out["disk_free"] = shutil.disk_usage(os.path.expanduser("~")).free / 1e9
     except OSError:
         pass
     try:  # fw-syncthing's bar state: idle / syncing / error / paused / stopped
@@ -333,6 +363,8 @@ def visible(text):
 
 
 def statusline():
+    for stream in (sys.stdin, sys.stdout):  # Windows pipes default to the ANSI code page: the line is UTF-8
+        stream.reconfigure(encoding="utf-8")
     try:
         data = json.load(sys.stdin)
     except ValueError:
