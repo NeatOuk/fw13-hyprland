@@ -17,6 +17,9 @@ for _, class in ipairs({ "nm-connection-editor", "org.fcitx.fcitx5-config-qt" })
 end
 hl.window_rule({ name = "float-steam-dialogs", match = { class = "^(steam)$", title = "^(Friends List|Steam Settings)$" }, float = true })
 
+-- Files' Space preview (Sushi) floats over Files at its own size instead of opening a new tile (user decision).
+hl.window_rule({ name = "sushi-preview", match = { class = "^(org\\.gnome\\.NautilusPreviewer)$" }, float = true, center = true })
+
 -- Jarvis windows (Ask / Work on repo / crash Diagnose) float in the middle; plain Claude/OpenCode windows tile.
 hl.window_rule({
   name = "jarvis",

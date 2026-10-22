@@ -354,7 +354,7 @@ Each screen has its own workspaces 1–9 and its own row of circles in the bar. 
 
 | App | What it is |
 |---|---|
-| **Files** | GNOME Files (Nautilus): search as you type, tabs (Ctrl+T), path bar (Ctrl+L), hidden files (Ctrl+H), **Space** previews the selected file (Sushi: pictures, PDFs, text, audio, video, fonts; Space or Esc closes, arrows move on) |
+| **Files** | GNOME Files (Nautilus): search as you type, tabs (Ctrl+T), path bar (Ctrl+L), hidden files (Ctrl+H), **Space** previews the selected file (Sushi, floating over Files: pictures, PDFs, text, audio, video, fonts; Space or Esc closes, arrows move on) |
 | **Claude Desktop** | Chat, Claude Code (visual diffs, terminal, app preview) and **Cowork**. Anthropic's official Linux build (Ubuntu/Debian only, Linux support in beta) repackaged as an RPM (`claude-desktop-official`, version and checksum pinned); re-run the installer to update. Cowork runs tasks in a small VM (Fedora's QEMU, OVMF and virtiofsd; the vsock module loads at boot). Group `claude-desktop` |
 | **Obsidian** | Markdown notes in plain folders (vaults). The official build repackaged as an RPM (`obsidian-official`, version and checksum pinned); Obsidian updates itself in-app, re-running the installer updates the app around it. To sync a vault, add its folder in Settings → Syncthing. Group `obsidian` |
 | **Neovim** | With [LazyVim](https://www.lazyvim.org) (`nvim`): file finder, search (ripgrep, fd), syntax parsers, language servers through Mason, lazygit (`<leader>gg`), Tokyo Night. `~/.config/nvim` is created once and then yours (plugins in `lua/plugins/`, extras with `:LazyExtras`) |
