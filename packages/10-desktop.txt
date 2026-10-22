@@ -15,6 +15,7 @@ fuzzel
 mako
 kitty
 nautilus
+sushi
 grim
 slurp
 wl-clipboard
