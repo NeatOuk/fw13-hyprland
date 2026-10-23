@@ -47,6 +47,7 @@ The core desktop (Hyprland, bar, login, fonts, theme, Framework tools, backup, c
 ./install.sh --with=games,ai             # add groups (also to a saved choice)
 ./install.sh --without=games,warp        # leave groups out
 ./install.sh --print-plan --minimal      # show the packages and steps, change nothing
+./install.sh --update-claude-desktop      # only Claude Desktop (Settings → Apps → Claude Desktop → Update… runs this)
 ```
 
 `--yes` uses your saved choice (or all groups); `--ci` always installs everything. Leaving a group out never removes what's already installed, and never reinstalls it either (also not from **Removed apps**). To remove an app use Settings → Apps → Uninstall… for the apps listed there (Ollama and adb/fastboot included); scrcpy by deleting `/opt/scrcpy`, `/usr/local/bin/scrcpy`, `/usr/local/share/applications/scrcpy.desktop` and `/usr/local/share/man/man1/scrcpy.1`.

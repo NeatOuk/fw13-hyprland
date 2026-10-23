@@ -43,15 +43,32 @@ def gh_tag(repo):
     return max((t for t in tags if re.fullmatch(r"\d+(\.\d+)+", t)), key=vkey)
 
 
+def apt_entry(text, package):
+    """{field: value} of the highest Version of `package` in an apt Packages index."""
+    entries = [dict(ln.split(": ", 1) for ln in block.splitlines() if ": " in ln) for block in text.split("\n\n")]
+    return max((e for e in entries if e.get("Package") == package), key=lambda e: vkey(e.get("Version")))
+
+
 def apt_version(text, package):
-    """Highest Version of `package` in an apt Packages index."""
-    vers, cur = [], None
-    for line in text.splitlines():
-        if line.startswith("Package:"):
-            cur = line.split(":", 1)[1].strip()
-        elif line.startswith("Version:") and cur == package:
-            vers.append(line.split(":", 1)[1].strip())
-    return max(vers, key=vkey)
+    return apt_entry(text, package)["Version"]
+
+
+def update_argv(entry, script):
+    """install.sh run that updates Claude Desktop to an apt index entry; the entry comes off the network, so check it."""
+    ver, sha = entry.get("Version", ""), entry.get("SHA256", "")
+    if not re.fullmatch(r"\d+(\.\d+)+", ver) or not re.fullmatch(r"[0-9a-f]{64}", sha):
+        raise ValueError("unexpected entry in Anthropic's package index")
+    return ["env", f"CLAUDE_DESKTOP_VERSION={ver}", f"CLAUDE_DESKTOP_SHA256={sha}", "bash", script,
+            "--update-claude-desktop"]
+
+
+def claude_desktop_update():
+    """argv for Settings → Apps → Claude Desktop → Update…; needs the network."""
+    script = next((p for p in INSTALL_SH if os.path.exists(p)), None)
+    if not script:
+        raise FileNotFoundError("install.sh not found")
+    with _get(CLAUDE_APT) as r:
+        return update_argv(apt_entry(r.read().decode(), "claude-desktop"), script)
 
 
 def claude_desktop():
@@ -141,6 +158,15 @@ def test():
     assert vkey("v1.10.2") > vkey("1.9.9") and vkey("2.37337.1") > vkey("1.17377.0")
     assert apt_version("Package: x\nVersion: 9\n\nPackage: claude-desktop\nVersion: 1.2.0\n\n"
                        "Package: claude-desktop\nVersion: 1.10.0\n", "claude-desktop") == "1.10.0"
+    sha = "a" * 64
+    argv = update_argv(apt_entry(f"Package: claude-desktop\nVersion: 3.1.0\nSHA256: {sha}\n", "claude-desktop"), "/i.sh")
+    assert argv[1:3] == ["CLAUDE_DESKTOP_VERSION=3.1.0", f"CLAUDE_DESKTOP_SHA256={sha}"] and argv[-2:] == ["/i.sh", "--update-claude-desktop"]
+    for bad in ({"Version": "3.1.0; rm -rf ~", "SHA256": sha}, {"Version": "3.1.0", "SHA256": "zz"}, {}):
+        try:
+            update_argv(bad, "/i.sh")
+            raise AssertionError(bad)
+        except ValueError:
+            pass
     assert pins('A="${A:-v0.6.6}"\nB="${C:-1}"\nGHOSTTY_VERSION="${GHOSTTY_VERSION:-1.3.1}"\n') == \
         {"A": "0.6.6", "GHOSTTY_VERSION": "1.3.1"}
     assert verdict("x", "1.0", "1.0", "1.0") is None

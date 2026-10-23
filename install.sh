@@ -12,6 +12,7 @@
 #   --user-only     only the per-user part (dotfiles, mise, shell)
 #   --minimal       core desktop only, no optional groups (see GROUP_INFO below)
 #   --with=a,b      add optional groups;  --without=a,b  leave them out (the choice is saved, re-runs keep it)
+#   --update-claude-desktop  only rebuild + install Claude Desktop at CLAUDE_DESKTOP_VERSION/_SHA256 (Settings → Apps → Update…)
 #   --print-plan    print the groups, package lists and steps this run would do, then exit (changes nothing; needs a checkout)
 set -euo pipefail
 
@@ -79,7 +80,7 @@ GROUPS_FILE="$HOME/.config/fw13/install-groups-off"
 # replaced by save_groups.
 OLD_GROUPS_FILE="$HOME/.config/fw13/install-groups"
 
-YES=0 CI=0 DO_SYSTEM=1 DO_USER=1 PLAN=0 MINIMAL=0 WITH="" WITHOUT=""
+UPDATE_CD=0 YES=0 CI=0 DO_SYSTEM=1 DO_USER=1 PLAN=0 MINIMAL=0 WITH="" WITHOUT=""
 for a in "$@"; do
   case "$a" in
     --yes) YES=1 ;;
@@ -90,6 +91,7 @@ for a in "$@"; do
     --with=*) WITH="$WITH,${a#*=}" ;;
     --without=*) WITHOUT="$WITHOUT,${a#*=}" ;;
     --print-plan) PLAN=1 ;;
+    --update-claude-desktop) UPDATE_CD=1 ;;
     -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
     *) echo "unknown flag: $a"; exit 2 ;;
   esac
@@ -244,6 +246,7 @@ has_ppd() { rpm -q power-profiles-daemon >/dev/null 2>&1; }
 bare_install() { ! rpm -q --quiet gnome-shell && ! rpm -q --quiet plasma-workspace; }
 recommend_gnome() { warn "No GNOME or KDE found: install GNOME first for file mounting, printing and viewers: sudo dnf group install workstation-product-environment"; }
 
+if [[ $UPDATE_CD == 0 ]]; then
 choose_groups
 [[ $PLAN == 1 ]] && { print_plan; exit 0; }
 
@@ -259,6 +262,7 @@ EOF
 bare_install && recommend_gnome
 ask "Continue?" || exit 0
 save_groups
+fi
 
 mkdir -p "$STATE_DIR"
 
@@ -751,6 +755,16 @@ user_phase() {
   fwupdmgr refresh --force >/dev/null 2>&1 || true
   fwupdmgr get-updates || true
 }
+
+# Settings → Apps → Claude Desktop → Update…: version + sha256 from Anthropic's apt index (fw13.upstream), nothing else
+if [[ $UPDATE_CD == 1 ]]; then
+  [[ $CLAUDE_DESKTOP_VERSION =~ ^[0-9]+(\.[0-9]+)+$ && $CLAUDE_DESKTOP_SHA256 =~ ^[0-9a-f]{64}$ ]] || die "bad Claude Desktop version or sha256"
+  say "Claude Desktop $CLAUDE_DESKTOP_VERSION — Anthropic's official build, repackaged as an RPM"
+  cd="$(build_claude_desktop_rpm)" || die "Claude Desktop RPM build failed (see above)"
+  if [[ -n $cd ]]; then $SUDO dnf -y --setopt=install_weak_deps=False install "$cd" && rm -f "$cd"; else echo "claude-desktop-official is current"; fi
+  say "Done. Quit and reopen Claude Desktop to use $CLAUDE_DESKTOP_VERSION."
+  exit 0
+fi
 
 [[ $DO_SYSTEM == 1 ]] && system_phase
 [[ $DO_USER == 1 ]] && user_phase

@@ -63,6 +63,7 @@ Declined by the user — do not re-propose unless asked: `mesa-va-drivers-freewo
 ./install.sh --ci                # what CI runs in a fedora container (root, non-interactive)
 ./install.sh --user-only         # re-apply dotfiles/mise/shell only
 ./install.sh --print-plan [--minimal|--with=a,b|--without=a,b]   # groups, package lists, steps; changes nothing (checkout only: refuses to fetch the repo)
+./install.sh --update-claude-desktop   # only Claude Desktop, at CLAUDE_DESKTOP_VERSION/_SHA256 from the env (Settings → Apps → Update…)
 T=$(mktemp -d); HOME=$T XDG_CONFIG_HOME=$T/.config XDG_DATA_HOME=$T/.local/share XDG_STATE_HOME=$T/.local/state XDG_CACHE_HOME=$T/.cache \
   chezmoi init --source=$PWD --apply --exclude=scripts   # dry-run dotfiles into a throwaway home (isolate every XDG dir)
 XDG_RUNTIME_DIR=$(mktemp -d) Hyprland --verify-config -c "$T/.config/hypr/hyprland.lua"   # check the rendered Lua config

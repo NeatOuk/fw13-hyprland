@@ -200,11 +200,27 @@ class AppsPage(Page):
             hint += [OPTIONAL_HINT] + [n for n in [apps.OPTIONAL[app["optional"]][1]] if n]
         argv = apps.uninstall_argv(app)
         widget = button("Uninstall…", lambda: launch("fw-term", "--hold", "-e", *argv)) if argv else None
+        if app["package"] == "claude-desktop-official" and self.up and app["package"] in self.up:
+            box = Gtk.Box(spacing=8)
+            box.pack_start(button("Update…", self.update_claude, "primary"), False, False, 0)
+            if widget:
+                box.pack_start(widget, False, False, 0)
+            widget = box
+            hint.append("Update… downloads Anthropic's newest build, checks its sha256, rebuilds the RPM and installs "
+                        "it in a terminal (asks for your password)")
         r = self.row(app["name"], widget, hint=" · ".join(hint))
         img = icon(app["icon"])
         img.set_valign(Gtk.Align.CENTER)
         r.pack_start(img, False, False, 0)
         r.reorder_child(img, 0)
+
+    def update_claude(self, *_):
+        def done(argv):
+            if isinstance(argv, list):
+                launch("fw-term", "--hold", "-e", *argv)
+            else:
+                launch("fw-notify", "Claude Desktop", f"Couldn't read Anthropic's package index: {argv}")
+        bg(upstream.claude_desktop_update, done, fail=str)
 
 
 def build():
