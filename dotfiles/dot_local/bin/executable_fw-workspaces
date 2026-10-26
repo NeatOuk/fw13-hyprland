@@ -16,7 +16,7 @@ monitors (sorted by connector name) 11–19, 21–29, … Each bar shows its own
   fw-workspaces test     self-check
 On unplug, windows left on a workspace no screen owns move into the first empty workspaces of the screen they land
 on (rehome), so its dots and SUPER+N reach them; a replugged monitor starts with empty workspaces.
-  fw-workspaces dot N    waybar: JSON for workspace N's dot on this bar's screen (WAYBAR_OUTPUT_NAME)
+  fw-workspaces dot N    waybar: JSON for workspace N's number on this bar's screen (WAYBAR_OUTPUT_NAME)
   fw-workspaces click N  waybar: switch the screen under the pointer to its workspace N
                          (waybar's own hyprland/workspaces click sends a hyprlang dispatch, which the Lua
                          config rejects - fixed in waybar git, not in a release yet)
@@ -93,15 +93,15 @@ def dot(n):
     wid = bases(mons).get(m["name"], 0) + n
     windows = {w["id"]: w["windows"] for w in hj("workspaces")}
     if m["activeWorkspace"]["id"] == wid:
-        icon, cls = "\u25cf", "active"      # ●
+        cls = "active"
     elif windows.get(wid):
-        icon, cls = "\u25c9", "occupied"    # ◉
+        cls = "occupied"
     elif n <= shown():
-        icon, cls = "\u25cb", "empty"       # ○
+        cls = "empty"
     else:  # beyond the count: only while in use
         print(json.dumps({"text": ""}))
         return
-    print(json.dumps({"text": icon, "class": cls, "tooltip": f"Workspace {n}"}))
+    print(json.dumps({"text": str(n), "class": cls, "tooltip": f"Workspace {n}"}))
 
 
 def click(n):

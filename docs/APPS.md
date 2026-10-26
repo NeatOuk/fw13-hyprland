@@ -15,7 +15,7 @@ A thin bar per screen: launcher, the focused app's name and workspaces on the le
 | Icon | Click | Right-click / other |
 |---|---|---|
 | Framework gear | App launcher | |
-| Workspace circles | Go to that workspace (one row per screen) | |
+| Workspace numbers | Go to that workspace (one row per screen; bold = current, bright = has windows, dim = empty) | |
 | Coffee cup | **Keep awake** on / off | |
 | Profile | **Normal**, **Focus** or **Zen** | |
 | Clock · weather | Weather opens Settings → System | |
