@@ -179,8 +179,13 @@ def read_layouts():
         return {}
 
 
+def unique(mons):
+    """Two monitors with one description (same model, no or a fake serial) can't be told apart: no per-setup layout."""
+    return len({m.desc for m in mons}) == len(mons)
+
+
 def save_layout(mons):
-    if len(mons) < 2:  # one screen has nothing to arrange
+    if len(mons) < 2 or not unique(mons):  # one screen has nothing to arrange
         return
     layouts = {**read_layouts(), setup_key(mons): {m.desc: [m.x, m.y] for m in mons}}
     os.makedirs(os.path.dirname(LAYOUTS), exist_ok=True)
@@ -191,7 +196,7 @@ def save_layout(mons):
 
 def placed(mons, layouts):
     """mons moved to their saved spots for this setup (pure); [] when the setup is unknown or already in place."""
-    pos = layouts.get(setup_key(mons))
+    pos = layouts.get(setup_key(mons)) if unique(mons) else None
     if not isinstance(pos, dict) or any(not isinstance(pos.get(m.desc), list) for m in mons):
         return []
     if all([m.x, m.y] == pos[m.desc] for m in mons):
@@ -219,6 +224,8 @@ def test():
     assert placed([M("laptop", 0, 0), M("lg", 0, 0)], layouts) == []    # unknown setup: left alone
     assert placed(home, {setup_key(home): {"laptop": [1, 2]}}) == []    # incomplete entry: left alone
     assert setup_key([M("b", 0, 0), M("a", 0, 0)]) == "a\nb"
+    twins = [M("tv", 0, 0), M("tv", 0, 0)]  # same description: never placed (both would land on one spot)
+    assert placed(twins, {setup_key(twins): {"tv": [5, 5]}}) == []
     print("ok")
 
 
