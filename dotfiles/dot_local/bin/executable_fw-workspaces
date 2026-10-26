@@ -9,7 +9,8 @@ monitors (sorted by connector name) 11–19, 21–29, … Each bar shows its own
   fw-workspaces move N   SUPER+Shift+N: move the active window there
   fw-workspaces daemon   exec-once: binds the ranges to their screens, with Reopen apps on reopens the apps left
                          open last time (fw13.session, saved here once windows settle; nothing opens otherwise),
-                         and re-binds on hotplug —
+                         and re-binds on hotplug — first putting back the positions saved for that set of
+                         monitors (fw13.displays.restore_layout: home, work… each keep their own arrangement);
                          an unplugged monitor's windows move into free workspaces of the screen they land on (rehome).
   fw-workspaces apply    re-bind the ranges and redraw the dots (after Settings changes the count)
   fw-workspaces test     self-check
@@ -29,7 +30,7 @@ import threading
 import time
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
-from fw13 import apps as launcher, bar as waybar, panel as single, session, store  # noqa: E402
+from fw13 import apps as launcher, bar as waybar, displays, panel as single, session, store  # noqa: E402
 from fw13.hypr import dispatch, hj, hypr, lua, q  # noqa: E402  (Lua-mode hyprctl helpers, shared)
 
 MAX_WS = 9  # SUPER+1…9
@@ -239,6 +240,7 @@ def daemon():
         return
     single.claim("fw-workspaces")
 
+    displays.restore_layout()
     base_of = setup()
     if not os.path.exists(LAYOUT_DONE):
         open(LAYOUT_DONE, "w").close()
@@ -257,6 +259,7 @@ def daemon():
         # hotplug, or a config reload (it drops the rules set with hyprctl eval)
         if ev.startswith(("monitoradded>>", "monitorremoved>>", "configreloaded>>")):
             time.sleep(0.5)  # let Hyprland finish moving things around
+            displays.restore_layout()
             base_of = setup(base_of)
         if ev.startswith(DOT_EVENTS):
             refresh_dots()

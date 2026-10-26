@@ -2,7 +2,11 @@
 
 Layouts are applied with `hyprctl eval 'hl.monitor(...)'` and saved to ~/.config/hypr/displays.lua
 (required by hyprland.lua), one line per monitor keyed by description, so a monitor keeps its place
-whatever port or dock it's plugged into.
+whatever port or dock it's plugged into. Positions are also kept per setup (the set of connected monitors) in
+~/.config/fw13/display-layouts.json: fw-workspaces calls restore_layout() on hotplug, so home, work and other desks
+each get their own arrangement back. Mode, rate and scale stay per monitor (displays.lua).
+
+  python3 -m fw13.displays test   self-check
 """
 import json
 import os
@@ -13,6 +17,7 @@ from . import store
 from .hypr import hj, lua, sh
 
 SAVED = os.path.expanduser("~/.config/hypr/displays.lua")
+LAYOUTS = os.path.expanduser("~/.config/fw13/display-layouts.json")  # {setup key: {description: [x, y]}}
 # Only scales Hyprland accepts are offered (see Mon.scales): a multiple of 1/120 (the fractional-scale protocol's
 # step; Hyprland rounds to it) that also divides the monitor's size evenly. On the Framework 13 panel (2880x1920)
 # that leaves 1, 1.2, 1.25, 4/3, 1.5, 1.6, 5/3, 1.875, 2, 2.4, 2.5, 3 (12/7, 16/9 and 1.92 divide it but aren't
@@ -152,11 +157,69 @@ def save(mons):
                     kept.append(s)
     except OSError:
         pass
+    save_layout(mons)
     with open(SAVED, "w") as f:
         f.write("-- Written by fw-display-panel / fw-settings (Display → Apply → Keep).\n"
                 "-- One line per monitor, matched by description. Delete a line to return it to the default.\n")
         for line in kept + [m.rule() for m in mons]:
             f.write(line + "\n")
+
+
+# --- per-setup positions ------------------------------------------------------------------------
+def setup_key(mons):
+    return "\n".join(sorted(m.desc for m in mons))
+
+
+def read_layouts():
+    try:
+        with open(LAYOUTS) as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_layout(mons):
+    if len(mons) < 2:  # one screen has nothing to arrange
+        return
+    layouts = {**read_layouts(), setup_key(mons): {m.desc: [m.x, m.y] for m in mons}}
+    os.makedirs(os.path.dirname(LAYOUTS), exist_ok=True)
+    with open(LAYOUTS + ".tmp", "w") as f:
+        json.dump(layouts, f, indent=1)
+    os.replace(LAYOUTS + ".tmp", LAYOUTS)
+
+
+def placed(mons, layouts):
+    """mons moved to their saved spots for this setup (pure); [] when the setup is unknown or already in place."""
+    pos = layouts.get(setup_key(mons))
+    if not isinstance(pos, dict) or any(not isinstance(pos.get(m.desc), list) for m in mons):
+        return []
+    if all([m.x, m.y] == pos[m.desc] for m in mons):
+        return []
+    for m in mons:
+        m.x, m.y = (int(v) for v in pos[m.desc][:2])
+    return mons
+
+
+def restore_layout():
+    """Put this setup's saved positions back (rates/scales as they are now); True when something moved."""
+    mons = placed(read_monitors(), read_layouts())
+    return bool(mons) and bool(apply(mons))
+
+
+def test():
+    class M:
+        def __init__(self, desc, x, y):
+            self.desc, self.x, self.y = desc, x, y
+    home = [M("laptop", 0, 0), M("dell", 0, 0)]
+    layouts = {setup_key(home): {"laptop": [1920, 360], "dell": [0, 0]}}
+    moved = placed(home, layouts)
+    assert [(m.x, m.y) for m in moved] == [(1920, 360), (0, 0)]
+    assert placed(home, layouts) == []                                  # already in place: nothing to apply
+    assert placed([M("laptop", 0, 0), M("lg", 0, 0)], layouts) == []    # unknown setup: left alone
+    assert placed(home, {setup_key(home): {"laptop": [1, 2]}}) == []    # incomplete entry: left alone
+    assert setup_key([M("b", 0, 0), M("a", 0, 0)]) == "a\nb"
+    print("ok")
 
 
 # --- brightness (built-in panel) ------------------------------------------------------------------
@@ -174,3 +237,7 @@ def get_brightness():
 
 def set_brightness(pct):
     subprocess.Popen(["brightnessctl", "-q", "-e4", "-n2", "set", f"{int(pct)}%"])  # -n2 like the keys: 1 % is never black
+
+
+if __name__ == "__main__":
+    test()
