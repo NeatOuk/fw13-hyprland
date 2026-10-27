@@ -44,6 +44,11 @@ Inside Claude Code the status line shows these limits too, in 6 "Label: value" l
 - **Shield panel**, two pages. The shield is accent-coloured when WARP or a VPN is connected and yellow while connecting. Without Cloudflare WARP installed, the panel has only the VPN page.
   - **Cloudflare:** on/off, mode, DNS filter and protocol, exit IP and Cloudflare location, tunnel endpoint, handshake, latency, loss and traffic, account (free, WARP+ key, or **Join organization** for Cloudflare Zero Trust: you sign in in the browser), the split-tunnel include/exclude list, fallback domains, trusted networks and your organization's policy. It asks you to accept Cloudflare's Terms of Service once before talking to WARP. Settings your Zero Trust organization controls are shown but greyed out. Cloudflare's own tray app is hidden in Hyprland (the panel's **Cloudflare app** button starts it). With Citadel enforcing, allow `warp-svc` at its gate the first time.
   - **VPN:** every VPN with **Connect** / **Disconnect**, and **Add or edit…** for Settings → Network. strongSwan connections (a file in `/etc/strongswan/swanctl/conf.d/<name>.conf`, connection and child both named `<name>`, secrets inside, root-only) connect without a password for an admin (wheel) user at the laptop, through the root helper `fw-vpn-ctl` that can only bring that one connection up or down (polkit rule `50-fw13-vpn.rules`). The tooltip lists the networks the tunnel carries.
+  - **Direct Office Tunnel** (same page): for a site that only lets in one machine's IP that you can SSH into. **Open** starts `ssh -N -D` through that machine in a terminal (type the password there if it asks; closing the terminal or **Stop** ends it), then opens a Chromium window that sends everything, downloads included, through it (its own profile, so your normal Chromium is unaffected). Tunnels are kept only on this laptop, never in git, in `~/.config/fw13/tunnels.json`:
+    ```json
+    [{"name": "Office app", "jump": "you@192.0.2.10", "url": "https://198.51.100.5/"}]
+    ```
+    Optional `"port"` (local SOCKS port, default 1080, then 1081… for the next ones).
 
 </details>
 
