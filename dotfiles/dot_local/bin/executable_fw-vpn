@@ -8,9 +8,6 @@ NetworkManager + strongSwan), merged into one icon (user decision).
   fw-vpn --toggle NAME   connect / disconnect one VPN (the panel's VPN page buttons)
 A NetworkManager VPN whose password isn't saved is brought up in a terminal (`nmcli --ask`), which asks for it.
 A failed connect notifies with Ask Jarvis (`fw-vpn --failed <name> <error>`, spawned so the menu returns at once).
-  fw-vpn --tunnel NAME        Direct Office Tunnel (lib/fw13/tunnels.py): start its SSH SOCKS tunnel in a terminal
-                              unless it's up, wait for it, open its browser window
-  fw-vpn --tunnel-stop NAME   end that tunnel
   fw-vpn test      self-check
 """
 import json
@@ -20,7 +17,7 @@ import sys
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
 
-from fw13 import bar as waybar, notify as fwnotify, tunnels, vpn, warp  # noqa: E402
+from fw13 import bar as waybar, notify as fwnotify, vpn, warp  # noqa: E402
 
 SHIELD = "\uf3ed"  # Font Awesome shield-halved
 
@@ -83,20 +80,6 @@ def toggle_by_name(name):
     return 0
 
 
-def tunnel(name, stop=False):
-    t = next((t for t in tunnels.load() if t["name"] == name), None)
-    if t is None:
-        print(f"fw-vpn: no tunnel named {name!r} in {tunnels.CONFIG}", file=sys.stderr)
-        return 1
-    if stop:
-        tunnels.stop(t)
-        return 0
-    err = tunnels.connect_and_open(t)
-    if err:
-        notify(f"Tunnel {name}", err)
-    return 0
-
-
 def main():
     args = sys.argv[1:]
     if args == ["--bar"]:
@@ -105,8 +88,6 @@ def main():
         os.execvp("fw-warp-panel", ["fw-warp-panel", "--vpn"])
     elif len(args) == 2 and args[0] == "--toggle":
         return toggle_by_name(args[1])
-    elif len(args) == 2 and args[0] in ("--tunnel", "--tunnel-stop"):
-        return tunnel(args[1], stop=args[0] == "--tunnel-stop")
     elif len(args) == 3 and args[0] == "--failed":
         failed(args[1], args[2])
     elif args == ["test"]:

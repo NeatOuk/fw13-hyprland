@@ -77,7 +77,7 @@ shellcheck -S warning -s bash dotfiles/dot_config/uwsm/env-hyprland   # sourced 
 python3 -c 'import ast,sys; [ast.parse(open(f).read(), f) for f in sys.argv[1:]]' "${py[@]}" $(find dotfiles/dot_local/lib -name '*.py')
 ```
 
-Self-checks: `PYTHONPATH=dotfiles/dot_local/lib python3 -m fw13.<module> test` (apps upstream displays grub autostart session agents jarvis nightlight timezone speakers syncthing tunnels pages.search; `fw13.ollama` takes no arg) and `fw-<x> test` (battery-warn updates caffeine usb bt-agent syncthing vpn active-app jarvis-panel).
+Self-checks: `PYTHONPATH=dotfiles/dot_local/lib python3 -m fw13.<module> test` (apps upstream displays grub autostart session agents jarvis nightlight timezone speakers syncthing pages.search; `fw13.ollama` takes no arg) and `fw-<x> test` (battery-warn updates caffeine usb bt-agent syncthing vpn active-app jarvis-panel).
 
 There is no unit-test suite: verification is lint + dry-run + self-checks + CI install (`.github/workflows/test.yml`) + the hardware checklist in `docs/FIRST-INSTALL.md`. Local dotfile edits are not what `chezmoi update` applies (it pulls the pushed repo), so push before testing on the machine. `CONTRIBUTING.md` has the commit conventions (`feat(area):`, `fix(area):`, `chore:`, `docs:`; update README (install/update) or docs/APPS.md (features, Settings, keys), this file and docs/ARCHITECTURE.md in the same change) and the roadmap.
 

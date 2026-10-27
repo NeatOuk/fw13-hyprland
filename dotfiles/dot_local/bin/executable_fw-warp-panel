@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Bar shield panel with two pages (user decision): Cloudflare (WARP on/off, mode, DNS filtering, protocol, and
 everything warp-cli and Cloudflare's trace report: exit IP and location, endpoint, handshake, latency, traffic, account,
-trusted networks, split tunnel) and VPN (every VPN from lib/fw13/vpn.py, connect / disconnect via `fw-vpn --toggle`;
-below them "Direct Office Tunnel": lib/fw13/tunnels.py's SSH SOCKS tunnels, Open / Stop via `fw-vpn --tunnel[-stop]`).
+trusted networks, split tunnel) and VPN (every VPN from lib/fw13/vpn.py, connect / disconnect via `fw-vpn --toggle`).
 
   fw-warp-panel            open the panel on Cloudflare (bar shield: FW_BAR=1 → below it; a second click closes it)
   fw-warp-panel --vpn      open it on the VPN page (also the only page when cloudflare-warp isn't installed)
@@ -22,7 +21,7 @@ import time
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
 
-from fw13 import bar as waybar, panel as single, tunnels, vpn, warp  # noqa: E402  (no GTK: --bar must stay fast)
+from fw13 import bar as waybar, panel as single, vpn, warp  # noqa: E402  (no GTK: --bar must stay fast)
 
 NAME = "fw-warp-panel"  # pidfile: a second click on the icon closes the open panel
 PANEL_W = 480
@@ -257,12 +256,8 @@ class Panel(Gtk.Window):
         self.header(button("Add or edit…", lambda: (launch("fw-settings", "network"), Gtk.main_quit())), "VPN")
         self.vpn_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.box.pack_start(self.vpn_box, False, False, 0)
-        self.box.pack_start(label("Direct Office Tunnel", "heading"), False, False, 0)
-        self.tunnel_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        self.box.pack_start(self.tunnel_box, False, False, 0)
         self.status_label = self.note("")
         self.vpn_rows = None
-        self.tunnel_rows = None
 
     def fill_vpns(self):
         rows = [(v["name"], v["kind"], v["active"]) for v in self.vpns or []]
@@ -284,40 +279,6 @@ class Panel(Gtk.Window):
             self.vpn_box.pack_start(row, False, False, 0)
         self.vpn_box.show_all()
         GLib.idle_add(self.fit)
-
-    def fill_tunnels(self):
-        """Tunnels from ~/.config/fw13/tunnels.json (local only); ● = its SOCKS port is listening."""
-        ts = tunnels.load()
-        rows = [(t["name"], tunnels.listening(t["port"])) for t in ts]
-        if rows == self.tunnel_rows:
-            return
-        self.tunnel_rows = rows
-        for c in self.tunnel_box.get_children():
-            self.tunnel_box.remove(c)
-        if not ts:
-            self.tunnel_box.pack_start(label(f"None yet: add one in {tunnels.CONFIG.replace(os.path.expanduser('~'), '~')} "
-                                             "(see the Network section of docs/APPS.md)", "dim", wrap=True),
-                                       False, False, 0)
-        for t, (_n, up) in zip(ts, rows):
-            row = Gtk.Box(spacing=10)
-            name = label(f"{'●' if up else '○'}  {t['name']}", ellipsize=Pango.EllipsizeMode.END)
-            name.set_hexpand(True)
-            row.pack_start(name, True, True, 0)
-            if up:
-                row.pack_start(button("Stop", lambda t=t: self.tunnel_cmd("--tunnel-stop", t)), False, False, 0)
-            row.pack_start(button("Open", lambda t=t: self.tunnel_cmd("--tunnel", t), "primary"), False, False, 0)
-            self.tunnel_box.pack_start(row, False, False, 0)
-        self.tunnel_box.show_all()
-        GLib.idle_add(self.fit)
-
-    def tunnel_cmd(self, flag, t):
-        """Detached fw-vpn: it waits for the tunnel (a password typed in its terminal) after the panel has closed."""
-        subprocess.Popen(["fw-vpn", flag, t["name"]], start_new_session=True,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if flag == "--tunnel":
-            Gtk.main_quit()
-        else:
-            GLib.timeout_add(500, lambda: (setattr(self, "tunnel_rows", None), self.fill_tunnels()) and False)
 
     def toggle_vpn(self, v):
         """fw-vpn --toggle does what the bar menu did: a password prompt in a terminal, Ask Jarvis on failure."""
@@ -669,7 +630,6 @@ class Panel(Gtk.Window):
                 self.vpns = vs if isinstance(vs, list) else []
                 if self.view == "vpn":
                     self.fill_vpns()
-                    self.fill_tunnels()
             in_thread(vpn.vpns, vpn_done)
         elif warp.installed() and warp.tos_accepted():
             in_thread(work, done)
@@ -690,7 +650,6 @@ class Panel(Gtk.Window):
         d = self.data
         if self.view == "vpn":
             self.fill_vpns()
-            self.fill_tunnels()
             return
         if self.view == "register":
             st = d.get("status") or {}
