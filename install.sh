@@ -488,6 +488,8 @@ system_phase() {
   $SUDO install -D -m 0644 system/etc/polkit-1/rules.d/50-fw13-vpn.rules /etc/polkit-1/rules.d/50-fw13-vpn.rules
   $SUDO install -D -m 0644 system/usr/share/polkit-1/actions/org.fw13.power.policy /usr/share/polkit-1/actions/org.fw13.power.policy
   $SUDO install -D -m 0644 system/etc/polkit-1/rules.d/50-fw13-power.rules /etc/polkit-1/rules.d/50-fw13-power.rules
+  # Settings → Network → Wi-Fi country: pkexec fw-wifi-country (no rule: asks for the admin password)
+  $SUDO install -D -m 0644 system/usr/share/polkit-1/actions/org.fw13.wifi.policy /usr/share/polkit-1/actions/org.fw13.wifi.policy
   # Automatic time zone (fw13.timezone): Hyprland has no GeoClue agent, so our client is allowed as a system app
   $SUDO install -D -m 0644 system/etc/geoclue/conf.d/90-fw13-timezone.conf /etc/geoclue/conf.d/90-fw13-timezone.conf
   [[ $CI == 1 ]] || $SUDO udevadm control --reload

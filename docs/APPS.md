@@ -139,7 +139,7 @@ Appearance and Input are saved to `~/.config/hypr/settings.lua`, checked by Hypr
 
 ### Network
 
-Wi-Fi (connect, forget, hidden networks; passwords never appear in a command line), Ethernet, and every VPN in one list: NetworkManager's OpenVPN, OpenConnect (FortiGate SSL / AnyConnect / GlobalProtect), Cisco IPsec and WireGuard, plus strongSwan IKEv2. Each VPN has Connect / Disconnect, **Edit…** and **Delete** (after a Yes/No question).
+Wi-Fi (connect, forget, hidden networks; passwords never appear in a command line; **Wi-Fi country** sets which bands the radio may use (6 GHz for Wi-Fi 6E/7 only where that country allows it; asks for your password, kept after reboot)), Ethernet, and every VPN in one list: NetworkManager's OpenVPN, OpenConnect (FortiGate SSL / AnyConnect / GlobalProtect), Cisco IPsec and WireGuard, plus strongSwan IKEv2. Each VPN has Connect / Disconnect, **Edit…** and **Delete** (after a Yes/No question).
 
 <details>
 <summary>Adding and editing VPNs</summary>

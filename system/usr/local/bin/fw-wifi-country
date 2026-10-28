@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Root: set the Wi-Fi regulatory country (which channels and bands, e.g. 6 GHz for Wi-Fi 6E/7, the radio may use).
+# `fw-wifi-country CC` applies it now (iw reg set) and from the next boot (cfg80211's ieee80211_regdom option in
+# /etc/modprobe.d/fw13-wifi-country.conf); `fw-wifi-country 00` returns to the default (world rules / the router's
+# hint) and removes the file. Run from Settings → Network via pkexec (action org.fw13.wifi-country: admin password).
+set -euo pipefail
+PATH=/usr/sbin:/usr/bin
+cc="${1:-}"
+[[ $# -eq 1 && $cc =~ ^([A-Z]{2}|00)$ ]] || { echo "usage: fw-wifi-country CC (two capital letters, 00 = default)" >&2; exit 2; }
+conf=/etc/modprobe.d/fw13-wifi-country.conf
+if [[ $cc == 00 ]]; then
+  rm -f "$conf"
+else
+  printf '# fw13-hypr: Settings → Network → Wi-Fi country\noptions cfg80211 ieee80211_regdom=%s\n' "$cc" > "$conf"
+fi
+exec iw reg set "$cc"

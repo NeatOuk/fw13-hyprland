@@ -3,6 +3,8 @@
 Also a tiny CLI for shell scripts (the bar's Wi-Fi menu), so they never put a password on a command line:
   python3 -m fw13.net security <ssid>   prints "open", "password" or why it can't be joined here (exit 0/0/3)
   python3 -m fw13.net connect <ssid>    password (if any) on stdin; joins through connect_new()'s passwd-file
+  python3 -m fw13.net test              self-check (regulatory database + `iw reg get` parsing)
+Wi-Fi country (regulatory domain): wifi_country() reads `iw reg get`, set_wifi_country() runs the root helper.
 """
 import os
 import re
@@ -191,11 +193,72 @@ def connect_new(ssid, security, password, ifname="", hidden=False):
     return None
 
 
+REGDB = "/usr/lib/firmware/regulatory.db"  # wireless-regdb, what the kernel enforces
+COUNTRY_HELPER = "/usr/local/bin/fw-wifi-country"
+
+
+def wifi_countries(path=REGDB):
+    """Country codes in the regulatory database: after the 8-byte header, 4-byte entries (alpha2 + pointer), 0-ended."""
+    try:
+        with open(path, "rb") as f:
+            d = f.read()
+    except OSError:
+        return []
+    out, i = [], 8
+    while i + 4 <= len(d) and d[i:i + 2] != b"\0\0":
+        cc = d[i:i + 2].decode("ascii", "replace")
+        if cc.isalpha() and cc.isupper():
+            out.append(cc)
+        i += 4
+    return out
+
+
+def parse_reg(text):
+    """`iw reg get` -> (country, 6 GHz allowed) from its global section; ("00", False) when unset."""
+    glob = text.split("\nphy#")[0]
+    m = re.search(r"country (\w\w):", glob)
+    starts = [int(s) for s in re.findall(r"\((\d+) - \d+ @", glob)]
+    return (m.group(1) if m else "00"), any(s >= 5925 for s in starts)
+
+
+def wifi_country():
+    try:
+        out = subprocess.run(["iw", "reg", "get"], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return "00", False
+    return parse_reg(out)
+
+
+def set_wifi_country(cc):
+    """Through the root helper (pkexec asks for the admin password) -> error text or None."""
+    try:
+        p = subprocess.run(["pkexec", COUNTRY_HELPER, cc], capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return str(e)
+    if p.returncode in (126, 127):
+        return "Cancelled"
+    return None if p.returncode == 0 else (p.stderr.strip() or "Could not set the Wi-Fi country")
+
+
 def _security_of(ssid):
     return next((n["security"] for n in networks() if n["ssid"] == ssid), None)
 
 
+def _test():
+    sample = ("global\ncountry KH: DFS-ETSI\n\t(2402 - 2482 @ 40), (N/A, 20), (N/A)\n\t(5490 - 5710 @ 160), (N/A, 27)\n\n"
+              "phy#0 (self-managed)\ncountry US: DFS-FCC\n\t(5925 - 7125 @ 320), (N/A, 12), (N/A)\n")
+    assert parse_reg(sample) == ("KH", False), parse_reg(sample)
+    assert parse_reg(sample.replace("(5490", "(5945")) == ("KH", True)
+    assert parse_reg("global\n") == ("00", False)
+    cs = wifi_countries()
+    assert not os.path.exists(REGDB) or {"KH", "US", "DE"} <= set(cs) and "00" not in cs, cs[:5]
+    print("net: ok", len(cs), "countries;", wifi_country())
+    return 0
+
+
 def main(argv):
+    if argv == ["test"]:
+        return _test()
     if len(argv) != 2 or argv[0] not in ("security", "connect"):
         print("usage: python3 -m fw13.net security|connect <ssid>", file=sys.stderr)
         return 2

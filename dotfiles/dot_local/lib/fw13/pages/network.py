@@ -1,5 +1,6 @@
-"""Network: Wi-Fi (switch, networks, connect/forget, hidden), Ethernet via nmcli, and every VPN (fw13.vpn:
+"""Network: Wi-Fi (switch, country = regulatory domain via pkexec fw-wifi-country, networks, connect/forget, hidden), Ethernet via nmcli, and every VPN (fw13.vpn:
 NetworkManager's + strongSwan's): connect/disconnect, edit (nm-connection-editor / pages/vpn_edit.py), add."""
+import json
 import os
 import threading
 import time
@@ -23,6 +24,15 @@ def _buttons(*widgets):
     for w in widgets:
         box.pack_start(w, False, False, 0)
     return box
+
+
+def _country_names():
+    """ISO 3166 code -> name from iso-codes (Fedora core); {} when missing (codes alone)."""
+    try:
+        with open("/usr/share/iso-codes/json/iso_3166-1.json") as f:
+            return {c["alpha_2"]: c.get("common_name", c["name"]) for c in json.load(f)["3166-1"]}
+    except (OSError, ValueError, KeyError):
+        return {}
 
 
 def _valid_psk(pw, security):
@@ -118,6 +128,7 @@ class NetworkPage(Page):
             sw.set_active(on)
             sw.connect("state-set", self.on_wifi_switch)
             self.row("Wi-Fi", sw, hint=wifi_dev)
+            self.country_row()
             if on:
                 tools = _buttons(button("Rescan", lambda: self.run_bg("Scanning…", self._scan)),
                                  button("+ Hidden network…", lambda: self.on_hidden(wifi_dev)))
@@ -163,6 +174,20 @@ class NetworkPage(Page):
         adv.connect("clicked", lambda _b: launch("nm-connection-editor"))
         self.add_widget(adv)
         self.show_all()
+
+    def country_row(self):
+        """Regulatory country: which bands the radio may use (6 GHz = Wi-Fi 6E/7 only where the country allows it)."""
+        cur, six = net.wifi_country()
+        combo = Gtk.ComboBoxText()
+        combo.append("00", "Default (world)")
+        names = _country_names()
+        for cc in sorted(net.wifi_countries(), key=lambda c: names.get(c, c)):
+            combo.append(cc, f"{names.get(cc, cc)} ({cc})")
+        combo.set_active_id(cur) or combo.set_active_id("00")
+        combo.connect("changed", lambda c: c.get_active_id() != cur and self.run_bg(
+            "Setting the Wi-Fi country… (Wi-Fi may reconnect)", net.set_wifi_country, c.get_active_id()))
+        six_text = "6 GHz (Wi-Fi 6E/7) allowed" if six else "No 6 GHz (Wi-Fi 6E/7) in this country"
+        self.row("Wi-Fi country", combo, hint=f"{six_text} · use the country you are in")
 
     def render_vpns(self):
         self.heading("VPN")
