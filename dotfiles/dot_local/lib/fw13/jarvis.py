@@ -160,6 +160,33 @@ def laya(text, schema, timeout=1.0):
         return None
 
 
+def parse_choices(text):
+    """'a, b, c' -> (choices, error): 2–10 distinct options of at most 60 characters each."""
+    choices = list(dict.fromkeys(c.strip() for c in text.replace("\n", ",").split(",") if c.strip()))
+    if len(choices) < 2:
+        return None, "Give at least two options, separated by commas"
+    if len(choices) > 10 or any(len(c) > 60 for c in choices):
+        return None, "At most 10 options of up to 60 characters each"
+    return choices, None
+
+
+def laya_decide(text, choices, timeout=20):
+    """fw-laya: (choice, error) for one question. Needs the URL and token, not the action-card switch."""
+    url, token = laya_url(), laya_token()
+    if not url:
+        return None, "No Laya server: set its URL in Settings → Jarvis"
+    if not token:
+        return None, "No Laya token: save it in Settings → Jarvis"
+    try:
+        return _laya_post(url, token, text, {"decision": choices}, timeout)["decision"], None
+    except urllib.error.HTTPError as e:
+        return None, "Unauthorized: check the token" if e.code in (401, 403) else f"Server error ({e.code})"
+    except OSError:
+        return None, "Laya is unreachable"
+    except (ValueError, KeyError, TypeError):
+        return None, "Laya gave an answer that isn't one of the options"
+
+
 def laya_test(url):
     """Settings → Jarvis → Test: 'OK · N ms' / 'Unauthorized' / 'Unreachable' / 'Server error' / 'No token'."""
     try:
@@ -220,6 +247,15 @@ def _laya_selftest():
             http(**kw)
             assert laya("ls", schema) is None, kw
         store.set("jarvis_laya", False)
+        schema = {"decision": ["walk", "taxi"]}  # fw-laya: works with the card switch off
+        http(reply=b'{"decision": "taxi"}')
+        assert laya_decide("rain", ["walk", "taxi"]) == ("taxi", None)
+        for kw, err in (({"code": 401}, "Unauthorized"), ({"exc": urllib.error.URLError("down")}, "unreachable"),
+                        ({"reply": b'{"decision": "bus"}'}, "isn't one")):
+            http(**kw)
+            assert err in laya_decide("rain", ["walk", "taxi"])[1], kw
+        laya_token = lambda: ""  # noqa: E731
+        assert "token" in laya_decide("rain", ["walk", "taxi"])[1]
         assert laya_on() is False
     finally:
         urllib.request.urlopen, laya_token, store.PATH = real_open, real_token, real_path
@@ -227,6 +263,9 @@ def _laya_selftest():
     assert check_laya_url("") == ("", None)
     for bad in ("laya:8000", "ftp://laya", "http://laya/classify", "http://a b", "http://laya:8000?x"):
         assert check_laya_url(bad)[1], bad
+    assert parse_choices(" yes, no ,yes\nmaybe") == (["yes", "no", "maybe"], None)
+    for bad in ("yes", "", ",,", ",".join(map(str, range(11))), "a," + "x" * 61):
+        assert parse_choices(bad)[1], bad
 
 
 def check_note(text):

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Laya Decide
+Comment=Ask your Laya decision model to pick one of your options
+Icon=dialog-question
+Exec=fw-laya
+Terminal=false
+Type=Application
+Categories=Utility;
+Keywords=Laya;Decision;Decide;Choose;Jarvis;
+StartupWMClass=fw-laya

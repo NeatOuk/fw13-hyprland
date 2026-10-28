@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""Laya Decide: ask your self-hosted Laya classifier (Settings → Jarvis → Laya) to pick one of your options.
+
+Type the situation, list the options (comma-separated, 2–10), Decide (Ctrl+Enter): Laya answers with exactly one of
+them. Uses the Laya URL + token from Settings → Jarvis (fw13.jarvis.laya_decide), not the action-card switch; nothing
+is stored. A normal tiled window (app launcher "Laya Decide", or Settings → Jarvis → Open decision dialog).
+
+  fw-laya                        open the window
+  fw-laya "situation" a,b[,c]    no window: print Laya's choice (exit 1 + the reason on stderr on failure)
+"""
+import os
+import sys
+import threading
+import time
+
+sys.path.insert(0, os.path.expanduser("~/.local/lib"))
+
+from fw13 import jarvis  # noqa: E402
+
+
+def cli(text, options):
+    choices, err = jarvis.parse_choices(options)
+    if not err:
+        choice, err = jarvis.laya_decide(text, choices)
+    if err:
+        print(err, file=sys.stderr)
+        return 1
+    print(choice)
+    return 0
+
+
+def window():
+    import gi
+    gi.require_version("Gtk", "3.0")
+    gi.require_version("Gdk", "3.0")
+    from gi.repository import Gdk, GLib, Gtk
+    from fw13 import ui_theme
+    from fw13.ui_theme import button, label
+
+    GLib.set_prgname("fw-laya")  # Wayland app id = window class
+    win = Gtk.Window(title="Laya Decide")
+    win.set_default_size(560, 420)
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+    for side in ("top", "bottom", "start", "end"):
+        getattr(box, f"set_margin_{side}")(16)
+    box.pack_start(label("Laya Decide", "title"), False, False, 0)
+    box.pack_start(label("Situation", "heading"), False, False, 0)
+    text = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR, accepts_tab=False)
+    text.get_style_context().add_class("page")
+    for side in ("left", "right", "top", "bottom"):
+        getattr(text, f"set_{side}_margin")(8)
+    scroll = Gtk.ScrolledWindow()
+    scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+    scroll.add(text)
+    box.pack_start(scroll, True, True, 0)
+    box.pack_start(label("Options (comma-separated)", "heading"), False, False, 0)
+    opts = Gtk.Entry(text="yes, no", placeholder_text="yes, no, later")
+    box.pack_start(opts, False, False, 0)
+    row = Gtk.Box(spacing=12)
+    decide = button("Decide", None, "primary")
+    row.pack_start(decide, False, False, 0)
+    status = label("", "dim", wrap=True)
+    row.pack_start(status, True, True, 0)
+    box.pack_start(row, False, False, 0)
+    answer = label("", "title", wrap=True, selectable=True)
+    box.pack_start(answer, False, False, 0)
+    win.add(box)
+
+    def show(choice, err, ms):
+        decide.set_sensitive(True)
+        ctx = status.get_style_context()
+        ctx.remove_class("bad")
+        if err:
+            ctx.add_class("bad")
+            status.set_text(err)
+            answer.set_text("")
+        else:
+            status.set_text(f"{ms} ms")
+            answer.set_markup(f'<span size="x-large" weight="bold">→ {GLib.markup_escape_text(choice)}</span>')
+
+    def run(*_):
+        buf = text.get_buffer()
+        situation = buf.get_text(buf.get_start_iter(), buf.get_end_iter(), False).strip()
+        choices, err = jarvis.parse_choices(opts.get_text())
+        if not situation:
+            err = "Describe the situation first"
+        if err:
+            return show(None, err, 0)
+        decide.set_sensitive(False)
+        status.get_style_context().remove_class("bad")
+        status.set_text("Asking Laya…")
+        answer.set_text("")
+        t = time.monotonic()
+
+        def work():
+            choice, e = jarvis.laya_decide(situation, choices)
+            GLib.idle_add(show, choice, e, int((time.monotonic() - t) * 1000))
+        threading.Thread(target=work, daemon=True).start()
+
+    def key(_w, ev):
+        ctrl = ev.state & Gdk.ModifierType.CONTROL_MASK
+        if ev.keyval == Gdk.KEY_Escape:
+            win.close()
+        elif ctrl and ev.keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter) and decide.get_sensitive():
+            run()
+        else:
+            return False
+        return True
+
+    decide.connect("clicked", run)
+    opts.connect("activate", run)
+    win.connect("key-press-event", key)
+    win.connect("destroy", Gtk.main_quit)
+    ui_theme.install()
+    win.show_all()
+    text.grab_focus()
+    Gtk.main()
+    return 0
+
+
+def main(argv):
+    if not argv:
+        return window()
+    if len(argv) == 2:
+        return cli(*argv)
+    print(__doc__.split("\n\n")[-1].rstrip(), file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

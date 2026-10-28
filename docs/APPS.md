@@ -219,7 +219,7 @@ Date, time zone (or **Set time zone automatically**), automatic time, device nam
 
 **Coding agent:** OpenCode or **Pi** (with their versions) for the `>_` icon, Jarvis's Open button and its Ollama fallback; your Ollama servers with online status and model count (**Add server**, **Remove**); the default server and model for both agents.
 
-**Jarvis:** the Claude **model** (an alias such as opus/sonnet, or a full name) and **effort** (low to max; empty = Claude Code's default), the Ollama fallback when Claude is unreachable, an optional **Laya decision model** (your self-hosted classifier: URL, token kept in GNOME Keyring, Test) that puts a safe / risky / destructive badge on Jarvis's action cards (advice only: nothing runs without Run), **Local models (Ollama)** (the laptop's models with size and whether they're loaded on the GPU, **Download…**, **Remove**; the Radeon 890M runs them through ROCm) and Jarvis's **memory** notes.
+**Jarvis:** the Claude **model** (an alias such as opus/sonnet, or a full name) and **effort** (low to max; empty = Claude Code's default), the Ollama fallback when Claude is unreachable, an optional **Laya decision model** (your self-hosted classifier: URL, token kept in GNOME Keyring, Test) that puts a safe / risky / destructive badge on Jarvis's action cards (advice only: nothing runs without Run) and answers the **Laya Decide** window (app launcher, or **Decision dialog → Open…**: describe a situation, list the options, Laya picks one; Ctrl+Enter), **Local models (Ollama)** (the laptop's models with size and whether they're loaded on the GPU, **Download…**, **Remove**; the Radeon 890M runs them through ROCm) and Jarvis's **memory** notes.
 
 ### Apps page
 

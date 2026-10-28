@@ -93,6 +93,8 @@ class JarvisPage(Page):
         box.pack_start(self.token_state, False, False, 0)
         self.row("Laya token", box, hint="Kept in GNOME Keyring (service laya), never shown or written to a file")
         self.fill_token()
+        self.row("Decision dialog", button("Open…", lambda: launch("fw-laya")),
+                 hint="Describe a situation, list the options, Laya picks one (also in the app launcher: Laya Decide)")
 
     def fill_token(self):
         bg(lambda: bool(jarvis.laya_token()),
