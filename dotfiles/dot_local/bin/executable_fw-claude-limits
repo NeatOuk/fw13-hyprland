@@ -372,12 +372,32 @@ def statusline():
     rl = data.get("rate_limits")
     os.makedirs(os.path.dirname(CACHE), exist_ok=True)
     if rl:
-        tmp = CACHE + ".tmp"
+        rl = merge((load() or {}).get("rate_limits"), rl, time.time())
+        data = {**data, "rate_limits": rl}  # this session's own line shows the freshest numbers too
+        tmp = f"{CACHE}.{os.getpid()}.tmp"  # several Claude Code sessions write at once
         json.dump({"updated": time.time(), "rate_limits": rl}, open(tmp, "w"))
         os.replace(tmp, CACHE)
     cwd = (data.get("workspace") or {}).get("current_dir") or data.get("cwd") or os.getcwd()
     cols = os.environ.get("COLUMNS", "")
     print("\n".join(lines(data, git(cwd), advisor(cwd), laptop(), time.time(), int(cols) if cols.isdigit() else None)))
+
+
+def merge(old, new, now):
+    """Every Claude Code session writes the cache, but an idle one only repeats the usage from its last reply
+    (hours old, lower). Within one window (same resets_at) usage only goes up, so keep the higher number; a new
+    window (later resets_at) replaces it; a block the session lacks (an idle one has no five_hour) is kept until
+    it resets."""
+    old = old if isinstance(old, dict) else {}
+    out = {k: v for k, v in old.items() if isinstance(v, dict) and (v.get("resets_at") or 0) > now}
+    for key, b in new.items():
+        prev = out.get(key)
+        if (isinstance(b, dict) and isinstance(prev, dict) and b.get("resets_at") == prev.get("resets_at")
+                and (pct(prev) or 0) > (pct(b) or 0)):
+            continue  # an idle session's older, lower figure
+        if isinstance(b, dict) and isinstance(prev, dict) and (b.get("resets_at") or 0) < (prev.get("resets_at") or 0):
+            continue  # a window that already ended
+        out[key] = b
+    return out
 
 
 def selftest():
@@ -407,6 +427,15 @@ def selftest():
         "Battery: 82% ⚡ · CPU: 12% · RAM: 18/63 GB · Disk: 94 GB free · Syncthing: up to date"], plain
     assert USAGE in "".join(lines(data, None, None, {}, 1000))
     assert len(lines({}, None, None, {}, 0)) == 1  # empty input: model line only
+    week, five = {"used_percentage": 95, "resets_at": 5000}, {"used_percentage": 3, "resets_at": 2000}
+    m = merge({"seven_day": week, "five_hour": five}, {"seven_day": {"used_percentage": 79, "resets_at": 5000}}, 1000)
+    assert m == {"seven_day": week, "five_hour": five}  # idle session: lower figure, no five_hour
+    m = merge(m, {"seven_day": {"used_percentage": 96, "resets_at": 5000}}, 1000)
+    assert pct(m["seven_day"]) == 96
+    m = merge(m, {"seven_day": {"used_percentage": 2, "resets_at": 9000}}, 6000)  # new week; five_hour expired
+    assert m == {"seven_day": {"used_percentage": 2, "resets_at": 9000}}
+    assert merge(m, {"seven_day": {"used_percentage": 99, "resets_at": 5000}}, 6000) == m  # last week's, stale
+    assert merge(None, {"x": 1}, 0) == {"x": 1}
     print("fw-claude-limits: ok")
 
 
