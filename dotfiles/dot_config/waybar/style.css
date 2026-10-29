@@ -25,7 +25,7 @@ window#waybar { background: @bar_bg; color: @fg; background-image: linear-gradie
 #battery.warning { color: @yellow; }
 #battery.critical { color: @red; }
 #custom-recording { color: @red; padding-left: 10px; }
-tooltip { background: @bar_bg; border: 1px solid @accent; }
+tooltip { background: @bg; border: 1px solid @accent; }  /* solid even with a Glossy bar: text behind would mix with it */
 #custom-claude.warning { color: @yellow; }
 #custom-claude.critical { color: @red; }
 /* Cloudflare WARP: accent when connected, dim when off */
