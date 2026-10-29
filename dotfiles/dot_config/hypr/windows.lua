@@ -28,3 +28,7 @@ hl.window_rule({
   size = { "(monitor_w*0.6)", "(monitor_h*0.7)" },
   center = true,
 })
+
+-- Notification Center (bar bell): slides in from the right edge, like macOS
+hl.layer_rule({ name = "fw-notification-center-slide", match = { namespace = "^fw-notification-center$" },
+                animation = "slide right" })

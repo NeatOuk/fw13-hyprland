@@ -44,6 +44,10 @@ scale highlight { background: $accent; border-radius: 0; border: none; }
 scale slider { background: $fg_bright; min-width: 14px; min-height: 14px; border-radius: 0;
                border: none; box-shadow: none; }
 separator { background: $surface2; min-height: 1px; }
+.card { background: alpha($surface, 0.7); border-left: 2px solid $accent; border-radius: 0; }
+.card:hover { background: alpha($surface2, 0.8); }
+.card button { background: transparent; padding: 0 6px; color: $fg_dim; }
+.card button:hover { color: $fg_bright; background: $surface3; }
 levelbar trough { background: $surface2; border: none; border-radius: 0; padding: 0; }
 levelbar block { border: none; border-radius: 0; min-height: 8px; }
 levelbar block.filled { background: $accent; }

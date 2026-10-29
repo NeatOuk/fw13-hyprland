@@ -12,124 +12,18 @@ process it was taken from is gone (not when ids drop: `makoctl dismiss -h` or an
 removes the newest without a restart).
 mako's global on-notify signals the bar; fw-osd popups (history=0, on-notify=none) are left out everywhere.
 """
-import html
 import json
 import os
-import re
 import subprocess
 import sys
 import time
 
 sys.path.insert(0, os.path.expanduser("~/.local/lib"))
 
-from fw13 import bar as waybar, store  # noqa: E402
+from fw13.mako import (bar_refresh, copy, dnd_on, everything, makoctl, mark_seen,  # noqa: E402
+                       plain_text, seen_mark, toggle_dnd)
 
-DND = "do-not-disturb"
-SKIP_APPS = {"fw-osd"}
 BELL, BELL_SLASH = "", ""  # Font Awesome 6 Free: bell, bell-slash
-
-
-def bar_refresh():
-    waybar.refresh("notifications")
-
-
-def makoctl(*args):
-    try:
-        r = subprocess.run(["makoctl", *args], capture_output=True, text=True, timeout=3)
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    return r.stdout if r.returncode == 0 else None
-
-
-def _plain(v):
-    """A field's value: mako ≥ 1.9 prints plain JSON; older makoctl printed busctl's {"type": …, "data": …}."""
-    if isinstance(v, dict) and "data" in v:
-        return _plain(v["data"])
-    return v
-
-
-def _field(n, *names):
-    for name in names:  # "app_name" today, "app-name" in the D-Bus dict / older makoctl
-        if name in n:
-            return _plain(n[name])
-    return None
-
-
-def notifications(cmd):
-    """[{id, app, summary, body}] from `makoctl list|history -j`; anything unreadable is skipped."""
-    out = makoctl(cmd, "-j")
-    try:
-        data = json.loads(out) if out else []
-    except ValueError:
-        return []
-    data = _plain(data)
-    if isinstance(data, list) and len(data) == 1 and isinstance(data[0], list):  # busctl's [[…]]
-        data = data[0]
-    if not isinstance(data, list):
-        return []
-    result = []
-    for n in data:
-        if not isinstance(n, dict):
-            continue
-        try:
-            nid = int(_field(n, "id"))
-        except (TypeError, ValueError):
-            continue
-        app = str(_field(n, "app_name", "app-name") or "")
-        if app in SKIP_APPS:
-            continue
-        result.append({"id": nid, "app": app,
-                       "summary": str(_field(n, "summary") or ""), "body": str(_field(n, "body") or "")})
-    return result
-
-
-def everything():
-    """Visible and dismissed notifications, newest first, each id once."""
-    seen, result = set(), []
-    for n in sorted(notifications("list") + notifications("history"), key=lambda n: -n["id"]):
-        if n["id"] not in seen:
-            seen.add(n["id"])
-            result.append(n)
-    return result
-
-
-def dnd_on():
-    return DND in (makoctl("mode") or "").split()
-
-
-def plain_text(s):
-    """mako bodies may hold Pango markup: drop tags, decode entities."""
-    return html.unescape(re.sub(r"<[^>]*>", "", s))
-
-
-def mako_instance():
-    """"<pid>:<start time>" of the running mako (start time: a reused pid is a different process), or None."""
-    r = subprocess.run(["pgrep", "-x", "-u", str(os.getuid()), "mako"], capture_output=True, text=True)
-    pids = r.stdout.split()
-    if len(pids) != 1:  # none, or one per seat/session: can't tell which one is ours
-        return None
-    try:
-        with open(f"/proc/{pids[0]}/stat") as f:
-            start = f.read().rsplit(")", 1)[1].split()[19]  # field 22 (starttime), counted after "(comm)"
-    except (OSError, IndexError):
-        return None
-    return f"{pids[0]}:{start}"
-
-
-def seen_mark():
-    saved = store.get("notif_seen")
-    if not isinstance(saved, dict):  # unset, or a bare id from an older version: adopt it for this mako
-        saved = {"mako": None, "id": saved if isinstance(saved, int) else 0}
-    mark, inst = saved.get("id") or 0, mako_instance()
-    if inst and saved.get("mako") != inst:
-        if saved.get("mako"):  # mako restarted: ids began again at 1
-            mark = 0
-        store.set("notif_seen", {"mako": inst, "id": mark})
-    return mark
-
-
-def mark_seen(nid):
-    store.set("notif_seen", {"mako": mako_instance(), "id": nid})
 
 
 # --- bar ----------------------------------------------------------------------------------------
@@ -191,20 +85,7 @@ def menu(pos):
         makoctl("dismiss", "--all")
     elif 2 <= pick < 2 + len(items):
         n = items[pick - 2]
-        text = "\n".join(t for t in (plain_text(n["summary"]), plain_text(n["body"])) if t)
-        try:  # wl-copy stays running to serve the clipboard: don't wait for it
-            p = subprocess.Popen(["wl-copy"], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
-                                 stderr=subprocess.DEVNULL, start_new_session=True)
-            p.stdin.write(text.encode())
-            p.stdin.close()
-        except OSError:
-            pass
-
-
-def toggle_dnd():
-    makoctl("mode", "-t", DND)
-    bar_refresh()
-    waybar.refresh("profile")  # fw-profile: DND off leaves Focus/Zen
+        copy("\n".join(t for t in (plain_text(n["summary"]), plain_text(n["body"])) if t))
 
 
 def main():

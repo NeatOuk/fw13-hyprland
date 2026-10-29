@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""Notification Center: the bar bell's panel, full height at the right edge (it slides in: Hyprland layer rule
+`fw-notification-center` in windows.lua), like macOS.
+
+Do not disturb switch and Clear all on top, then every notification as a card, newest first: the ones still on
+screen (× dismisses; a click runs the app's default action, e.g. opens the chat) and the earlier ones from mako's
+history (a click copies the text). Opening it marks everything read (the bell's count). New notifications appear
+while it is open. Closes on Esc, a second click on the bell, or a click outside it.
+
+  fw-notification-center    open, or close if open (single instance: fw13.panel)
+Look: the panel follows Appearance → Look → Panels and Settings (GTK3 + gtk-layer-shell, fw13.ui_theme).
+"""
+import os
+import signal
+import subprocess
+import sys
+
+sys.path.insert(0, os.path.expanduser("~/.local/lib"))
+
+import gi  # noqa: E402
+
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+gi.require_version("GtkLayerShell", "0.1")
+from gi.repository import Gdk, GLib, Gtk, GtkLayerShell, Pango  # noqa: E402
+
+from fw13 import mako, panel as single, ui_theme  # noqa: E402
+
+NAME = "fw-notification-center"
+WIDTH = 380
+GAP = 8  # from the screen edge and the bar, like the window gaps
+REFRESH_MS = 2000  # pick up notifications that arrive while it is open
+BODY_LINES = 4
+
+
+def text_of(n):
+    return "\n".join(t for t in (mako.plain_text(n["summary"]), mako.plain_text(n["body"])) if t)
+
+
+class Center(Gtk.Window):
+    def __init__(self):
+        super().__init__()
+        self.get_style_context().add_class("panel")
+        self.set_size_request(WIDTH, -1)
+        GtkLayerShell.init_for_window(self)
+        GtkLayerShell.set_namespace(self, NAME)
+        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
+        GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.ON_DEMAND)
+        for edge in (GtkLayerShell.Edge.TOP, GtkLayerShell.Edge.RIGHT, GtkLayerShell.Edge.BOTTOM):
+            GtkLayerShell.set_anchor(self, edge, True)
+            GtkLayerShell.set_margin(self, edge, GAP)
+        self.connect("key-press-event", lambda _w, e: e.keyval == Gdk.KEY_Escape and self.close())
+        self.had_focus = False
+        self.connect("focus-in-event", lambda *_: setattr(self, "had_focus", True))
+        self.connect("focus-out-event", self.on_focus_out)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        for side in ("top", "bottom", "start", "end"):
+            getattr(box, f"set_margin_{side}")(14)
+        head = Gtk.Box(spacing=8)
+        head.pack_start(ui_theme.label("Notifications", "title"), True, True, 0)
+        self.clear_btn = ui_theme.button("Clear all", self.clear_all)
+        head.pack_end(self.clear_btn, False, False, 0)
+        box.pack_start(head, False, False, 0)
+
+        dnd = Gtk.Box(spacing=8)
+        dnd.pack_start(ui_theme.label("Do not disturb"), True, True, 0)
+        self.dnd = Gtk.Switch(active=mako.dnd_on(), valign=Gtk.Align.CENTER)
+        self.dnd.connect("notify::active", self.on_dnd)
+        dnd.pack_end(self.dnd, False, False, 0)
+        box.pack_start(dnd, False, False, 0)
+        self.status = ui_theme.label("", "dim")  # "Copied", shown only for a moment
+        self.status.set_no_show_all(True)
+        box.pack_start(self.status, False, False, 0)
+
+        self.list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.add(self.list)
+        box.pack_start(scroll, True, True, 0)
+        self.add(box)
+        self.shown = None
+        self.refresh()
+        GLib.timeout_add(REFRESH_MS, self.refresh)
+
+    # --- list --------------------------------------------------------------------------------------
+    def refresh(self):
+        items = mako.everything()
+        key = [(n["id"], n["active"]) for n in items]
+        if key != self.shown:
+            self.shown = key
+            for child in self.list.get_children():
+                child.destroy()
+            for n in items:
+                self.list.pack_start(self.card(n), False, False, 0)
+            if not items:
+                self.list.pack_start(ui_theme.label("No notifications", "dim", xalign=0.5), False, False, 24)
+            self.clear_btn.set_sensitive(bool(items))
+            self.list.show_all()
+            if items:  # seen: the bell's count clears
+                mako.mark_seen(max(n["id"] for n in items))
+                mako.bar_refresh()
+        return True
+
+    def card(self, n):
+        ev = Gtk.EventBox()
+        ev.get_style_context().add_class("card")  # fw13.ui_theme: surface background, accent edge
+        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        for side in ("top", "bottom", "start", "end"):
+            getattr(inner, f"set_margin_{side}")(10)
+        top = Gtk.Box(spacing=6)
+        top.pack_start(ui_theme.label(n["app"] or "Notification", "dim"), True, True, 0)
+        if n["active"]:
+            x = Gtk.Button(label="×", relief=Gtk.ReliefStyle.NONE, tooltip_text="Dismiss")
+            x.connect("clicked", lambda _b, nid=n["id"]: self.dismiss(nid))
+            top.pack_end(x, False, False, 0)
+        inner.pack_start(top, False, False, 0)
+        summary = mako.plain_text(n["summary"])
+        if summary:
+            s = ui_theme.label(summary, "heading", wrap=True)
+            s.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+            inner.pack_start(s, False, False, 0)
+        body = mako.plain_text(n["body"])
+        if body:
+            b = ui_theme.label(body, wrap=True, lines=BODY_LINES, ellipsize=Pango.EllipsizeMode.END)
+            b.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+            b.set_max_width_chars(1)  # let it wrap to the card instead of widening the panel
+            inner.pack_start(b, False, False, 0)
+        ev.add(inner)
+        ev.set_tooltip_text("Click to open" if n["active"] and "default" in n["actions"] else "Click to copy")
+        ev.connect("button-release-event", lambda _w, e, n=n: e.button == 1 and self.activate_card(n))
+        return ev
+
+    def activate_card(self, n):
+        if n["active"] and "default" in n["actions"]:
+            mako.makoctl("invoke", "-n", str(n["id"]), "default")
+            self.close()
+        else:
+            mako.copy(text_of(n))
+            self.status.set_text("Copied")
+            self.status.show()
+            GLib.timeout_add(1500, lambda: (self.status.hide(), False)[1])
+
+    # --- actions -----------------------------------------------------------------------------------
+    def dismiss(self, nid):
+        mako.makoctl("dismiss", "-n", str(nid))
+        self.refresh()
+
+    def clear_all(self):
+        mako.makoctl("dismiss", "--all")
+        self.refresh()
+
+    def on_dnd(self, sw, _p):
+        if sw.get_active() != mako.dnd_on():
+            mako.toggle_dnd()
+
+    def on_focus_out(self, *_):
+        if self.had_focus:  # a click outside: close, like a menu (unless it comes straight back)
+            GLib.timeout_add(150, lambda: (self.has_toplevel_focus() or self.close(), False)[1])
+        return False
+
+
+def main():
+    if single.close(NAME):  # second click on the bell
+        return 0
+    subprocess.run(["pkill", "-x", "fuzzel"])  # close an open bar menu
+    single.claim(NAME)
+    ui_theme.install()
+    win = Center()
+    win.connect("destroy", Gtk.main_quit)
+    try:  # GLibUnix is the newer home of unix_signal_add
+        from gi.repository import GLibUnix
+        GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, Gtk.main_quit)
+    except ImportError:
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, Gtk.main_quit)
+    win.show_all()
+    try:
+        Gtk.main()
+    finally:
+        single.release(NAME)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

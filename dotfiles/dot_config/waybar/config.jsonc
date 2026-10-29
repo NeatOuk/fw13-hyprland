@@ -90,7 +90,8 @@
     "on-click": "FW_BAR=1 fw-power-panel",
     "on-click-right": "FW_BAR=1 fw-system-menu"
   },
-  // Notification bell (fw-notifications): unread count, bell-slash under do-not-disturb; mako's on-notify sends signal 12.
+  // Notification bell (fw-notifications --bar): unread count, bell-slash under do-not-disturb; mako's on-notify sends
+  // signal 12. Click: the Notification Center (fw-notification-center); right-click: do not disturb.
   "custom/notifications": { "exec": "fw-notifications --bar", "return-type": "json", "interval": 60, "signal": 12,
-                            "on-click": "FW_BAR=1 fw-notifications", "on-click-right": "fw-notifications --dnd" }
+                            "on-click": "fw-notification-center", "on-click-right": "fw-notifications --dnd" }
 }
