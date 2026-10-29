@@ -103,10 +103,9 @@ def css(p=None):
     if alpha < 1:  # see-through fw13 windows (Hyprland blurs behind them); .page sits on the window, so it adds none
         r, g, b = (int(v["bg"][i:i + 2], 16) for i in (1, 3, 5))
         win_bg = f"rgba({r}, {g}, {b}, {alpha:g})"
-        top, _mid, _shade, edge = theme.gloss("panels")
-        extra = (".page { background: transparent; }\n"  # a soft reflection down the top of the window, glossy edge
-                 f"window {{ background-image: linear-gradient(to bottom, alpha({theme.SHEEN}, {top * 0.5:g}), "
-                 f"alpha({theme.SHEEN}, 0) 220px); box-shadow: inset 0 1px alpha({theme.SHEEN}, {edge:g}); }}\n")
+        extra = (".page { background: transparent; }\n"
+                 f"window {{ background-image: linear-gradient(to bottom, alpha({theme.SHEEN}, 0.14), "
+                 f"alpha({theme.SHEEN}, 0) 180px); box-shadow: inset 0 1px alpha({theme.SHEEN}, 0.3); }}\n")
     return (CSS.substitute({**v, "win_bg": win_bg, "font": theme.font()}) + extra).encode()
 
 

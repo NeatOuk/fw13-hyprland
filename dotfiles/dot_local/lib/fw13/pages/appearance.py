@@ -404,23 +404,15 @@ class AppearancePage(HyprPage):
         scale.set_value_pos(Gtk.PositionType.RIGHT)
         scale.set_size_request(220, -1)
         scale.connect("format-value", lambda _s, v: f"{v:.0f} %")
-        scale.connect("value-changed", lambda s: self.on_glass_slider("clear", s))
+        scale.connect("value-changed", self.on_clear)
         self.row("See-through", scale, hint="How much of the wallpaper shows through the parts switched on above")
-        lo, hi, _default = theme.GLASS_SHINE
-        shine = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, 5)
-        shine.set_value(look["shine"])
-        shine.set_value_pos(Gtk.PositionType.RIGHT)
-        shine.set_size_request(220, -1)
-        shine.connect("format-value", lambda _s, v: f"{v:.0f} %")
-        shine.connect("value-changed", lambda s: self.on_glass_slider("shine", s))
-        self.row("Shine", shine, hint="The glossy reflection on the bar (bright top half, soft shade below) and panels")
 
-    def on_glass_slider(self, key, scale):
+    def on_clear(self, scale):
         """Apply once the slider settles (each apply reloads Hyprland)."""
-        if getattr(self, "glass_timer", None):
-            GLib.source_remove(self.glass_timer)
-        self.glass_timer = GLib.timeout_add(400, lambda: (setattr(self, "glass_timer", None),
-                                                          self.set_glass(key, int(round(scale.get_value()))),
+        if getattr(self, "clear_timer", None):
+            GLib.source_remove(self.clear_timer)
+        self.clear_timer = GLib.timeout_add(400, lambda: (setattr(self, "clear_timer", None),
+                                                          self.set_glass("clear", int(round(scale.get_value()))),
                                                           False)[2])
 
     def set_glass(self, key, value):
