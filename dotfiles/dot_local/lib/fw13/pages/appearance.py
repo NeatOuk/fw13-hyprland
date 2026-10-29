@@ -101,7 +101,7 @@ class HyprPage(Page):
 
 THUMB_W = 120
 GALLERY_ROWS = 2  # the picture grid scrolls past this many rows, so a big library doesn't fill the page
-PART_LOOKS = (("dark", "Dark"), ("light", "Light"), ("glossy", "Glossy"))
+PART_LOOKS = (("dark", "Dark"), ("light", "Light"), ("glossy", "Glossy dark"), ("glossy_light", "Glossy light"))
 LOOKS = PART_LOOKS + (("custom", "Custom"),)
 STYLES = (("scheme-tonal-spot", "Tonal spot (default)"), ("scheme-content", "Content"),
           ("scheme-expressive", "Expressive"), ("scheme-vibrant", "Vibrant"), ("scheme-neutral", "Neutral"),
@@ -284,7 +284,7 @@ class AppearancePage(HyprPage):
         controls = [self.row("Colours", box, hint=hint)]
         ls = theme.look_state()
         controls.append(self.row("Look", combo(LOOKS, ls["look"], lambda v: self.apply_look(look=v)),
-                                 hint="Glossy: dark colours, see-through and blurred. Custom: a look per part"))
+                                 hint="Glossy dark / light: see-through and blurred, like the terminal. Custom: a look per part"))
         if ls["look"] == "custom":
             for part, text, hint in (
                     ("bar", "Bar", None),
@@ -295,7 +295,7 @@ class AppearancePage(HyprPage):
                 controls.append(self.row(text, combo(PART_LOOKS, ls["parts"][part],
                                                      lambda v, part=part: self.apply_look(part=part, value=v)),
                                          hint=hint))
-        if any(v == "glossy" for v in ls["parts"].values()):
+        if theme.glass():
             lo, hi, _default = theme.GLASS_CLEAR
             scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, 5)
             scale.set_value(ls["clear"])

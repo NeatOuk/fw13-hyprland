@@ -309,8 +309,9 @@ def _a(c, alpha="ff"):
 
 LOOK = "theme_look"  # fw13.store key: Appearance → Look = {"look", "parts": {part: look}, "clear"}
 GLASS = "theme_glass"  # the earlier Glass switches, read once to fill LOOK
-LOOKS = ("dark", "light", "glossy", "custom")  # Custom = a look per part
-PART_LOOKS = ("dark", "light", "glossy")  # Glossy = dark colours, see-through and blurred
+LOOKS = ("dark", "light", "glossy", "glossy_light", "custom")  # Custom = a look per part
+PART_LOOKS = ("dark", "light", "glossy", "glossy_light")  # glossy = Glossy dark; both see-through and blurred
+GLOSSY = {"glossy": "dark", "glossy_light": "light"}  # glossy look → its colours
 GLASS_PARTS = ("bar", "menus", "panels", "apps")  # bar · launcher/menus + notifications · fw13 panels + Settings · app windows
 GLASS_CLEAR = (10, 90, 55)  # See-through %: min, max, default
 SHEEN = "#ffffff"  # the glossy highlight on glass surfaces
@@ -324,7 +325,7 @@ def _clamp_clear(v):
 
 
 def look_state():
-    """{"look", "parts": {part: dark|light|glossy}, "clear"}. Parts follow the look unless it is Custom; without
+    """{"look", "parts": {part: dark|light|glossy|glossy_light}, "clear"}. Parts follow the look unless it is Custom; without
     a stored LOOK the old Glass switches give Custom (glossy where on) and the palette's mode gives the rest."""
     v = store.get(LOOK)
     base = state()["mode"]
@@ -349,21 +350,21 @@ def part_look(part, ls=None):
 
 
 def part_mode(part, ls=None):
-    """The colours a part is drawn in: Glossy is dark."""
+    """The colours a part is drawn in (Glossy dark / Glossy light → dark / light)."""
     pl = part_look(part, ls)
-    return "dark" if pl == "glossy" else pl
+    return GLOSSY.get(pl, pl)
 
 
 def glass(part=None):
     ls = look_state()
-    return part_look(part, ls) == "glossy" if part else any(v == "glossy" for v in ls["parts"].values())
+    return part_look(part, ls) in GLOSSY if part else any(v in GLOSSY for v in ls["parts"].values())
 
 
 def glass_alpha(part, ls=None):
     """How solid a part is (0–1). A glossy bar looks like the terminal (its Opacity, times the app windows' when
     they are glossy too); menus, panels and apps follow See-through, panels and apps least (text)."""
     ls = ls or look_state()
-    if part_look(part, ls) != "glossy":
+    if part_look(part, ls) not in GLOSSY:
         return 1.0
     if part == "bar":
         return round(terminal_look()["opacity"] * glass_alpha("apps", ls), 2)
@@ -639,7 +640,7 @@ def _css_alpha(c, a):
 def _hypr_glass(ls):
     """hypr.lua's Glass keys for looknfeel.lua: which layers blur, and the app windows' opacity."""
     active = glass_alpha("apps", ls)
-    return ("".join(f"  glass_{k:<6} = {'true' if part_look(k, ls) == 'glossy' else 'false'},\n" for k in GLASS_PARTS)
+    return ("".join(f"  glass_{k:<6} = {'true' if part_look(k, ls) in GLOSSY else 'false'},\n" for k in GLASS_PARTS)
             + f"  app_opacity = {active:g},\n  app_opacity_inactive = {max(0.5, round(active - 0.08, 2)):g},\n")
 
 
@@ -1817,6 +1818,10 @@ def _glass_selftest():
         store.set("theme", {"source": "tokyo-night", "mode": "dark"})  # what the caller's set_source does
         assert set_look(clear=500) is None and look_state()["clear"] == GLASS_CLEAR[1]
         assert set_look("custom") is None and look_state()["parts"]["bar"] == "glossy"  # Custom keeps the parts
+        assert set_look("glossy_light") == "light" and glass("apps") and part_mode("bar") == "light"
+        store.set("theme", {"source": "tokyo-night", "mode": "light"})
+        r = render(palette())
+        assert f"@define-color bar_bg alpha({day}, 0.7);" in r["waybar.css"] and "glass_menus  = true" in r["hypr.lua"]  # 0.9 × 0.78 (See-through 90)
     finally:
         store.PATH = real
     print("fw13.theme: look self-check OK")
