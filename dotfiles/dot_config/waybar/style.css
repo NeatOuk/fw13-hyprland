@@ -20,8 +20,8 @@ window#waybar { background: @bar_bg; color: @fg; background-image: linear-gradie
 #network.wifi.s3 { background-image: -gtk-scaled(url("../fw13/theme/wifi-3.svg"), url("../fw13/theme/wifi-3@2x.svg")); }
 #network.wifi.s4 { background-image: -gtk-scaled(url("../fw13/theme/wifi-4.svg"), url("../fw13/theme/wifi-4@2x.svg")); }
 #tray, #bluetooth, #network, #custom-vpn, #pulseaudio, #custom-display, #custom-claude, #custom-opencode, #cpu, #battery { padding: 0 9px; }
-#custom-notifications, #custom-caffeine, #custom-profile, #custom-weather { padding: 0 9px; }
-#custom-power { padding: 0 14px 0 9px; color: @red; }
+#custom-caffeine, #custom-profile, #custom-weather { padding: 0 9px; }
+#custom-notifications { padding: 0 14px 0 9px; }  /* rightmost: the screen-edge padding the power icon had */
 #battery.warning { color: @yellow; }
 #battery.critical { color: @red; }
 #custom-recording { color: @red; padding-left: 10px; }

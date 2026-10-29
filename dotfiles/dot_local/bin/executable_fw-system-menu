@@ -1,22 +1,34 @@
 #!/usr/bin/env bash
-# Super+Escape (centred), or the bar power icon with FW_BAR=1 (below the icon).
+# The Framework menu: Super+Escape (centred), the bar's Framework logo with FW_LOGO=1 (top-left, under the logo),
+# or battery right-click with FW_BAR=1 (below the pointer). About this Machine, Settings, software updates, then
+# lock / suspend / (hibernate) / log out / reboot / shut down.
 pos=()
-if [[ -n ${FW_BAR:-} ]]; then
+if [[ -n ${FW_LOGO:-} ]]; then
+  fw-menu-anchor system >/dev/null || exit 0  # closes other menus; a second click on the logo closes this one
+  pos=(--anchor top-left --keyboard-focus=on-demand --no-exit-on-keyboard-focus-loss)
+elif [[ -n ${FW_BAR:-} ]]; then
   mapfile -t pos < <(fw-menu-anchor system)
   (( ${#pos[@]} )) || exit 0
 fi
+about() {  # fastfetch when it's installed, else Settings → System (About this laptop)
+  if command -v fastfetch >/dev/null; then fw-term --hold -e fastfetch
+  else uwsm app -- fw-settings system; fi
+}
 # uwsm-managed session ("Hyprland (uwsm)" at login): stop it cleanly. Otherwise (plain "Hyprland")
 # uwsm stop does nothing, so end the login session through logind.
 logout() {
   if uwsm check is-active >/dev/null 2>&1; then uwsm stop
   else loginctl terminate-session "${XDG_SESSION_ID:-$(loginctl show-user "$USER" -p Display --value)}"; fi
 }
-items=('  Lock' '  Suspend')
+items=('  About this Machine' '  Settings' '  Software updates' '  Lock' '  Suspend')
 # Hibernate only once a disk swap is set up (sudo fw-hibernate-setup): logind's CanHibernate says yes.
 [[ $(busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager CanHibernate 2>/dev/null) == 's "yes"' ]] &&
   items+=('  Hibernate')
 items+=('  Log out' '  Reboot' '  Shutdown')
-case "$(printf '%s\n' "${items[@]}" | fuzzel --dmenu "${pos[@]}" --prompt 'System › ' --lines ${#items[@]})" in
+case "$(printf '%s\n' "${items[@]}" | fuzzel --dmenu "${pos[@]}" --prompt 'Framework › ' --lines ${#items[@]})" in
+  *About*)   about ;;
+  *Settings) uwsm app -- fw-settings ;;
+  *updates)  fw-updates run ;;
   *Lock)     loginctl lock-session ;;
   *Suspend)  systemctl suspend ;;
   *Hibernate) systemctl hibernate ;;

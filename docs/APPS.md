@@ -10,11 +10,11 @@ What fw13-hypr gives you once it is installed. Installing, updating and testing 
 
 ## The bar
 
-A thin bar per screen: launcher, the focused app's name and workspaces on the left · profile, clock and weather in the middle · tray and status on the right. Bar menus open right below the icon you clicked; clicking the same icon again closes them.
+A thin bar per screen: the Framework menu, the focused app's name and workspaces on the left · profile, clock and weather in the middle · tray and status on the right. Bar menus open right below the icon you clicked; clicking the same icon again closes them.
 
 | Icon | Click | Right-click / other |
 |---|---|---|
-| Framework gear | App launcher | |
+| Framework gear | **Framework menu**: About this Machine (fastfetch in a terminal), Settings, Software updates, Lock, Suspend, (Hibernate,) Log out, Reboot, Shut down. Also Super+Escape. Apps: Super+Space | Terminal |
 | Workspace numbers | Go to that workspace (one row per screen; bold = current, bright = has windows, dim = empty) | |
 | Coffee cup | **Keep awake** on / off | |
 | Profile | **Normal**, **Focus** or **Zen** | |
@@ -30,7 +30,6 @@ A thin bar per screen: launcher, the focused app's name and workspaces on the le
 | `>_` | Coding agent and Ollama servers | |
 | Battery | **Power panel** (tooltip: power draw in watts) | |
 | Bell | Notification history, Do not disturb, Dismiss all | Toggles Do not disturb |
-| Power | Lock / suspend / log out / reboot / shut down | |
 
 Notifications appear on the screen where the app that sent them has its window (the one you used last, if it has several), e.g. Telegram's on the monitor Telegram is on. Apps without a window (tray only) and system notices use the screen under the mouse.
 

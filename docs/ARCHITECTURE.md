@@ -148,7 +148,8 @@ Paths: `lib/fw13/…` = `dotfiles/dot_local/lib/fw13/…` (→ `~/.local/lib/fw1
 ### Scripts (dot_local/bin/executable_fw-\*)
 
 - **capture**: Print region / Shift+Print screen; Alt+Shift+4 snip / Alt+Shift+3 window → swappy (`dot_config/swappy/config`); window picker = `slurp -r` over the clients on every monitor's visible workspaces.
-- **record**, **notify** (gdbus), **system-menu**, **control-center**, **power-panel**, **nightlight**.
+- **system-menu**: the Framework menu (fuzzel): the bar gear (`FW_LOGO=1`: top-left under the logo, fw-menu-anchor for close-on-second-click), Super+Escape (centred), battery right-click (`FW_BAR=1`). About this Machine = `fw-term --hold -e fastfetch` (Settings → System without fastfetch), Settings, Software updates (`fw-updates run`), then Lock … Shut down; Hibernate only when logind CanHibernate = yes. No bar power icon.
+- **record**, **notify** (gdbus), **control-center**, **power-panel**, **nightlight**.
 - **display-panel**: layer-shell popup around fw13.ui_display.
 - **idle**: hypridle actions guarded by power source; suspend → suspend-then-hibernate when fw-hibernate-setup's sleep drop-in exists.
 - **clipboard**: SUPER+V: cliphist pick → paste via `fw-clip-key paste` into the window captured before fuzzel opened.
@@ -188,7 +189,7 @@ Paths: `lib/fw13/…` = `dotfiles/dot_local/lib/fw13/…` (→ `~/.local/lib/fw1
 - **caffeine**: bar custom/caffeine left of the profile, signal 16, SUPER+SHIFT+K: keep awake = `systemd-inhibit --what=idle:sleep --who=fw-caffeine sleep infinity`, pid in `$XDG_RUNTIME_DIR/fw-caffeine.pid` (mtime = since, /proc cmdline checked before kill); hypridle skips listeners while a logind idle lock is held (ignore_systemd_inhibit default); `--bar` (interval 60) turns it off with a notification on battery below 20 %. `fw-caffeine test` self-check.
 - **weather**: bar custom/weather right of the clock, signal 15, interval 1800: `fw-weather --bar` → lib/fw13/weather.py; city falls back to the time zone's (`weather.tz_city()`), `{"text": ""}` hides it without one; click = `fw-settings system`.
 - **active-app**: bar custom/app right of the gear: long-running, Hyprland .socket2 activewindow events → launcher Name via `apps.launcher_entries()` (StartupWMClass / desktop id / last dotted part), else the tidied class; hidden on an empty workspace; tooltip = title. `fw-active-app test`.
-- **launcher**: SUPER+Space + the bar gear: fuzzel on the focused screen, `--lines` = the number of launcher apps (desktop ids over the XDG data dirs, `[Desktop Entry] Type=Application`, not NoDisplay/Hidden), at most ~80 % of its height (row heights measured per scale).
+- **launcher**: SUPER+Space: fuzzel on the focused screen, `--lines` = the number of launcher apps (desktop ids over the XDG data dirs, `[Desktop Entry] Type=Application`, not NoDisplay/Hidden), at most ~80 % of its height (row heights measured per scale).
 - **keys**: SUPER+K or SUPER+/: cheat sheet = `hyprctl -j binds` descriptions in fuzzel, numbered runs folded; new binds need a description.
 - **calc**: SUPER+=: fuzzel loop over `qalc -t`, argv only; ast fallback.
 - **emoji**: SUPER+.: GTK3 emoji data, paste like clipboard.

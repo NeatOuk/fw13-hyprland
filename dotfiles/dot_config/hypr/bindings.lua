@@ -35,7 +35,7 @@ hl.bind("SUPER + SHIFT + S", hl.dsp.window.move({ workspace = "special:scratchpa
 
 -- Session
 hl.bind("SUPER + L",         exec("loginctl lock-session"), { description = "Lock screen" })
-hl.bind("SUPER + ESCAPE",    exec("fw-system-menu"), { description = "Power menu" })
+hl.bind("SUPER + ESCAPE",    exec("fw-system-menu"), { description = "Framework menu (About, Settings, updates, power)" })
 hl.bind("SUPER + slash",     exec("fw-keys"), { description = "Keyboard shortcuts (this list)" })
 hl.bind("SUPER + K",         exec("fw-keys"), { description = "Keyboard shortcuts (this list)" })
 
