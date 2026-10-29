@@ -1,4 +1,4 @@
-"""Appearance: theme colours (wallpaper palette via matugen, or Tokyo Night) and font, wallpaper gallery and effects,
+"""Appearance: theme colours (wallpaper palette via matugen, or Tokyo Night), Glass (theme.set_glass) and font, wallpaper gallery and effects,
 window gaps and border size (rounding stays 0 — house style).
 
 HyprPage is shared with Input: both write ~/.config/hypr/settings.lua through fw13.hyprsettings.
@@ -305,6 +305,13 @@ class AppearancePage(HyprPage):
         controls.append(self.row("Font", combo([(n, n) for n in theme.fonts()], theme.font(), self.set_font),
                                  hint="Bar, menus, notifications, lock screen, these panels and the terminals "
                                       "(fixed-width fonts only, for the terminals)"))
+        glass = Gtk.Switch()
+        glass.set_active(theme.glass())
+        glass.connect("notify::active", lambda w, _p: self.set_glass(w.get_active()))
+        controls.append(self.row(
+            "Glass", glass,
+            hint="See-through, blurred bar, menus, notifications, panels and Settings, with Light or Dark "
+                 "(apps keep their own background; terminals: Opacity under Terminal)"))
         vscode = Gtk.Switch()
         vscode.set_active(bool(store.get(theme.VSCODE_ON)))
         vscode.connect("notify::active", lambda s, _p: self.set_vscode(s.get_active()))
@@ -384,6 +391,10 @@ class AppearancePage(HyprPage):
         self.show_status("Chromium GTK mode on…" if on else "Chromium GTK mode off…", "dim")
         background(lambda: theme.set_chromium(on), lambda note: self.show_status(
             note, "bad" if note and note.startswith(("Could not", "Error")) else "dim"))
+
+    def set_glass(self, on):
+        self.show_status("Glass on…" if on else "Glass off…", "dim")
+        background(lambda: theme.set_glass(on), lambda r: self.show_status(r if isinstance(r, str) else None))
 
     def set_vscode(self, on):
         if self.vscode_busy:  # one at a time, in order: the last flip wins

@@ -17,7 +17,7 @@ from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 from . import store, theme  # noqa: E402
 
 CSS = string.Template("""
-window, .page { background: $bg; color: $fg;
+window, .page { background: $win_bg; color: $fg;
                 font-family: "$font", "Font Awesome 6 Free"; font-size: 11pt; }
 window.panel { border: 2px solid $accent; }
 .title { color: $accent; }
@@ -97,7 +97,13 @@ def _load():
 def css(p=None):
     """The stylesheet (bytes) for palette `p` (default: the current one)."""
     p = p or _current
-    return CSS.substitute({**{k: v[:7] for k, v in p.items()}, "font": theme.font()}).encode()
+    v = {k: c[:7] for k, c in p.items()}
+    win_bg = v["bg"]
+    if theme.glass():  # translucent windows (Hyprland blurs behind them); .page sits on the window, so it adds none
+        r, g, b = (int(v["bg"][i:i + 2], 16) for i in (1, 3, 5))
+        win_bg = f"rgba({r}, {g}, {b}, {theme.GLASS_ALPHA['panel']})"
+    css_text = CSS.substitute({**v, "win_bg": win_bg, "font": theme.font()})
+    return (css_text + (".page { background: transparent; }\n" if theme.glass() else "")).encode()
 
 
 def rgb(role, p=None):

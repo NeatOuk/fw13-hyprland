@@ -296,6 +296,22 @@ def _a(c, alpha="ff"):
     return _h(c) + alpha
 
 
+GLASS = "theme_glass"  # fw13.store key: Appearance → Glass (off by default): see render() and looknfeel.lua
+GLASS_ALPHA = {"menu": "b3", "panel": 0.82}  # hex alpha for menus + notifications, CSS alpha for fw13 windows (bar: 0.6)
+
+
+def glass():
+    return store.get(GLASS) is True
+
+
+def set_glass(on):
+    """Write the files with or without translucency, then reload Hyprland so looknfeel.lua's blur rule follows."""
+    store.set(GLASS, bool(on))
+    write(palette())
+    if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        _quiet("hyprctl", "reload")
+
+
 def _hypr_values(p):
     """Hyprland colour strings; keys are what looknfeel.lua reads as theme.*."""
     shadow = p["shadow"].lstrip("#")
@@ -509,9 +525,11 @@ def render(p):
     v = _hypr_values(p)
     f = font()
     hypr = (f"-- {HEAD}\n-- Read by ~/.config/hypr/theme.lua (falls back to Tokyo Night if this file breaks).\n"
-            "return {\n" + "".join(f'  {k:<7} = "{c}",\n' for k, c in v.items()) + "}\n")
+            "return {\n" + "".join(f'  {k:<7} = "{c}",\n' for k, c in v.items())
+            + f"  glass   = {'true' if glass() else 'false'},\n}}\n")
     waybar = (f"/* {HEAD} */\n"
               f"@define-color bg {p['bg']};\n"
+              f"@define-color bar_bg {'alpha(' + p['bg'] + ', 0.6)' if glass() else p['bg']};\n"
               f"@define-color fg {p['fg']};\n"
               f"@define-color accent {p['accent']};\n"
               f"@define-color muted {p['muted']};\n"
@@ -519,7 +537,7 @@ def render(p):
               f"@define-color yellow {p['warn']};\n"
               f'* {{ font-family: "{f}", "Font Awesome 6 Free", "Font Awesome 6 Brands", "Noto Sans Khmer", sans-serif; }}\n')
     fuzzel = (f"# {HEAD}\n[main]\nfont={f}:size=12,Font Awesome 6 Free:size=12\n[colors]\n"
-              f"background={_a(p['bg'], 'f2')}\n"
+              f"background={_a(p['bg'], GLASS_ALPHA['menu'] if glass() else 'f2')}\n"
               f"text={_a(p['fg'])}\n"
               f"match={_a(p['accent'])}\n"
               f"selection={_a(p['surface2'])}\n"
@@ -527,7 +545,7 @@ def render(p):
               f"selection-match={_a(p['accent'])}\n"
               f"border={_a(p['border'])}\n")
     mako = (f"# {HEAD}\n"
-            f"background-color={p['bg']}\n"
+            f"background-color=#{_a(p['bg'], GLASS_ALPHA['menu'] if glass() else 'ff')}\n"
             f"text-color={p['fg']}\n"
             f"border-color={p['border']}\n"
             f"progress-color=over #{_a(p['accent'], '66')}\n"
@@ -760,7 +778,7 @@ def _atomic_user(path, text):
 
 # Lines a generated file must hold; one of ours (HEAD on top) written before a line was added is rewritten by
 # ensure_files() (written only on a palette change otherwise, so an existing install would never get it).
-REQUIRED = {"mako": ("progress-color=", "font="), "fuzzel.ini": ("font=",), "waybar.css": ("font-family",),
+REQUIRED = {"mako": ("progress-color=", "font="), "fuzzel.ini": ("font=",), "waybar.css": ("font-family", "@define-color bar_bg"),
             "hyprlock.conf": ("$fw_font", "$fw_tty_bg")}
 
 
@@ -1632,14 +1650,36 @@ def set_source(source, mode=None, scheme_type=None, wallpaper=None, pick=None):
     return None
 
 
-if __name__ == "__main__":  # python3 -m fw13.theme session-start|session-end (Hyprland login/logout hooks)
+def _glass_selftest():
+    """render() with Glass off and on, in a throwaway store (nothing written to ~/.config)."""
+    import tempfile
+    real = store.PATH
+    store.PATH = os.path.join(tempfile.mkdtemp(), "settings.json")
+    try:
+        off = render(TOKYO_NIGHT)
+        store.set(GLASS, True)
+        on = render(TOKYO_NIGHT)
+    finally:
+        store.PATH = real
+    bg = TOKYO_NIGHT["bg"]
+    assert f"@define-color bar_bg {bg};" in off["waybar.css"] and "glass   = false" in off["hypr.lua"]
+    assert f"@define-color bar_bg alpha({bg}, 0.6);" in on["waybar.css"] and "glass   = true" in on["hypr.lua"]
+    assert f"background={_h(bg)}f2" in off["fuzzel.ini"] and f"background={_h(bg)}b3" in on["fuzzel.ini"]
+    assert f"background-color=#{_h(bg)}ff" in off["mako"] and f"background-color=#{_h(bg)}b3" in on["mako"]
+    assert all(line in on[n] for n, lines in REQUIRED.items() for line in lines)
+    print("fw13.theme: glass self-check OK")
+
+
+if __name__ == "__main__":  # python3 -m fw13.theme session-start|session-end (Hyprland login/logout hooks) | test
     import sys
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
-    if cmd == "session-start":
+    if cmd == "test":
+        _glass_selftest()
+    elif cmd == "session-start":
         msg = session_start()
         if msg:
             print("fw13.theme:", msg, file=sys.stderr)
     elif cmd == "session-end":
         session_end()
     else:
-        sys.exit("usage: python3 -m fw13.theme session-start|session-end")
+        sys.exit("usage: python3 -m fw13.theme session-start|session-end|test")

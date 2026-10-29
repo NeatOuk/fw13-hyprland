@@ -44,6 +44,18 @@ hl.config({
   },
 })
 
+-- Appearance → Glass (theme.glass, from ~/.config/fw13/theme/hypr.lua): the bar, launcher/menus, notifications
+-- and fw13's panels are translucent, so blur what's behind them, a little stronger than for windows.
+if theme.glass == true then
+  hl.config({ decoration = { blur = { size = 6, passes = 2 } } })
+  hl.layer_rule({
+    name = "fw13-glass",
+    match = { namespace = "^(waybar|launcher|notifications|fw-.+)$" },
+    blur = true,
+    ignore_alpha = 0.2,
+  })
+end
+
 hl.curve("easeOutQuint", { type = "bezier", points = { { 0.23, 1 }, { 0.32, 1 } } })
 hl.animation({ leaf = "windows",    enabled = true, speed = 4.8, bezier = "easeOutQuint" })
 hl.animation({ leaf = "fade",       enabled = true, speed = 3,   bezier = "easeOutQuint" })

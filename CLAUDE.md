@@ -17,7 +17,7 @@ ML4W-style **installer** (`install.sh`) that adds a Hyprland (uwsm) desktop on t
 5. **No secrets in git.** Credentials (Chromium OAuth, restic repo/password) come from chezmoi `promptStringOnce` in `dotfiles/.chezmoi.toml.tmpl` and render into `private_` (0600) files.
 6. **Timeshift = the system without /home (user decision, Oct 2026: home is restic's job; it made each snapshot ~100 GB), mode auto-detected** in `fw-timeshift-setup`: btrfs mode iff `/` is subvol `@`; otherwise rsync (Fedora's default `root`/`home` names). **No schedule (user decision, Oct 2026): a snapshot only before each update** (`fw-updates apply` keeps only the newest "before dnf upgrade" one; Timeshift never prunes on-demand snapshots); the old fw-timeshift timer is removed by install.sh. Timeshift's restore can't mount Fedora's `root` subvolume (it hard-codes `@`), so rsync-mode restores go through `fw-timeshift-restore`.
 7. Hardware is AMD. Do not add Intel-specific packages/params.
-8. Visual style: clean/minimal, Tokyo Night by default or colours from the wallpaper (matugen, `fw13.theme`), flat borders, thin bar. **Keys stay simple and conventional** — do not port Omarchy's (or any distro's) keymap. Omarchy-*style* bar menus are OK (user decision): bar icons open fuzzel menus (`fw-control-center [section]`, `fw-system-menu`), not big GUI apps; GUI tools stay on right/middle-click.
+8. Visual style: clean/minimal, Tokyo Night by default or colours from the wallpaper (matugen, `fw13.theme`), flat borders, thin bar; optional Glass (Appearance switch, off by default: translucent + blurred bar, menus, notifications, fw13 panels). **Keys stay simple and conventional** — do not port Omarchy's (or any distro's) keymap. Omarchy-*style* bar menus are OK (user decision): bar icons open fuzzel menus (`fw-control-center [section]`, `fw-system-menu`), not big GUI apps; GUI tools stay on right/middle-click.
 
 ## Layout (details: docs/ARCHITECTURE.md)
 
@@ -77,7 +77,7 @@ shellcheck -S warning -s bash dotfiles/dot_config/uwsm/env-hyprland   # sourced 
 python3 -c 'import ast,sys; [ast.parse(open(f).read(), f) for f in sys.argv[1:]]' "${py[@]}" $(find dotfiles/dot_local/lib -name '*.py')
 ```
 
-Self-checks: `PYTHONPATH=dotfiles/dot_local/lib python3 -m fw13.<module> test` (apps upstream displays grub autostart session agents jarvis nightlight timezone speakers syncthing net pages.search; `fw13.ollama` takes no arg) and `fw-<x> test` (battery-warn updates caffeine usb bt-agent syncthing vpn active-app jarvis-panel).
+Self-checks: `PYTHONPATH=dotfiles/dot_local/lib python3 -m fw13.<module> test` (apps upstream displays grub autostart session agents jarvis nightlight timezone speakers syncthing net theme pages.search; `fw13.ollama` takes no arg) and `fw-<x> test` (battery-warn updates caffeine usb bt-agent syncthing vpn active-app jarvis-panel).
 
 There is no unit-test suite: verification is lint + dry-run + self-checks + CI install (`.github/workflows/test.yml`) + the hardware checklist in `docs/FIRST-INSTALL.md`. Local dotfile edits are not what `chezmoi update` applies (it pulls the pushed repo), so push before testing on the machine. `CONTRIBUTING.md` has the commit conventions (`feat(area):`, `fix(area):`, `chore:`, `docs:`; update README (install/update) or docs/APPS.md (features, Settings, keys), this file and docs/ARCHITECTURE.md in the same change) and the roadmap.
 
