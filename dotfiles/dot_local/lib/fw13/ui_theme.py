@@ -87,7 +87,7 @@ def current():
 
 def _load():
     try:
-        p = theme.palette()
+        p = theme.part_palette("panels")  # Appearance → Look: panels may differ from the apps under Custom
     except Exception:  # noqa: BLE001 — a broken store must not keep Settings from opening
         p = theme.TOKYO_NIGHT
     return {k: (p.get(k) if isinstance(p.get(k), str) and _HEX.fullmatch(p.get(k)) else v)

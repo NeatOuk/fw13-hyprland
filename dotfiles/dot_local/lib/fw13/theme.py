@@ -76,6 +76,17 @@ TOKYO_NIGHT = {
     "ansi": ["#15161e", "#f7768e", "#9ece6a", "#e0af68", "#7aa2f7", "#bb9af7", "#7dcfff", "#a9b1d6",
              "#414868", "#ff7a93", "#b9f27c", "#ff9e64", "#7da6ff", "#bb9af7", "#0db9d7", "#c0caf5"],
 }
+# Tokyo Night Day (folke/tokyonight.nvim's light style): Light under Tokyo Night, and light parts of a Custom look
+TOKYO_DAY = {
+    "bg": "#e1e2e7", "bg_dim": "#d0d5e3",
+    "surface": "#d6d8e1", "surface2": "#c4c8da", "surface3": "#b6bbd2",
+    "fg": "#3760bf", "fg_bright": "#1f2a5c", "fg_dim": "#6172b0", "muted": "#a8aecb",
+    "accent": "#2e7de9", "accent2": "#9854f1",
+    "ok": "#587539", "warn": "#8c6c3e", "bad": "#c4204f",
+    "border": "#2e7de9", "shadow": "#00000066",
+    "ansi": ["#e9e9ed", "#f52a65", "#587539", "#8c6c3e", "#2e7de9", "#9854f1", "#007197", "#6172b0",
+             "#a1a6c5", "#f52a65", "#587539", "#8c6c3e", "#2e7de9", "#9854f1", "#007197", "#3760bf"],
+}
 ROLES = tuple(k for k in TOKYO_NIGHT if k != "ansi")
 
 
@@ -279,11 +290,11 @@ def _valid(p):
 
 
 def palette():
-    """The palette in use: the last generated one when following the wallpaper, else Tokyo Night."""
+    """The main palette (apps): the last generated one when following the wallpaper, else Tokyo Night (Day)."""
     s = state()
     if s["source"] == "wallpaper" and _valid(s["palette"]):
         return s["palette"]
-    return dict(TOKYO_NIGHT)
+    return dict(TOKYO_DAY if s["mode"] == "light" else TOKYO_NIGHT)
 
 
 # ---- rendering ----------------------------------------------------------------------------------------------
@@ -296,81 +307,112 @@ def _a(c, alpha="ff"):
     return _h(c) + alpha
 
 
-GLASS = "theme_glass"  # fw13.store key: Appearance → Glass (all off by default): see render() and looknfeel.lua
+LOOK = "theme_look"  # fw13.store key: Appearance → Look = {"look", "parts": {part: look}, "clear"}
+GLASS = "theme_glass"  # the earlier Glass switches, read once to fill LOOK
+LOOKS = ("dark", "light", "glossy", "custom")  # Custom = a look per part
+PART_LOOKS = ("dark", "light", "glossy")  # Glossy = dark colours, see-through and blurred
 GLASS_PARTS = ("bar", "menus", "panels", "apps")  # bar · launcher/menus + notifications · fw13 panels + Settings · app windows
 GLASS_CLEAR = (10, 90, 55)  # See-through %: min, max, default
 SHEEN = "#ffffff"  # the glossy highlight on glass surfaces (white on light and dark alike)
+ALT = "theme_alt"  # fw13.store key: the wallpaper palette in the other mode, for parts that differ from the apps
 
 
-def glass_look():
-    """{part: bool for GLASS_PARTS, "clear": %}; an older `True` = bar, menus and panels at the default level."""
-    g = store.get(GLASS)
-    if g is True:
-        g = {"bar": True, "menus": True, "panels": True}
-    g = g if isinstance(g, dict) else {}
+def _clamp_clear(v):
     lo, hi, default = GLASS_CLEAR
-    clear = g.get("clear")
-    clear = int(clear) if isinstance(clear, (int, float)) and not isinstance(clear, bool) else default
-    return {**{k: g.get(k) is True for k in GLASS_PARTS}, "custom": g.get("custom") is True,
-            "clear": min(hi, max(lo, clear))}
+    return min(hi, max(lo, int(v))) if isinstance(v, (int, float)) and not isinstance(v, bool) else default
 
 
-def glass_alpha(part, look=None):
-    """How solid a part is (0–1): the bar follows See-through fully, menus less, panels and apps least (text)."""
-    look = look or glass_look()
-    if not look[part]:
-        return 1.0
-    keep = {"bar": 1.0, "menus": 0.8, "panels": 0.6, "apps": 0.25}[part]
-    return round(1 - look["clear"] / 100 * keep, 2)
-
-
-def glass(part=None):
-    look = glass_look()
-    return look[part] if part else any(look[k] for k in GLASS_PARTS)
-
-
-LOOKS = ("dark", "light", "glossy", "custom")  # Settings → Appearance → Look
+def look_state():
+    """{"look", "parts": {part: dark|light|glossy}, "clear"}. Parts follow the look unless it is Custom; without
+    a stored LOOK the old Glass switches give Custom (glossy where on) and the palette's mode gives the rest."""
+    v = store.get(LOOK)
+    base = state()["mode"]
+    if not isinstance(v, dict):
+        g = store.get(GLASS)
+        g = {"bar": True, "menus": True, "panels": True} if g is True else (g if isinstance(g, dict) else {})
+        on = {k: "glossy" for k in GLASS_PARTS if g.get(k) is True}
+        v = {"look": "custom" if on else base, "parts": on, "clear": g.get("clear")}
+    lk = v.get("look") if v.get("look") in LOOKS else base
+    stored = v.get("parts") if isinstance(v.get("parts"), dict) else {}
+    parts = {k: (stored.get(k) if lk == "custom" and stored.get(k) in PART_LOOKS else
+                 base if lk == "custom" else lk) for k in GLASS_PARTS}
+    return {"look": lk, "parts": parts, "clear": _clamp_clear(v.get("clear"))}
 
 
 def look():
-    """Custom once chosen (glass per part); Glossy when the bar, menus and panels are all glass; else the
-    palette's mode (Tokyo Night = dark)."""
-    g, s = glass_look(), state()
-    light = s["source"] == "wallpaper" and s["mode"] == "light"
-    if g["custom"] or (light and any(g[k] for k in GLASS_PARTS)):  # light glass is only reachable as Custom
-        return "custom"
-    if g["bar"] and g["menus"] and g["panels"]:
-        return "glossy"
-    return s["mode"] if s["source"] == "wallpaper" else "dark"
+    return look_state()["look"]
 
 
-def set_look(name):
-    """Store Look's glass part: Glossy = dark colours + glass bar, menus and panels; Dark/Light = all solid;
-    Custom = keep the colours and the per-part switches as they are (shown under Glass).
-    Returns the wallpaper mode the palette must be rebuilt in (the caller does that), or None."""
-    if name == "custom":
-        store.set(GLASS, {**glass_look(), "custom": True})
-        return None
-    on = name == "glossy"
-    store.set(GLASS, {**glass_look(), "custom": False, "bar": on, "menus": on, "panels": on,
-                      **({} if on else {"apps": False})})
-    mode = "dark" if on else name
+def part_look(part, ls=None):
+    return (ls or look_state())["parts"][part]
+
+
+def part_mode(part, ls=None):
+    """The colours a part is drawn in: Glossy is dark."""
+    pl = part_look(part, ls)
+    return "dark" if pl == "glossy" else pl
+
+
+def glass(part=None):
+    ls = look_state()
+    return part_look(part, ls) == "glossy" if part else any(v == "glossy" for v in ls["parts"].values())
+
+
+def glass_alpha(part, ls=None):
+    """How solid a part is (0–1): the bar follows See-through fully, menus less, panels and apps least (text)."""
+    ls = ls or look_state()
+    if part_look(part, ls) != "glossy":
+        return 1.0
+    keep = {"bar": 1.0, "menus": 0.8, "panels": 0.6, "apps": 0.25}[part]
+    return round(1 - ls["clear"] / 100 * keep, 2)
+
+
+def set_look(look=None, part=None, value=None, clear=None):
+    """Store one Look change (the look, one part's look under Custom, or See-through). Returns the mode the
+    main palette (= the apps') must be rebuilt in when that changed (the caller runs set_source), else None."""
+    cur = look_state()
+    new = {"look": cur["look"], "parts": dict(cur["parts"]), "clear": cur["clear"]}
+    if look in LOOKS:
+        new["look"] = look
+        if look != "custom":
+            new["parts"] = {k: look for k in GLASS_PARTS}
+    if part in GLASS_PARTS and value in PART_LOOKS:
+        new["look"], new["parts"] = "custom", {**new["parts"], part: value}
+    if clear is not None:
+        new["clear"] = _clamp_clear(clear)
+    store.set(LOOK, new)
+    mode = part_mode("apps", look_state())
+    return mode if mode != state()["mode"] else None
+
+
+def palette_for(mode):
+    """The palette in `mode`: the main one when it matches, else Tokyo Night (Day) or the wallpaper's other-mode
+    palette (made with matugen once per wallpaper/style/pick, kept in ALT). Falls back to the main palette."""
     s = state()
-    return mode if s["source"] == "wallpaper" and s["mode"] != mode else None
+    if mode == s["mode"]:
+        return palette()
+    if s["source"] != "wallpaper":
+        return dict(TOKYO_DAY if mode == "light" else TOKYO_NIGHT)
+    key = [s["wallpaper"], s["type"], s["pick"], mode]
+    alt = store.get(ALT)
+    if isinstance(alt, dict) and alt.get("key") == key and _valid(alt.get("palette")):
+        return alt["palette"]
+    try:
+        p = from_wallpaper(s["wallpaper"], mode, s["type"], s["pick"])
+    except (RuntimeError, OSError, TypeError):
+        return palette()
+    store.set(ALT, {"key": key, "palette": p})
+    return p
+
+
+def part_palette(part):
+    return palette_for(part_mode(part))
 
 
 def reload_hyprland():
     """looknfeel.lua reads hypr.lua's glass keys only at config load."""
     if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
         _quiet("hyprctl", "reload")
-
-
-def set_glass(key, value):
-    """One Glass setting (a part's switch or "clear"); writes the files, then reloads Hyprland for looknfeel.lua."""
-    look = {**glass_look(), key: value}
-    store.set(GLASS, look)
-    write(palette())
-    reload_hyprland()
 
 
 def _hypr_values(p):
@@ -589,48 +631,54 @@ def _css_alpha(c, a):
     return c if a >= 1 else f"alpha({c}, {a:g})"
 
 
-def _hypr_glass():
+def _hypr_glass(ls):
     """hypr.lua's Glass keys for looknfeel.lua: which layers blur, and the app windows' opacity."""
-    look = glass_look()
-    active = glass_alpha("apps", look)
-    return ("".join(f"  glass_{k:<6} = {'true' if look[k] else 'false'},\n" for k in GLASS_PARTS)
+    active = glass_alpha("apps", ls)
+    return ("".join(f"  glass_{k:<6} = {'true' if part_look(k, ls) == 'glossy' else 'false'},\n" for k in GLASS_PARTS)
             + f"  app_opacity = {active:g},\n  app_opacity_inactive = {max(0.5, round(active - 0.08, 2)):g},\n")
 
 
 def render(p):
-    """{filename in ~/.config/fw13/theme: text} for palette `p`."""
+    """{filename in ~/.config/fw13/theme: text} for palette `p` (the apps'); the bar and the menus use their own
+    part's palette under a Custom look."""
+    ls, main_mode = look_state(), state()["mode"]
+
+    def pal(part):
+        m = part_mode(part, ls)
+        return p if m == main_mode else palette_for(m)
+    pb, pm = pal("bar"), pal("menus")
     v = _hypr_values(p)
     f = font()
     hypr = (f"-- {HEAD}\n-- Read by ~/.config/hypr/theme.lua (falls back to Tokyo Night if this file breaks).\n"
             "return {\n" + "".join(f'  {k:<7} = "{c}",\n' for k, c in v.items())
-            + _hypr_glass() + "}\n")
+            + _hypr_glass(ls) + "}\n")
     waybar = (f"/* {HEAD} */\n"
-              f"@define-color bg {p['bg']};\n"
-              f"@define-color bar_bg {_css_alpha(p['bg'], glass_alpha('bar'))};\n"
-              f"@define-color bar_sheen alpha({SHEEN}, {0.22 if glass('bar') else 0});\n"
-              f"@define-color bar_edge alpha({SHEEN}, {0.35 if glass('bar') else 0});\n"
-              f"@define-color fg {p['fg']};\n"
-              f"@define-color accent {p['accent']};\n"
-              f"@define-color muted {p['muted']};\n"
-              f"@define-color red {p['bad']};\n"
-              f"@define-color yellow {p['warn']};\n"
+              f"@define-color bg {pb['bg']};\n"
+              f"@define-color bar_bg {_css_alpha(pb['bg'], glass_alpha('bar', ls))};\n"
+              f"@define-color bar_sheen alpha({SHEEN}, {0.22 if part_look('bar', ls) == 'glossy' else 0});\n"
+              f"@define-color bar_edge alpha({SHEEN}, {0.35 if part_look('bar', ls) == 'glossy' else 0});\n"
+              f"@define-color fg {pb['fg']};\n"
+              f"@define-color accent {pb['accent']};\n"
+              f"@define-color muted {pb['muted']};\n"
+              f"@define-color red {pb['bad']};\n"
+              f"@define-color yellow {pb['warn']};\n"
               f'* {{ font-family: "{f}", "Font Awesome 6 Free", "Font Awesome 6 Brands", "Noto Sans Khmer", sans-serif; }}\n')
     fuzzel = (f"# {HEAD}\n[main]\nfont={f}:size=12,Font Awesome 6 Free:size=12\n[colors]\n"
-              f"background={_a(p['bg'], _hex_alpha(min(glass_alpha('menus'), 0.95)))}\n"
-              f"text={_a(p['fg'])}\n"
-              f"match={_a(p['accent'])}\n"
-              f"selection={_a(p['surface2'])}\n"
-              f"selection-text={_a(p['fg_bright'])}\n"
-              f"selection-match={_a(p['accent'])}\n"
-              f"border={_a(p['border'])}\n")
+              f"background={_a(pm['bg'], _hex_alpha(min(glass_alpha('menus', ls), 0.95)))}\n"
+              f"text={_a(pm['fg'])}\n"
+              f"match={_a(pm['accent'])}\n"
+              f"selection={_a(pm['surface2'])}\n"
+              f"selection-text={_a(pm['fg_bright'])}\n"
+              f"selection-match={_a(pm['accent'])}\n"
+              f"border={_a(pm['border'])}\n")
     mako = (f"# {HEAD}\n"
-            f"background-color=#{_a(p['bg'], _hex_alpha(glass_alpha('menus')))}\n"
-            f"text-color={p['fg']}\n"
-            f"border-color={p['border']}\n"
-            f"progress-color=over #{_a(p['accent'], '66')}\n"
+            f"background-color=#{_a(pm['bg'], _hex_alpha(glass_alpha('menus', ls)))}\n"
+            f"text-color={pm['fg']}\n"
+            f"border-color={pm['border']}\n"
+            f"progress-color=over #{_a(pm['accent'], '66')}\n"
             f"font={f} 11\n"  # fw-osd volume/brightness bar, text stays readable
             "[urgency=critical]\n"
-            f"border-color={p['bad']}\n")
+            f"border-color={pm['bad']}\n")
     t = terminal_look()
     kitty = [f"# {HEAD}",
              f"font_family {f}",
@@ -682,8 +730,8 @@ def render(p):
             "kitty.conf": "\n".join(kitty) + "\n", "ghostty": "\n".join(ghostty) + "\n", "hyprlock.conf": hyprlock,
             "gtk3.css": _gtk_css(p, variables=False), "gtk4.css": _gtk_css(p, variables=True),
             "qt6ct-colors.conf": _qt_scheme(p), "fcitx5-theme.conf": _fcitx_theme(p),
-            "framework-logo.svg": _framework_logo(p, 18), "framework-logo@2x.svg": _framework_logo(p, 36),
-            **{f"wifi-{n}{x}.svg": _wifi(p, n, px) for n in range(1, 5) for x, px in (("", 16), ("@2x", 32))}}
+            "framework-logo.svg": _framework_logo(pb, 18), "framework-logo@2x.svg": _framework_logo(pb, 36),
+            **{f"wifi-{n}{x}.svg": _wifi(pb, n, px) for n in range(1, 5) for x, px in (("", 16), ("@2x", 32))}}
 
 
 
@@ -1705,7 +1753,7 @@ def set_source(source, mode=None, scheme_type=None, wallpaper=None, pick=None):
         s["wallpaper"] = path
         s["palette"] = p
     else:
-        p = dict(TOKYO_NIGHT)
+        p = dict(TOKYO_DAY if s["mode"] == "light" else TOKYO_NIGHT)
     data = store.load()
     old = data.get("theme")
     data["theme"] = s
@@ -1729,46 +1777,41 @@ def set_source(source, mode=None, scheme_type=None, wallpaper=None, pick=None):
     return None
 
 
-def set_glass_flag_kept():
-    """Self-check helper: a per-part change under Custom stays Custom (store only, no files)."""
-    store.set(GLASS, {**glass_look(), "bar": True})
-    return look()
-
-
 def _glass_selftest():
-    """render() with Glass off, partly and fully on, in a throwaway store (nothing written to ~/.config)."""
+    """Look → render() and palettes, in a throwaway store (nothing written to ~/.config, no matugen)."""
     import tempfile
     real = store.PATH
     store.PATH = os.path.join(tempfile.mkdtemp(), "settings.json")
-    bg = TOKYO_NIGHT["bg"]
+    night, day = TOKYO_NIGHT["bg"], TOKYO_DAY["bg"]
     try:
+        assert look() == "dark" and not glass()  # nothing stored, Tokyo Night
         off = render(TOKYO_NIGHT)
-        assert f"@define-color bar_bg {bg};" in off["waybar.css"] and "glass_bar    = false" in off["hypr.lua"]
-        assert f"background={_h(bg)}f2" in off["fuzzel.ini"] and f"background-color=#{_h(bg)}ff" in off["mako"]
-        assert "app_opacity = 1," in off["hypr.lua"]
-        store.set(GLASS, True)  # the first version's plain switch
-        assert glass_look() == {"bar": True, "menus": True, "panels": True, "apps": False, "custom": False, "clear": 55}
-        store.set(GLASS, {"bar": True, "apps": True, "clear": 50})
+        assert f"@define-color bar_bg {night};" in off["waybar.css"] and "glass_bar    = false" in off["hypr.lua"]
+        assert f"background={_h(night)}f2" in off["fuzzel.ini"] and f"background-color=#{_h(night)}ff" in off["mako"]
+        assert "app_opacity = 1," in off["hypr.lua"] and "bar_sheen alpha(#ffffff, 0);" in off["waybar.css"]
+        store.set(GLASS, True)  # the first Glass switch → Custom, glossy bar/menus/panels, apps in the palette's mode
+        ls = look_state()
+        assert ls["look"] == "custom" and ls["parts"] == {"bar": "glossy", "menus": "glossy", "panels": "glossy",
+                                                          "apps": "dark"} and ls["clear"] == 55, ls
+        assert set_look("glossy") is None and all(v == "glossy" for v in look_state()["parts"].values())
         on = render(TOKYO_NIGHT)
-        assert f"@define-color bar_bg alpha({bg}, 0.5);" in on["waybar.css"] and "glass_bar    = true" in on["hypr.lua"]
-        assert "glass_menus  = false" in on["hypr.lua"] and f"background={_h(bg)}f2" in on["fuzzel.ini"]
-        assert "app_opacity = 0.88," in on["hypr.lua"] and "app_opacity_inactive = 0.8," in on["hypr.lua"]
-        assert all(line in on[n] for n, lines in REQUIRED.items() for line in lines)
-        store.set("theme", {"source": "wallpaper", "mode": "light"})
-        assert set_look("glossy") == "dark" and look() == "custom" and glass_look()["bar"]  # until rebuilt dark
-        store.set("theme", {"source": "wallpaper", "mode": "dark"})
-        assert look() == "glossy"
-        assert set_look("light") == "light" and not glass("bar")
-        store.set("theme", {"source": "wallpaper", "mode": "light"})
-        assert look() == "light"
-        store.set("theme", {"source": "tokyo-night"})
-        assert set_look("glossy") is None and look() == "glossy" and set_look("dark") is None and look() == "dark"
-        assert set_look("custom") is None and look() == "custom" and set_glass_flag_kept() == "custom"
-        store.set(GLASS, {"menus": True, "clear": 500})
-        assert glass_look()["clear"] == GLASS_CLEAR[1] and glass_alpha("menus") == 0.28
+        assert f"@define-color bar_bg alpha({night}, 0.45);" in on["waybar.css"] and "glass_apps   = true" in on["hypr.lua"]
+        assert "app_opacity = 0.86," in on["hypr.lua"] and all(line in on[n] for n, lines in REQUIRED.items()
+                                                               for line in lines)
+        assert set_look("light") == "light"  # apps light: the caller rebuilds the main palette in light
+        store.set("theme", {"source": "tokyo-night", "mode": "light"})
+        assert palette()["bg"] == day and look() == "light" and not glass()
+        assert set_look(part="bar", value="glossy") is None and look() == "custom"  # dark glass bar, light apps
+        r = render(palette())
+        assert f"@define-color bar_bg alpha({night}, 0.45);" in r["waybar.css"]
+        assert f"background={_h(day)}f2" in r["fuzzel.ini"] and f"background {day}" in r["kitty.conf"]
+        assert set_look(part="apps", value="dark") == "dark"
+        store.set("theme", {"source": "tokyo-night", "mode": "dark"})  # what the caller's set_source does
+        assert set_look(clear=500) is None and look_state()["clear"] == GLASS_CLEAR[1]
+        assert set_look("custom") is None and look_state()["parts"]["bar"] == "glossy"  # Custom keeps the parts
     finally:
         store.PATH = real
-    print("fw13.theme: glass self-check OK")
+    print("fw13.theme: look self-check OK")
 
 
 if __name__ == "__main__":  # python3 -m fw13.theme session-start|session-end (Hyprland login/logout hooks) | test

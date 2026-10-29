@@ -1,4 +1,4 @@
-"""Appearance: theme colours (wallpaper palette via matugen, or Tokyo Night), Glass (bar, menus, panels, app windows + See-through: theme.set_glass) and font, wallpaper gallery and effects,
+"""Appearance: theme colours (wallpaper palette via matugen, or Tokyo Night), Look (Dark / Light / Glossy, or Custom = one per part: theme.set_look) and font, wallpaper gallery and effects,
 window gaps and border size (rounding stays 0 — house style).
 
 HyprPage is shared with Input: both write ~/.config/hypr/settings.lua through fw13.hyprsettings.
@@ -101,7 +101,8 @@ class HyprPage(Page):
 
 THUMB_W = 120
 GALLERY_ROWS = 2  # the picture grid scrolls past this many rows, so a big library doesn't fill the page
-LOOKS = (("dark", "Dark"), ("light", "Light"), ("glossy", "Glossy"), ("custom", "Custom"))
+PART_LOOKS = (("dark", "Dark"), ("light", "Light"), ("glossy", "Glossy"))
+LOOKS = PART_LOOKS + (("custom", "Custom"),)
 STYLES = (("scheme-tonal-spot", "Tonal spot (default)"), ("scheme-content", "Content"),
           ("scheme-expressive", "Expressive"), ("scheme-vibrant", "Vibrant"), ("scheme-neutral", "Neutral"),
           ("scheme-monochrome", "Monochrome"), ("scheme-fidelity", "Fidelity"), ("scheme-rainbow", "Rainbow"),
@@ -281,10 +282,28 @@ class AppearancePage(HyprPage):
         hint = ("Colours for the bar, menus, notifications, terminal, lock screen and borders" if have_wall
                 else "Set a wallpaper below to take the colours from it")
         controls = [self.row("Colours", box, hint=hint)]
-        looks = LOOKS if follow else tuple(x for x in LOOKS if x[0] != "light")  # Tokyo Night is dark only
-        controls.append(self.row("Look", combo(looks, theme.look(), self.set_look),
-                                 hint="Glossy: dark colours with a see-through, blurred, glossy bar, menus and "
-                                      "panels. Custom: choose glass part by part under Glass"))
+        ls = theme.look_state()
+        controls.append(self.row("Look", combo(LOOKS, ls["look"], lambda v: self.apply_look(look=v)),
+                                 hint="Glossy: dark colours, see-through and blurred. Custom: a look per part"))
+        if ls["look"] == "custom":
+            for part, text, hint in (
+                    ("bar", "Bar", None),
+                    ("menus", "Menus and notifications", "Launcher, bar menus and pop-up notifications"),
+                    ("panels", "Panels and Settings", "The bar's panels, Jarvis and this window"),
+                    ("apps", "App windows", "Apps, terminals, borders and the lock screen; Glossy makes every "
+                                            "window slightly see-through (full screen stays solid)")):
+                controls.append(self.row(text, combo(PART_LOOKS, ls["parts"][part],
+                                                     lambda v, part=part: self.apply_look(part=part, value=v)),
+                                         hint=hint))
+        if any(v == "glossy" for v in ls["parts"].values()):
+            lo, hi, _default = theme.GLASS_CLEAR
+            scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, 5)
+            scale.set_value(ls["clear"])
+            scale.set_value_pos(Gtk.PositionType.RIGHT)
+            scale.set_size_request(220, -1)
+            scale.connect("format-value", lambda _s, v: f"{v:.0f} %")
+            scale.connect("value-changed", self.on_clear)
+            controls.append(self.row("See-through", scale, hint="How much of the wallpaper shows through Glossy parts"))
         if follow:
             style = combo(STYLES, s["type"], lambda v: self.set_theme("wallpaper", scheme_type=v))
             controls.append(self.row("Style", style, hint="How matugen builds the palette from the image"))
@@ -387,42 +406,13 @@ class AppearancePage(HyprPage):
         background(lambda: theme.set_chromium(on), lambda note: self.show_status(
             note, "bad" if note and note.startswith(("Could not", "Error")) else "dim"))
 
-    def glass_section(self):
-        current_look = theme.look()
-        if current_look not in ("glossy", "custom"):  # Dark / Light: solid, nothing to tune
-            return
-        self.heading("Glass")
-        look = theme.glass_look()
-        for part, text, hint in () if current_look != "custom" else (
-                ("bar", "Bar", "See-through with the wallpaper blurred behind it, and a glossy edge"),
-                ("menus", "Menus and notifications", "Launcher, bar menus and pop-up notifications"),
-                ("panels", "Panels and Settings", "The bar's panels, Jarvis and this window (a bit more solid: text)"),
-                ("apps", "App windows", "Every app window slightly see-through, unfocused ones a little more; "
-                                        "full screen (videos, games) stays solid")):
-            sw = Gtk.Switch()
-            sw.set_active(look[part])
-            sw.connect("notify::active", lambda w, _p, part=part: self.set_glass(part, w.get_active()))
-            self.row(text, sw, hint=hint)
-        lo, hi, _default = theme.GLASS_CLEAR
-        scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, 5)
-        scale.set_value(look["clear"])
-        scale.set_value_pos(Gtk.PositionType.RIGHT)
-        scale.set_size_request(220, -1)
-        scale.connect("format-value", lambda _s, v: f"{v:.0f} %")
-        scale.connect("value-changed", self.on_clear)
-        self.row("See-through", scale, hint="How much of the wallpaper shows through the parts switched on above")
-
     def on_clear(self, scale):
         """Apply once the slider settles (each apply reloads Hyprland)."""
         if getattr(self, "clear_timer", None):
             GLib.source_remove(self.clear_timer)
         self.clear_timer = GLib.timeout_add(400, lambda: (setattr(self, "clear_timer", None),
-                                                          self.set_glass("clear", int(round(scale.get_value()))),
+                                                          self.apply_look(clear=int(round(scale.get_value()))),
                                                           False)[2])
-
-    def set_glass(self, key, value):
-        self.show_status("Glass…", "dim")
-        background(lambda: theme.set_glass(key, value), lambda r: self.show_status(r if isinstance(r, str) else None))
 
     def set_vscode(self, on):
         if self.vscode_busy:  # one at a time, in order: the last flip wins
@@ -454,15 +444,17 @@ class AppearancePage(HyprPage):
         background(lambda: wp.set_theme(source, mode=mode, scheme_type=scheme_type, pick=pick), self.theme_set)
         GLib.idle_add(self.refresh_if_open)  # grey out the controls (not from inside their own signal)
 
-    def set_look(self, name):
-        if self.theming or name == theme.look():
+    def apply_look(self, **change):
+        """Look, a part's look under Custom, or See-through: store it, rebuild the main palette if the apps' mode
+        changed, write the files (other-mode palettes are made as needed), then reload Hyprland for the blur rules."""
+        if self.theming:
             return
         self.theming = True
         self.show_status("Applying…", "dim")
 
         def work():
-            mode = theme.set_look(name)
-            err = wp.set_theme("wallpaper", mode=mode) if mode else theme.write(theme.palette())
+            mode = theme.set_look(**change)
+            err = wp.set_theme(theme.state()["source"], mode=mode) if mode else theme.write(theme.palette())
             theme.reload_hyprland()
             return err
         background(work, self.theme_set)
@@ -501,7 +493,6 @@ class AppearancePage(HyprPage):
     def refresh(self):
         self.clear()
         self.theme_section()
-        self.glass_section()
         self.terminal_section()
         self.wallpaper_section()
         self.heading("Windows")
