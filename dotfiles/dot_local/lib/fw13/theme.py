@@ -314,7 +314,7 @@ PART_LOOKS = ("dark", "light", "glossy")  # Glossy = dark colours, see-through a
 GLASS_PARTS = ("bar", "menus", "panels", "apps")  # bar · launcher/menus + notifications · fw13 panels + Settings · app windows
 GLASS_CLEAR = (10, 90, 55)  # See-through %: min, max, default
 SHEEN = "#ffffff"  # the glossy highlight on glass surfaces
-SHEEN_ALPHA = {"sheen": 0.06, "edge": 0.18}  # Glossy is dark: white shows strongly on it, so keep it faint
+SHEEN_ALPHA = {"sheen": 0.06, "edge": 0.18}  # panels: Glossy is dark, white shows strongly on it, so keep it faint
 ALT = "theme_alt"  # fw13.store key: the wallpaper palette in the other mode, for parts that differ from the apps
 
 
@@ -360,11 +360,14 @@ def glass(part=None):
 
 
 def glass_alpha(part, ls=None):
-    """How solid a part is (0–1): the bar follows See-through fully, menus less, panels and apps least (text)."""
+    """How solid a part is (0–1). A glossy bar looks like the terminal (its Opacity, times the app windows' when
+    they are glossy too); menus, panels and apps follow See-through, panels and apps least (text)."""
     ls = ls or look_state()
     if part_look(part, ls) != "glossy":
         return 1.0
-    keep = {"bar": 1.0, "menus": 0.8, "panels": 0.6, "apps": 0.25}[part]
+    if part == "bar":
+        return round(terminal_look()["opacity"] * glass_alpha("apps", ls), 2)
+    keep = {"menus": 0.8, "panels": 0.6, "apps": 0.25}[part]
     return round(1 - ls["clear"] / 100 * keep, 2)
 
 
@@ -512,10 +515,11 @@ def set_terminal(key, value):
     files = render(palette())
     try:
         os.makedirs(DIR, exist_ok=True)
-        for name in ("kitty.conf", "ghostty"):
+        for name in ("kitty.conf", "ghostty", "waybar.css"):  # a glossy bar follows the terminal's Opacity
             _atomic(os.path.join(DIR, name), files[name])
     except OSError as e:
         return f"Could not write the terminal files: {e}"
+    _quiet("pkill", "-SIGUSR2", "-x", "waybar")
     _quiet("pkill", "-SIGUSR1", "-x", "kitty")
     _quiet("pkill", "-SIGUSR2", "-x", "ghostty")
     return None
@@ -656,8 +660,8 @@ def render(p):
     waybar = (f"/* {HEAD} */\n"
               f"@define-color bg {pb['bg']};\n"
               f"@define-color bar_bg {_css_alpha(pb['bg'], glass_alpha('bar', ls))};\n"
-              f"@define-color bar_sheen alpha({SHEEN}, {SHEEN_ALPHA['sheen'] if part_look('bar', ls) == 'glossy' else 0});\n"
-              f"@define-color bar_edge alpha({SHEEN}, {SHEEN_ALPHA['edge'] if part_look('bar', ls) == 'glossy' else 0});\n"
+              f"@define-color bar_sheen alpha({SHEEN}, 0);\n"  # the bar matches the terminal: no shine
+              f"@define-color bar_edge alpha({SHEEN}, 0);\n"
               f"@define-color fg {pb['fg']};\n"
               f"@define-color accent {pb['accent']};\n"
               f"@define-color muted {pb['muted']};\n"
@@ -1791,7 +1795,7 @@ def _glass_selftest():
         assert f"background={_h(night)}f2" in off["fuzzel.ini"] and f"background-color=#{_h(night)}ff" in off["mako"]
         assert "app_opacity = 1," in off["hypr.lua"] and "bar_sheen alpha(#ffffff, 0);" in off["waybar.css"]
         store.set(LOOK, {"look": "glossy"})
-        assert "bar_sheen alpha(#ffffff, 0.06);" in render(TOKYO_NIGHT)["waybar.css"]
+        assert "bar_sheen alpha(#ffffff, 0);" in render(TOKYO_NIGHT)["waybar.css"]
         store.set(LOOK, None)
         store.set(GLASS, True)  # the first Glass switch → Custom, glossy bar/menus/panels, apps in the palette's mode
         ls = look_state()
@@ -1799,7 +1803,7 @@ def _glass_selftest():
                                                           "apps": "dark"} and ls["clear"] == 55, ls
         assert set_look("glossy") is None and all(v == "glossy" for v in look_state()["parts"].values())
         on = render(TOKYO_NIGHT)
-        assert f"@define-color bar_bg alpha({night}, 0.45);" in on["waybar.css"] and "glass_apps   = true" in on["hypr.lua"]
+        assert f"@define-color bar_bg alpha({night}, 0.77);" in on["waybar.css"] and "glass_apps   = true" in on["hypr.lua"]  # 0.9 × 0.86
         assert "app_opacity = 0.86," in on["hypr.lua"] and all(line in on[n] for n, lines in REQUIRED.items()
                                                                for line in lines)
         assert set_look("light") == "light"  # apps light: the caller rebuilds the main palette in light
@@ -1807,7 +1811,7 @@ def _glass_selftest():
         assert palette()["bg"] == day and look() == "light" and not glass()
         assert set_look(part="bar", value="glossy") is None and look() == "custom"  # dark glass bar, light apps
         r = render(palette())
-        assert f"@define-color bar_bg alpha({night}, 0.45);" in r["waybar.css"]
+        assert f"@define-color bar_bg alpha({night}, 0.9);" in r["waybar.css"]  # apps light: the terminal's 0.9
         assert f"background={_h(day)}f2" in r["fuzzel.ini"] and f"background {day}" in r["kitty.conf"]
         assert set_look(part="apps", value="dark") == "dark"
         store.set("theme", {"source": "tokyo-night", "mode": "dark"})  # what the caller's set_source does
