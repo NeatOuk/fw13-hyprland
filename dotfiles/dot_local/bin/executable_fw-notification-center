@@ -3,8 +3,9 @@
 `fw-notification-center` in windows.lua), like macOS.
 
 Do not disturb switch and Clear all on top, then every notification as a card, newest first: the ones still on
-screen (× dismisses; a click runs the app's default action, e.g. opens the chat) and the earlier ones from mako's
-history (a click copies the text). Opening it marks everything read (the bell's count). New notifications appear
+screen (× dismisses; a click runs the app's own action: Telegram opens that chat, a crash opens Jarvis's Diagnose) and
+the earlier ones from mako's history, which the app has forgotten (a click asks Jarvis about a crash, opens fw13's
+notices in Settings, brings up the app by its desktop id, else copies the text). Opening it marks everything read (the bell's count). New notifications appear
 while it is open. Closes on Esc, a second click on the bell, or a click outside it.
 
   fw-notification-center    open, or close if open (single instance: fw13.panel)
@@ -31,6 +32,7 @@ WIDTH = 380
 GAP = 8  # from the screen edge and the bar, like the window gaps
 REFRESH_MS = 2000  # pick up notifications that arrive while it is open
 BODY_LINES = 4
+SETTINGS_PAGE = {"fw-battery": "power", "fw-syncthing": "syncthing", "fw-updates": "system", "fw-health": "system"}
 
 
 def text_of(n):
@@ -127,19 +129,43 @@ class Center(Gtk.Window):
             b.set_max_width_chars(1)  # let it wrap to the card instead of widening the panel
             inner.pack_start(b, False, False, 0)
         ev.add(inner)
-        ev.set_tooltip_text("Click to open" if n["active"] and "default" in n["actions"] else "Click to copy")
+        ev.set_tooltip_text(self.click_hint(n))
         ev.connect("button-release-event", lambda _w, e, n=n: e.button == 1 and self.activate_card(n))
         return ev
 
+    @staticmethod
+    def click_hint(n):
+        if n["active"] and "default" in n["actions"]:
+            return "Click to open it in the app"
+        if n["app"] == "fw-crash-watch":
+            return "Click to ask Jarvis about it"
+        if n["app"] in SETTINGS_PAGE:
+            return f"Click to open Settings → {SETTINGS_PAGE[n['app']].capitalize()}"
+        return "Click to open the app" if n["desktop"] else "Click to copy"
+
     def activate_card(self, n):
+        """Still on screen: the app's own action (Telegram opens that chat, a crash opens Jarvis's Diagnose).
+        From history the app has forgotten it, so: a crash → ask Jarvis, fw13's notices → their Settings page,
+        an app → open / bring it up; anything else is copied."""
+        cmd = None
         if n["active"] and "default" in n["actions"]:
             mako.makoctl("invoke", "-n", str(n["id"]), "default")
-            self.close()
+        elif n["app"] == "fw-crash-watch":
+            cmd = ["fw-jarvis-panel", "--ask", f"Diagnose this crash notice from earlier: {text_of(n)}. Check the "
+                                               "journal and coredumpctl around that time and suggest a fix."]
+        elif n["app"] in SETTINGS_PAGE:
+            cmd = ["uwsm", "app", "--", "fw-settings", SETTINGS_PAGE[n["app"]]]
+        elif n["desktop"]:
+            cmd = ["uwsm", "app", "--", "gtk-launch", n["desktop"]]  # a running app comes to the front
         else:
             mako.copy(text_of(n))
             self.status.set_text("Copied")
             self.status.show()
             GLib.timeout_add(1500, lambda: (self.status.hide(), False)[1])
+            return
+        if cmd:
+            subprocess.Popen(cmd, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.close()
 
     # --- actions -----------------------------------------------------------------------------------
     def dismiss(self, nid):

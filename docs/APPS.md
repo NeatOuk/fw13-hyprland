@@ -29,7 +29,7 @@ A thin bar per screen: the Framework menu, the focused app's name and workspaces
 | ✱ | Claude plan limits (5-hour and weekly %, reset times) | |
 | `>_` | Coding agent and Ollama servers | |
 | Battery | **Power panel** (tooltip: power draw in watts) | |
-| Bell | **Notification Center**: slides in from the right edge (like macOS) with Do not disturb, Clear all and every notification as a card, newest first; a click opens it in its app (still on screen) or copies its text (earlier ones), × dismisses. Esc, the bell or a click outside closes it | Toggles Do not disturb |
+| Bell | **Notification Center**: slides in from the right edge (like macOS) with Do not disturb, Clear all and every notification as a card, newest first; a click on one still on screen opens it in its app (Telegram jumps to that chat; a crash opens Jarvis's Diagnose); an earlier one opens its app (apps forget a notification once it's gone, so not the exact message), asks Jarvis about a crash, or opens the matching Settings page for fw13's own notices; × dismisses. Esc, the bell or a click outside closes it | Toggles Do not disturb |
 
 Notifications appear on the screen where the app that sent them has its window (the one you used last, if it has several), e.g. Telegram's on the monitor Telegram is on. Apps without a window (tray only) and system notices use the screen under the mouse.
 

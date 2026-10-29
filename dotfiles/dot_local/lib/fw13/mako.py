@@ -18,6 +18,7 @@ from . import bar as waybar, store
 
 DND = "do-not-disturb"
 SKIP_APPS = {"fw-osd"}
+DESKTOP_ID = re.compile(r"[A-Za-z0-9._-]+")  # what gtk-launch gets: an app id, never a path or an option
 BELL, BELL_SLASH = "", ""  # Font Awesome 6 Free: bell, bell-slash
 
 
@@ -71,7 +72,9 @@ def notifications(cmd):
         if app in SKIP_APPS:
             continue
         actions = _field(n, "actions")
+        desktop = _field(n, "desktop_entry", "desktop-entry")
         result.append({"id": nid, "app": app, "active": cmd == "list",
+                       "desktop": desktop if isinstance(desktop, str) and DESKTOP_ID.fullmatch(desktop) else "",
                        "actions": actions if isinstance(actions, dict) else {},
                        "summary": str(_field(n, "summary") or ""), "body": str(_field(n, "body") or "")})
     return result
@@ -153,12 +156,15 @@ def _test():
     global makoctl
     real = makoctl
     sample = json.dumps([{"id": 3, "app_name": "Telegram", "summary": "Hi", "body": "<b>a</b> &amp; b",
-                          "actions": {"default": "View"}},
+                          "actions": {"default": "View"}, "desktop_entry": "org.telegram.desktop"},
+                         {"id": 4, "app_name": "Evil", "desktop_entry": "--help /tmp/x"},
                          {"id": 2, "app_name": "fw-osd", "summary": "vol"}, {"id": "x"}, "junk"])
     try:
         makoctl = lambda *a: sample if a[0] == "list" else "[]"  # noqa: E731
         items = everything()
-        assert [n["id"] for n in items] == [3] and items[0]["active"] and items[0]["actions"] == {"default": "View"}
+        assert [n["id"] for n in items] == [4, 3] and items[1]["active"] and items[1]["actions"] == {"default": "View"}
+        assert items[1]["desktop"] == "org.telegram.desktop" and items[0]["desktop"] == ""
+        items = items[1:]
         assert plain_text(items[0]["body"]) == "a & b"
     finally:
         makoctl = real
