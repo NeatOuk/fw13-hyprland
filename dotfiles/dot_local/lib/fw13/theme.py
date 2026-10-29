@@ -299,7 +299,8 @@ def _a(c, alpha="ff"):
 GLASS = "theme_glass"  # fw13.store key: Appearance → Glass (all off by default): see render() and looknfeel.lua
 GLASS_PARTS = ("bar", "menus", "panels", "apps")  # bar · launcher/menus + notifications · fw13 panels + Settings · app windows
 GLASS_CLEAR = (10, 90, 55)  # See-through %: min, max, default
-SHEEN = "#ffffff"  # the glossy highlight on glass surfaces (white on light and dark alike)
+GLASS_SHINE = (0, 100, 80)  # Shine %: min, max, default (the glossy reflection on the bar and fw13 windows)
+SHEEN, SHADE = "#ffffff", "#000000"  # reflection (top half) and shade (bottom half), on light and dark alike
 
 
 def glass_look():
@@ -311,7 +312,17 @@ def glass_look():
     lo, hi, default = GLASS_CLEAR
     clear = g.get("clear")
     clear = int(clear) if isinstance(clear, (int, float)) and not isinstance(clear, bool) else default
-    return {**{k: g.get(k) is True for k in GLASS_PARTS}, "clear": min(hi, max(lo, clear))}
+    shine = g.get("shine")
+    shine = int(shine) if isinstance(shine, (int, float)) and not isinstance(shine, bool) else GLASS_SHINE[2]
+    return {**{k: g.get(k) is True for k in GLASS_PARTS}, "clear": min(hi, max(lo, clear)),
+            "shine": min(GLASS_SHINE[1], max(GLASS_SHINE[0], shine))}
+
+
+def gloss(part, look=None):
+    """(top, middle, shade, edge) alphas of the glossy reflection on `part` (all 0 when it isn't glass)."""
+    look = look or glass_look()
+    k = look["shine"] / 100 if look[part] else 0
+    return round(0.8 * k, 2), round(0.28 * k, 2), round(0.2 * k, 2), round(0.85 * k, 2)
 
 
 def glass_alpha(part, look=None):
@@ -571,9 +582,9 @@ def render(p):
     waybar = (f"/* {HEAD} */\n"
               f"@define-color bg {p['bg']};\n"
               f"@define-color bar_bg {_css_alpha(p['bg'], glass_alpha('bar'))};\n"
-              f"@define-color bar_sheen alpha({SHEEN}, {0.22 if glass('bar') else 0});\n"
-              f"@define-color bar_edge alpha({SHEEN}, {0.35 if glass('bar') else 0});\n"
-              f"@define-color fg {p['fg']};\n"
+              + "".join(f"@define-color bar_{n} alpha({c}, {a:g});\n" for n, c, a in
+                        zip(("sheen", "sheen_mid", "shade", "edge"), (SHEEN, SHEEN, SHADE, SHEEN), gloss("bar")))
+              + f"@define-color fg {p['fg']};\n"
               f"@define-color accent {p['accent']};\n"
               f"@define-color muted {p['muted']};\n"
               f"@define-color red {p['bad']};\n"
@@ -821,7 +832,7 @@ def _atomic_user(path, text):
 
 # Lines a generated file must hold; one of ours (HEAD on top) written before a line was added is rewritten by
 # ensure_files() (written only on a palette change otherwise, so an existing install would never get it).
-REQUIRED = {"mako": ("progress-color=", "font="), "fuzzel.ini": ("font=",), "waybar.css": ("font-family", "@define-color bar_bg", "@define-color bar_sheen", "@define-color bar_edge"),
+REQUIRED = {"mako": ("progress-color=", "font="), "fuzzel.ini": ("font=",), "waybar.css": ("font-family", "@define-color bar_bg", "@define-color bar_sheen_mid", "@define-color bar_shade"),
             "hyprlock.conf": ("$fw_font", "$fw_tty_bg")}
 
 
@@ -1705,13 +1716,15 @@ def _glass_selftest():
         assert f"background={_h(bg)}f2" in off["fuzzel.ini"] and f"background-color=#{_h(bg)}ff" in off["mako"]
         assert "app_opacity = 1," in off["hypr.lua"]
         store.set(GLASS, True)  # the first version's plain switch
-        assert glass_look() == {"bar": True, "menus": True, "panels": True, "apps": False, "clear": 55}
+        assert glass_look() == {"bar": True, "menus": True, "panels": True, "apps": False, "clear": 55, "shine": 80}
         store.set(GLASS, {"bar": True, "apps": True, "clear": 50})
         on = render(TOKYO_NIGHT)
         assert f"@define-color bar_bg alpha({bg}, 0.5);" in on["waybar.css"] and "glass_bar    = true" in on["hypr.lua"]
         assert "glass_menus  = false" in on["hypr.lua"] and f"background={_h(bg)}f2" in on["fuzzel.ini"]
         assert "app_opacity = 0.88," in on["hypr.lua"] and "app_opacity_inactive = 0.8," in on["hypr.lua"]
         assert all(line in on[n] for n, lines in REQUIRED.items() for line in lines)
+        assert "@define-color bar_sheen alpha(#ffffff, 0.64);" in on["waybar.css"]  # default Shine 80
+        assert "@define-color bar_sheen alpha(#ffffff, 0);" in off["waybar.css"]
         store.set(GLASS, {"menus": True, "clear": 500})
         assert glass_look()["clear"] == GLASS_CLEAR[1] and glass_alpha("menus") == 0.28
     finally:
