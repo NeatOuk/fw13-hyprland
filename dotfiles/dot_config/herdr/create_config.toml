@@ -4,3 +4,7 @@
 [update]
 # mise updates herdr (mise upgrade / the installer), so herdr's own new-version notice is off
 version_check = false
+
+[theme]
+# the terminal's colours, so herdr follows Settings → Appearance (Dark / Light) instead of its own dark theme
+name = "terminal"
