@@ -64,9 +64,6 @@ if #glass > 0 then
 end
 if theme.glass_apps == true and type(theme.app_opacity) == "number" and type(theme.app_opacity_inactive) == "number" then
   hl.config({ decoration = { active_opacity = theme.app_opacity, inactive_opacity = theme.app_opacity_inactive } })
-  -- Terminals are see-through on their own (Appearance → Terminal → Opacity): don't stack the two.
-  hl.window_rule({ name = "fw13-glass-terminals", match = { class = "^(kitty|com\\.mitchellh\\.ghostty)$" },
-                   opacity = "1.0 override 1.0 override" })
 end
 
 hl.curve("easeOutQuint", { type = "bezier", points = { { 0.23, 1 }, { 0.32, 1 } } })
