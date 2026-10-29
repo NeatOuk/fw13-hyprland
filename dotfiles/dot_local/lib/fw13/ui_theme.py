@@ -98,12 +98,15 @@ def css(p=None):
     """The stylesheet (bytes) for palette `p` (default: the current one)."""
     p = p or _current
     v = {k: c[:7] for k, c in p.items()}
-    win_bg = v["bg"]
-    if theme.glass():  # translucent windows (Hyprland blurs behind them); .page sits on the window, so it adds none
+    win_bg, extra = v["bg"], ""
+    alpha = theme.glass_alpha("panels")
+    if alpha < 1:  # see-through fw13 windows (Hyprland blurs behind them); .page sits on the window, so it adds none
         r, g, b = (int(v["bg"][i:i + 2], 16) for i in (1, 3, 5))
-        win_bg = f"rgba({r}, {g}, {b}, {theme.GLASS_ALPHA['panel']})"
-    css_text = CSS.substitute({**v, "win_bg": win_bg, "font": theme.font()})
-    return (css_text + (".page { background: transparent; }\n" if theme.glass() else "")).encode()
+        win_bg = f"rgba({r}, {g}, {b}, {alpha:g})"
+        extra = (".page { background: transparent; }\n"
+                 f"window {{ background-image: linear-gradient(to bottom, alpha({theme.SHEEN}, 0.14), "
+                 f"alpha({theme.SHEEN}, 0) 180px); box-shadow: inset 0 1px alpha({theme.SHEEN}, 0.3); }}\n")
+    return (CSS.substitute({**v, "win_bg": win_bg, "font": theme.font()}) + extra).encode()
 
 
 def rgb(role, p=None):

@@ -44,16 +44,26 @@ hl.config({
   },
 })
 
--- Appearance → Glass (theme.glass, from ~/.config/fw13/theme/hypr.lua): the bar, launcher/menus, notifications
--- and fw13's panels are translucent, so blur what's behind them, a little stronger than for windows.
-if theme.glass == true then
-  hl.config({ decoration = { blur = { size = 6, passes = 2 } } })
+-- Appearance → Glass (glass_* and app_opacity from ~/.config/fw13/theme/hypr.lua; all off by default): the chosen
+-- see-through layers get a strong, slightly vivid blur; App windows makes every window a little see-through
+-- (fullscreen stays solid).
+local glass = {}
+if theme.glass_bar == true then table.insert(glass, "waybar") end
+if theme.glass_menus == true then table.insert(glass, "launcher|notifications") end
+if theme.glass_panels == true then table.insert(glass, "fw-.+") end
+if #glass > 0 or theme.glass_apps == true then
+  hl.config({ decoration = { blur = { size = 8, passes = 3, vibrancy = 0.3, noise = 0.015, popups = true } } })
+end
+if #glass > 0 then
   hl.layer_rule({
     name = "fw13-glass",
-    match = { namespace = "^(waybar|launcher|notifications|fw-.+)$" },
+    match = { namespace = "^(" .. table.concat(glass, "|") .. ")$" },
     blur = true,
-    ignore_alpha = 0.2,
+    ignore_alpha = 0.1,
   })
+end
+if theme.glass_apps == true and type(theme.app_opacity) == "number" and type(theme.app_opacity_inactive) == "number" then
+  hl.config({ decoration = { active_opacity = theme.app_opacity, inactive_opacity = theme.app_opacity_inactive } })
 end
 
 hl.curve("easeOutQuint", { type = "bezier", points = { { 0.23, 1 }, { 0.32, 1 } } })

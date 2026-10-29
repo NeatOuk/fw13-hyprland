@@ -1,4 +1,4 @@
-"""Appearance: theme colours (wallpaper palette via matugen, or Tokyo Night), Glass (theme.set_glass) and font, wallpaper gallery and effects,
+"""Appearance: theme colours (wallpaper palette via matugen, or Tokyo Night), Glass (bar, menus, panels, app windows + See-through: theme.set_glass) and font, wallpaper gallery and effects,
 window gaps and border size (rounding stays 0 — house style).
 
 HyprPage is shared with Input: both write ~/.config/hypr/settings.lua through fw13.hyprsettings.
@@ -305,13 +305,6 @@ class AppearancePage(HyprPage):
         controls.append(self.row("Font", combo([(n, n) for n in theme.fonts()], theme.font(), self.set_font),
                                  hint="Bar, menus, notifications, lock screen, these panels and the terminals "
                                       "(fixed-width fonts only, for the terminals)"))
-        glass = Gtk.Switch()
-        glass.set_active(theme.glass())
-        glass.connect("notify::active", lambda w, _p: self.set_glass(w.get_active()))
-        controls.append(self.row(
-            "Glass", glass,
-            hint="See-through, blurred bar, menus, notifications, panels and Settings, with Light or Dark "
-                 "(apps keep their own background; terminals: Opacity under Terminal)"))
         vscode = Gtk.Switch()
         vscode.set_active(bool(store.get(theme.VSCODE_ON)))
         vscode.connect("notify::active", lambda s, _p: self.set_vscode(s.get_active()))
@@ -392,9 +385,39 @@ class AppearancePage(HyprPage):
         background(lambda: theme.set_chromium(on), lambda note: self.show_status(
             note, "bad" if note and note.startswith(("Could not", "Error")) else "dim"))
 
-    def set_glass(self, on):
-        self.show_status("Glass on…" if on else "Glass off…", "dim")
-        background(lambda: theme.set_glass(on), lambda r: self.show_status(r if isinstance(r, str) else None))
+    def glass_section(self):
+        self.heading("Glass")
+        look = theme.glass_look()
+        for part, text, hint in (
+                ("bar", "Bar", "See-through with the wallpaper blurred behind it, and a glossy edge"),
+                ("menus", "Menus and notifications", "Launcher, bar menus and pop-up notifications"),
+                ("panels", "Panels and Settings", "The bar's panels, Jarvis and this window (a bit more solid: text)"),
+                ("apps", "App windows", "Every app window slightly see-through, unfocused ones a little more; "
+                                        "full screen (videos, games) stays solid")):
+            sw = Gtk.Switch()
+            sw.set_active(look[part])
+            sw.connect("notify::active", lambda w, _p, part=part: self.set_glass(part, w.get_active()))
+            self.row(text, sw, hint=hint)
+        lo, hi, _default = theme.GLASS_CLEAR
+        scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, 5)
+        scale.set_value(look["clear"])
+        scale.set_value_pos(Gtk.PositionType.RIGHT)
+        scale.set_size_request(220, -1)
+        scale.connect("format-value", lambda _s, v: f"{v:.0f} %")
+        scale.connect("value-changed", self.on_clear)
+        self.row("See-through", scale, hint="How much of the wallpaper shows through the parts switched on above")
+
+    def on_clear(self, scale):
+        """Apply once the slider settles (each apply reloads Hyprland)."""
+        if getattr(self, "clear_timer", None):
+            GLib.source_remove(self.clear_timer)
+        self.clear_timer = GLib.timeout_add(400, lambda: (setattr(self, "clear_timer", None),
+                                                          self.set_glass("clear", int(round(scale.get_value()))),
+                                                          False)[2])
+
+    def set_glass(self, key, value):
+        self.show_status("Glass…", "dim")
+        background(lambda: theme.set_glass(key, value), lambda r: self.show_status(r if isinstance(r, str) else None))
 
     def set_vscode(self, on):
         if self.vscode_busy:  # one at a time, in order: the last flip wins
@@ -459,6 +482,7 @@ class AppearancePage(HyprPage):
     def refresh(self):
         self.clear()
         self.theme_section()
+        self.glass_section()
         self.terminal_section()
         self.wallpaper_section()
         self.heading("Windows")

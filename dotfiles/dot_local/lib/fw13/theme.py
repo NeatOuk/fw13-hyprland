@@ -296,17 +296,42 @@ def _a(c, alpha="ff"):
     return _h(c) + alpha
 
 
-GLASS = "theme_glass"  # fw13.store key: Appearance → Glass (off by default): see render() and looknfeel.lua
-GLASS_ALPHA = {"menu": "b3", "panel": 0.82}  # hex alpha for menus + notifications, CSS alpha for fw13 windows (bar: 0.6)
+GLASS = "theme_glass"  # fw13.store key: Appearance → Glass (all off by default): see render() and looknfeel.lua
+GLASS_PARTS = ("bar", "menus", "panels", "apps")  # bar · launcher/menus + notifications · fw13 panels + Settings · app windows
+GLASS_CLEAR = (10, 90, 55)  # See-through %: min, max, default
+SHEEN = "#ffffff"  # the glossy highlight on glass surfaces (white on light and dark alike)
 
 
-def glass():
-    return store.get(GLASS) is True
+def glass_look():
+    """{part: bool for GLASS_PARTS, "clear": %}; an older `True` = bar, menus and panels at the default level."""
+    g = store.get(GLASS)
+    if g is True:
+        g = {"bar": True, "menus": True, "panels": True}
+    g = g if isinstance(g, dict) else {}
+    lo, hi, default = GLASS_CLEAR
+    clear = g.get("clear")
+    clear = int(clear) if isinstance(clear, (int, float)) and not isinstance(clear, bool) else default
+    return {**{k: g.get(k) is True for k in GLASS_PARTS}, "clear": min(hi, max(lo, clear))}
 
 
-def set_glass(on):
-    """Write the files with or without translucency, then reload Hyprland so looknfeel.lua's blur rule follows."""
-    store.set(GLASS, bool(on))
+def glass_alpha(part, look=None):
+    """How solid a part is (0–1): the bar follows See-through fully, menus less, panels and apps least (text)."""
+    look = look or glass_look()
+    if not look[part]:
+        return 1.0
+    keep = {"bar": 1.0, "menus": 0.8, "panels": 0.6, "apps": 0.25}[part]
+    return round(1 - look["clear"] / 100 * keep, 2)
+
+
+def glass(part=None):
+    look = glass_look()
+    return look[part] if part else any(look[k] for k in GLASS_PARTS)
+
+
+def set_glass(key, value):
+    """One Glass setting (a part's switch or "clear"); writes the files, then reloads Hyprland for looknfeel.lua."""
+    look = {**glass_look(), key: value}
+    store.set(GLASS, look)
     write(palette())
     if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
         _quiet("hyprctl", "reload")
@@ -520,16 +545,34 @@ def _fcitx_theme(p):
     return "\n".join(lines)
 
 
+def _hex_alpha(a):
+    return f"{round(a * 255):02x}"
+
+
+def _css_alpha(c, a):
+    return c if a >= 1 else f"alpha({c}, {a:g})"
+
+
+def _hypr_glass():
+    """hypr.lua's Glass keys for looknfeel.lua: which layers blur, and the app windows' opacity."""
+    look = glass_look()
+    active = glass_alpha("apps", look)
+    return ("".join(f"  glass_{k:<6} = {'true' if look[k] else 'false'},\n" for k in GLASS_PARTS)
+            + f"  app_opacity = {active:g},\n  app_opacity_inactive = {max(0.5, round(active - 0.08, 2)):g},\n")
+
+
 def render(p):
     """{filename in ~/.config/fw13/theme: text} for palette `p`."""
     v = _hypr_values(p)
     f = font()
     hypr = (f"-- {HEAD}\n-- Read by ~/.config/hypr/theme.lua (falls back to Tokyo Night if this file breaks).\n"
             "return {\n" + "".join(f'  {k:<7} = "{c}",\n' for k, c in v.items())
-            + f"  glass   = {'true' if glass() else 'false'},\n}}\n")
+            + _hypr_glass() + "}\n")
     waybar = (f"/* {HEAD} */\n"
               f"@define-color bg {p['bg']};\n"
-              f"@define-color bar_bg {'alpha(' + p['bg'] + ', 0.6)' if glass() else p['bg']};\n"
+              f"@define-color bar_bg {_css_alpha(p['bg'], glass_alpha('bar'))};\n"
+              f"@define-color bar_sheen alpha({SHEEN}, {0.22 if glass('bar') else 0});\n"
+              f"@define-color bar_edge alpha({SHEEN}, {0.35 if glass('bar') else 0});\n"
               f"@define-color fg {p['fg']};\n"
               f"@define-color accent {p['accent']};\n"
               f"@define-color muted {p['muted']};\n"
@@ -537,7 +580,7 @@ def render(p):
               f"@define-color yellow {p['warn']};\n"
               f'* {{ font-family: "{f}", "Font Awesome 6 Free", "Font Awesome 6 Brands", "Noto Sans Khmer", sans-serif; }}\n')
     fuzzel = (f"# {HEAD}\n[main]\nfont={f}:size=12,Font Awesome 6 Free:size=12\n[colors]\n"
-              f"background={_a(p['bg'], GLASS_ALPHA['menu'] if glass() else 'f2')}\n"
+              f"background={_a(p['bg'], _hex_alpha(min(glass_alpha('menus'), 0.95)))}\n"
               f"text={_a(p['fg'])}\n"
               f"match={_a(p['accent'])}\n"
               f"selection={_a(p['surface2'])}\n"
@@ -545,7 +588,7 @@ def render(p):
               f"selection-match={_a(p['accent'])}\n"
               f"border={_a(p['border'])}\n")
     mako = (f"# {HEAD}\n"
-            f"background-color=#{_a(p['bg'], GLASS_ALPHA['menu'] if glass() else 'ff')}\n"
+            f"background-color=#{_a(p['bg'], _hex_alpha(glass_alpha('menus')))}\n"
             f"text-color={p['fg']}\n"
             f"border-color={p['border']}\n"
             f"progress-color=over #{_a(p['accent'], '66')}\n"
@@ -778,7 +821,7 @@ def _atomic_user(path, text):
 
 # Lines a generated file must hold; one of ours (HEAD on top) written before a line was added is rewritten by
 # ensure_files() (written only on a palette change otherwise, so an existing install would never get it).
-REQUIRED = {"mako": ("progress-color=", "font="), "fuzzel.ini": ("font=",), "waybar.css": ("font-family", "@define-color bar_bg"),
+REQUIRED = {"mako": ("progress-color=", "font="), "fuzzel.ini": ("font=",), "waybar.css": ("font-family", "@define-color bar_bg", "@define-color bar_sheen", "@define-color bar_edge"),
             "hyprlock.conf": ("$fw_font", "$fw_tty_bg")}
 
 
@@ -1651,22 +1694,28 @@ def set_source(source, mode=None, scheme_type=None, wallpaper=None, pick=None):
 
 
 def _glass_selftest():
-    """render() with Glass off and on, in a throwaway store (nothing written to ~/.config)."""
+    """render() with Glass off, partly and fully on, in a throwaway store (nothing written to ~/.config)."""
     import tempfile
     real = store.PATH
     store.PATH = os.path.join(tempfile.mkdtemp(), "settings.json")
+    bg = TOKYO_NIGHT["bg"]
     try:
         off = render(TOKYO_NIGHT)
-        store.set(GLASS, True)
+        assert f"@define-color bar_bg {bg};" in off["waybar.css"] and "glass_bar    = false" in off["hypr.lua"]
+        assert f"background={_h(bg)}f2" in off["fuzzel.ini"] and f"background-color=#{_h(bg)}ff" in off["mako"]
+        assert "app_opacity = 1," in off["hypr.lua"]
+        store.set(GLASS, True)  # the first version's plain switch
+        assert glass_look() == {"bar": True, "menus": True, "panels": True, "apps": False, "clear": 55}
+        store.set(GLASS, {"bar": True, "apps": True, "clear": 50})
         on = render(TOKYO_NIGHT)
+        assert f"@define-color bar_bg alpha({bg}, 0.5);" in on["waybar.css"] and "glass_bar    = true" in on["hypr.lua"]
+        assert "glass_menus  = false" in on["hypr.lua"] and f"background={_h(bg)}f2" in on["fuzzel.ini"]
+        assert "app_opacity = 0.88," in on["hypr.lua"] and "app_opacity_inactive = 0.8," in on["hypr.lua"]
+        assert all(line in on[n] for n, lines in REQUIRED.items() for line in lines)
+        store.set(GLASS, {"menus": True, "clear": 500})
+        assert glass_look()["clear"] == GLASS_CLEAR[1] and glass_alpha("menus") == 0.28
     finally:
         store.PATH = real
-    bg = TOKYO_NIGHT["bg"]
-    assert f"@define-color bar_bg {bg};" in off["waybar.css"] and "glass   = false" in off["hypr.lua"]
-    assert f"@define-color bar_bg alpha({bg}, 0.6);" in on["waybar.css"] and "glass   = true" in on["hypr.lua"]
-    assert f"background={_h(bg)}f2" in off["fuzzel.ini"] and f"background={_h(bg)}b3" in on["fuzzel.ini"]
-    assert f"background-color=#{_h(bg)}ff" in off["mako"] and f"background-color=#{_h(bg)}b3" in on["mako"]
-    assert all(line in on[n] for n, lines in REQUIRED.items() for line in lines)
     print("fw13.theme: glass self-check OK")
 
 
