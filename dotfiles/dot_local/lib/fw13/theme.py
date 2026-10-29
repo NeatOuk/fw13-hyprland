@@ -765,32 +765,40 @@ def render(p):
             "kitty.conf": "\n".join(kitty) + "\n", "ghostty": "\n".join(ghostty) + "\n", "hyprlock.conf": hyprlock,
             "gtk3.css": _gtk_css(p, variables=False), "gtk4.css": _gtk_css(p, variables=True),
             "qt6ct-colors.conf": _qt_scheme(p), "fcitx5-theme.conf": _fcitx_theme(p),
-            "framework-logo.svg": _framework_logo(pb, 18), "framework-logo@2x.svg": _framework_logo(pb, 36),
+            "framework-logo.svg": _framework_logo(pb, LOGO_PX), "framework-logo@2x.svg": _framework_logo(pb, LOGO_PX * 2),
             **{f"wifi-{n}{x}.svg": _wifi(pb, n, px) for n in range(1, 5) for x, px in (("", 16), ("@2x", 32))}}
 
 
 
-# Framework's gear mark (Framework Computer's trademark; path from Simple Icons, CC0, source frame.work), drawn by the
-# bar's launcher button (waybar style.css background-image) in the accent colour. The one non-Font-Awesome icon,
-# by the user's choice. Written at exactly the size the bar shows (18 px, 36 px for scale-2 surfaces) and picked with
-# -gtk-scaled() in style.css: GTK resamples CSS background images with a cheap filter, which makes any other size look
-# jagged or soft (fractional scaling draws the bar at scale 2).
+# Framework's gear mark (Framework Computer's trademark): the symbol from framework-logo.svg in Framework's own
+# FrameworkComputer/dotmatrixtool repository (MIT), the wordmark left out. Drawn by the bar's Framework-menu button
+# (waybar style.css background-image) in the accent colour, by fw-settings and on the GRUB card. The one
+# non-Font-Awesome icon, by the user's choice. Written at exactly the size the bar shows (LOGO_PX, twice that for
+# scale-2 surfaces) and picked with -gtk-scaled() in style.css: GTK resamples CSS background images with a cheap
+# filter, which makes any other size look jagged or soft (fractional scaling draws the bar at scale 2).
 FRAMEWORK_LOGO = (
-    "M23.186 9.07 21.41 8.019a2.78 2.78 0 0 1-1.344-2.391V3.523c0-.431-.19-.837-.516-1.108A11.965 11.965 "
-    "0 0 0 16.317.493a1.356 1.356 0 0 0-1.193.091L13.347 1.64a2.622 2.622 0 0 1-2.688 0L8.882.584a1.348 1"
-    ".348 0 0 0-1.194-.09 11.93 11.93 0 0 0-3.231 1.918 1.44 1.44 0 0 0-.516 1.108v2.104c0 .986-.51 1.897"
-    "-1.344 2.392L.823 9.068c-.363.215-.61.588-.675 1.013A12.24 12.24 0 0 0 0 12.001c0 .651.048 1.292.145"
-    " 1.916.065.425.312.801.675 1.016l1.774 1.052a2.78 2.78 0 0 1 1.344 2.392v2.104c0 .431.191.837.516 1."
-    "108.965.8 2.054 1.452 3.231 1.919.393.155.831.124 1.194-.091l1.777-1.055a2.622 2.622 0 0 1 2.688 0l1"
-    ".777 1.055c.363.215.804.246 1.193.091a11.973 11.973 0 0 0 3.232-1.92 1.44 1.44 0 0 0 .516-1.107v-2.1"
-    "04a2.78 2.78 0 0 1 1.344-2.392l1.774-1.052c.363-.215.61-.588.675-1.016.094-.624.145-1.265.145-1.916 "
-    "0-.652-.048-1.293-.145-1.917a1.41 1.41 0 0 0-.67-1.013zM12.003 19.41c-3.981 0-7.21-3.317-7.21-7.407s"
-    "3.229-7.406 7.21-7.406c3.98 0 7.21 3.316 7.21 7.406s-3.23 7.407-7.21 7.407z"
+    "M29.8357 11.1639L27.5526 9.80995C26.4837 9.17385 25.823 8.00115 25.823 6.73249V4.02461C25.823 3.47024 25.5774 "
+    "2.94786 25.1588 2.5996C23.9135 1.56549 22.5125 0.726826 20.9974 0.126259C20.4923 -0.0727449 19.9285 -0.0336548"
+    " 19.4615 0.24353L17.175 1.60102C16.1061 2.23713 14.7881 2.23713 13.7158 1.60102L11.4292 0.24353C10.9622 -0.033"
+    "6548 10.3949 -0.0762986 9.89333 0.126259C8.37474 0.726826 6.97722 1.56549 5.73536 2.59605C5.3168 2.9443 5.0712"
+    " 3.46669 5.0712 4.02106V6.72894C5.0712 7.99759 4.41395 9.1703 3.34159 9.8064L1.05852 11.1603C0.591524 11.4375 "
+    "0.273277 11.9173 0.190256 12.4645C0.0622657 13.2712 0 14.0957 0 14.9343C0 15.773 0.0622657 16.5974 0.186797 17"
+    ".4005C0.269818 17.9478 0.588065 18.4311 1.05506 18.7083L3.33813 20.0622C4.40703 20.6983 5.06774 21.871 5.06774"
+    " 23.1397V25.8476C5.06774 26.4019 5.31334 26.9243 5.7319 27.2726C6.97376 28.3031 8.37474 29.1418 9.88987 29.742"
+    "4C10.3949 29.9414 10.9588 29.9023 11.4258 29.6251L13.7123 28.2676C14.7812 27.6315 16.0991 27.6315 17.1715 28.2"
+    "676L19.458 29.6251C19.925 29.9023 20.4923 29.9414 20.9939 29.7424C22.5091 29.1418 23.91 28.3031 25.1519 27.272"
+    "6C25.5705 26.9243 25.8161 26.4019 25.8161 25.8476V23.1397C25.8161 21.871 26.4768 20.6983 27.5457 20.0622L29.82"
+    "87 18.7083C30.2957 18.4311 30.614 17.9514 30.697 17.4005C30.8181 16.5974 30.8838 15.773 30.8838 14.9343C30.883"
+    "8 14.0957 30.8215 13.2712 30.697 12.4681C30.6174 11.9208 30.3026 11.4411 29.8357 11.1639ZM15.4454 24.4688C10.3"
+    "223 24.4688 6.16776 20.2008 6.16776 14.9379C6.16776 9.67491 10.3223 5.40698 15.4454 5.40698C20.5684 5.40698 24"
+    ".7229 9.67491 24.7229 14.9379C24.7229 20.2008 20.5684 24.4688 15.4454 24.4688Z"
 )
+LOGO_VIEWBOX = "0 -0.5 30.8 30.8"  # the gear spans x 0–30.8, y 0–29.8: centred in a square
+LOGO_PX = 15  # on the bar (style.css background-size matches)
 
 
 def _framework_logo(p, px):
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{px}" height="{px}" viewBox="0 0 24 24">'
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{px}" height="{px}" viewBox="{LOGO_VIEWBOX}">'
             f'<path fill="#{_h(p["accent"])}" d="{FRAMEWORK_LOGO}"/></svg>\n')
 
 
@@ -807,7 +815,7 @@ def _wifi(p, n, px):
     for i, part in enumerate(WIFI_PARTS):
         c = "#" + _h(p["fg"] if i < n else p["muted"])
         parts.append(part.format(c=c, s=f'fill="none" stroke="{c}" stroke-width="2.4" stroke-linecap="round"'))
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{px}" height="{px}" viewBox="0 0 24 24">'
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{px}" height="{px}" viewBox="{LOGO_VIEWBOX}">'
             + "".join(parts) + "</svg>\n")
 
 
