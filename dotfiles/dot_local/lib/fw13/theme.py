@@ -314,7 +314,8 @@ def glass_look():
     clear = int(clear) if isinstance(clear, (int, float)) and not isinstance(clear, bool) else default
     shine = g.get("shine")
     shine = int(shine) if isinstance(shine, (int, float)) and not isinstance(shine, bool) else GLASS_SHINE[2]
-    return {**{k: g.get(k) is True for k in GLASS_PARTS}, "clear": min(hi, max(lo, clear)),
+    return {**{k: g.get(k) is True for k in GLASS_PARTS}, "custom": g.get("custom") is True,
+            "clear": min(hi, max(lo, clear)),
             "shine": min(GLASS_SHINE[1], max(GLASS_SHINE[0], shine))}
 
 
@@ -339,13 +340,48 @@ def glass(part=None):
     return look[part] if part else any(look[k] for k in GLASS_PARTS)
 
 
+LOOKS = ("dark", "light", "glossy", "custom")  # Settings → Appearance → Look
+
+
+def look():
+    """Custom once chosen (glass per part); Glossy when the bar, menus and panels are all glass; else the
+    palette's mode (Tokyo Night = dark)."""
+    g, s = glass_look(), state()
+    light = s["source"] == "wallpaper" and s["mode"] == "light"
+    if g["custom"] or (light and any(g[k] for k in GLASS_PARTS)):  # light glass is only reachable as Custom
+        return "custom"
+    if g["bar"] and g["menus"] and g["panels"]:
+        return "glossy"
+    return s["mode"] if s["source"] == "wallpaper" else "dark"
+
+
+def set_look(name):
+    """Store Look's glass part: Glossy = dark colours + glass bar, menus and panels; Dark/Light = all solid;
+    Custom = keep the colours and the per-part switches as they are (shown under Glass).
+    Returns the wallpaper mode the palette must be rebuilt in (the caller does that), or None."""
+    if name == "custom":
+        store.set(GLASS, {**glass_look(), "custom": True})
+        return None
+    on = name == "glossy"
+    store.set(GLASS, {**glass_look(), "custom": False, "bar": on, "menus": on, "panels": on,
+                      **({} if on else {"apps": False})})
+    mode = "dark" if on else name
+    s = state()
+    return mode if s["source"] == "wallpaper" and s["mode"] != mode else None
+
+
+def reload_hyprland():
+    """looknfeel.lua reads hypr.lua's glass keys only at config load."""
+    if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        _quiet("hyprctl", "reload")
+
+
 def set_glass(key, value):
     """One Glass setting (a part's switch or "clear"); writes the files, then reloads Hyprland for looknfeel.lua."""
     look = {**glass_look(), key: value}
     store.set(GLASS, look)
     write(palette())
-    if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
-        _quiet("hyprctl", "reload")
+    reload_hyprland()
 
 
 def _hypr_values(p):
@@ -1704,6 +1740,12 @@ def set_source(source, mode=None, scheme_type=None, wallpaper=None, pick=None):
     return None
 
 
+def set_glass_flag_kept():
+    """Self-check helper: a per-part change under Custom stays Custom (store only, no files)."""
+    store.set(GLASS, {**glass_look(), "bar": True})
+    return look()
+
+
 def _glass_selftest():
     """render() with Glass off, partly and fully on, in a throwaway store (nothing written to ~/.config)."""
     import tempfile
@@ -1716,7 +1758,7 @@ def _glass_selftest():
         assert f"background={_h(bg)}f2" in off["fuzzel.ini"] and f"background-color=#{_h(bg)}ff" in off["mako"]
         assert "app_opacity = 1," in off["hypr.lua"]
         store.set(GLASS, True)  # the first version's plain switch
-        assert glass_look() == {"bar": True, "menus": True, "panels": True, "apps": False, "clear": 55, "shine": 80}
+        assert glass_look() == {"bar": True, "menus": True, "panels": True, "apps": False, "custom": False, "clear": 55, "shine": 80}
         store.set(GLASS, {"bar": True, "apps": True, "clear": 50})
         on = render(TOKYO_NIGHT)
         assert f"@define-color bar_bg alpha({bg}, 0.5);" in on["waybar.css"] and "glass_bar    = true" in on["hypr.lua"]
@@ -1725,6 +1767,16 @@ def _glass_selftest():
         assert all(line in on[n] for n, lines in REQUIRED.items() for line in lines)
         assert "@define-color bar_sheen alpha(#ffffff, 0.64);" in on["waybar.css"]  # default Shine 80
         assert "@define-color bar_sheen alpha(#ffffff, 0);" in off["waybar.css"]
+        store.set("theme", {"source": "wallpaper", "mode": "light"})
+        assert set_look("glossy") == "dark" and look() == "custom" and glass_look()["bar"]  # until rebuilt dark
+        store.set("theme", {"source": "wallpaper", "mode": "dark"})
+        assert look() == "glossy"
+        assert set_look("light") == "light" and not glass("bar")
+        store.set("theme", {"source": "wallpaper", "mode": "light"})
+        assert look() == "light"
+        store.set("theme", {"source": "tokyo-night"})
+        assert set_look("glossy") is None and look() == "glossy" and set_look("dark") is None and look() == "dark"
+        assert set_look("custom") is None and look() == "custom" and set_glass_flag_kept() == "custom"
         store.set(GLASS, {"menus": True, "clear": 500})
         assert glass_look()["clear"] == GLASS_CLEAR[1] and glass_alpha("menus") == 0.28
     finally:

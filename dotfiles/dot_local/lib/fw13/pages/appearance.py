@@ -101,7 +101,7 @@ class HyprPage(Page):
 
 THUMB_W = 120
 GALLERY_ROWS = 2  # the picture grid scrolls past this many rows, so a big library doesn't fill the page
-MODES = (("dark", "Dark"), ("light", "Light"))
+LOOKS = (("dark", "Dark"), ("light", "Light"), ("glossy", "Glossy"), ("custom", "Custom"))
 STYLES = (("scheme-tonal-spot", "Tonal spot (default)"), ("scheme-content", "Content"),
           ("scheme-expressive", "Expressive"), ("scheme-vibrant", "Vibrant"), ("scheme-neutral", "Neutral"),
           ("scheme-monochrome", "Monochrome"), ("scheme-fidelity", "Fidelity"), ("scheme-rainbow", "Rainbow"),
@@ -281,10 +281,12 @@ class AppearancePage(HyprPage):
         hint = ("Colours for the bar, menus, notifications, terminal, lock screen and borders" if have_wall
                 else "Set a wallpaper below to take the colours from it")
         controls = [self.row("Colours", box, hint=hint)]
+        looks = LOOKS if follow else tuple(x for x in LOOKS if x[0] != "light")  # Tokyo Night is dark only
+        controls.append(self.row("Look", combo(looks, theme.look(), self.set_look),
+                                 hint="Glossy: dark colours with a see-through, blurred, glossy bar, menus and "
+                                      "panels. Custom: choose glass part by part under Glass"))
         if follow:
-            mode = combo(MODES, s["mode"], lambda v: self.set_theme("wallpaper", mode=v))
             style = combo(STYLES, s["type"], lambda v: self.set_theme("wallpaper", scheme_type=v))
-            controls.append(self.row("Mode", mode))
             controls.append(self.row("Style", style, hint="How matugen builds the palette from the image"))
             pick = combo(PICKS, s["pick"], lambda v: self.set_theme("wallpaper", pick=v))
             strip = Gtk.Box(spacing=8)
@@ -386,9 +388,12 @@ class AppearancePage(HyprPage):
             note, "bad" if note and note.startswith(("Could not", "Error")) else "dim"))
 
     def glass_section(self):
+        current_look = theme.look()
+        if current_look not in ("glossy", "custom"):  # Dark / Light: solid, nothing to tune
+            return
         self.heading("Glass")
         look = theme.glass_look()
-        for part, text, hint in (
+        for part, text, hint in () if current_look != "custom" else (
                 ("bar", "Bar", "See-through with the wallpaper blurred behind it, and a glossy edge"),
                 ("menus", "Menus and notifications", "Launcher, bar menus and pop-up notifications"),
                 ("panels", "Panels and Settings", "The bar's panels, Jarvis and this window (a bit more solid: text)"),
@@ -456,6 +461,20 @@ class AppearancePage(HyprPage):
         # via fw13.wallpaper: colours from the original picture, not the desktop image with its effect
         background(lambda: wp.set_theme(source, mode=mode, scheme_type=scheme_type, pick=pick), self.theme_set)
         GLib.idle_add(self.refresh_if_open)  # grey out the controls (not from inside their own signal)
+
+    def set_look(self, name):
+        if self.theming or name == theme.look():
+            return
+        self.theming = True
+        self.show_status("Applying…", "dim")
+
+        def work():
+            mode = theme.set_look(name)
+            err = wp.set_theme("wallpaper", mode=mode) if mode else theme.write(theme.palette())
+            theme.reload_hyprland()
+            return err
+        background(work, self.theme_set)
+        GLib.idle_add(self.refresh_if_open)
 
     def set_font(self, name):
         if self.theming:  # one at a time: set_font() and set_source() both rewrite the theme files
