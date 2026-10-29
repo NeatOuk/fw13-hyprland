@@ -99,13 +99,11 @@ def css(p=None):
     p = p or _current
     v = {k: c[:7] for k, c in p.items()}
     win_bg, extra = v["bg"], ""
-    alpha = theme.glass_alpha("panels")
-    if alpha < 1:  # see-through fw13 windows (Hyprland blurs behind them); .page sits on the window, so it adds none
+    if theme.glass("panels"):  # see-through like the terminal (Hyprland blurs behind); .page adds nothing on top
         r, g, b = (int(v["bg"][i:i + 2], 16) for i in (1, 3, 5))
-        win_bg = f"rgba({r}, {g}, {b}, {alpha:g})"
-        extra = (".page { background: transparent; }\n"
-                 f"window {{ background-image: linear-gradient(to bottom, alpha({theme.SHEEN}, {theme.SHEEN_ALPHA['sheen']}), "
-                 f"alpha({theme.SHEEN}, 0) 180px); box-shadow: inset 0 1px alpha({theme.SHEEN}, {theme.SHEEN_ALPHA['edge']}); }}\n")
+        win_bg = f"rgba({r}, {g}, {b}, {theme.window_alpha():g})"  # Settings: a window, Hyprland adds app opacity
+        extra = (".page { background: transparent; }\n"  # layer-shell panels get no window opacity: all of it here
+                 f"window.panel {{ background-color: rgba({r}, {g}, {b}, {theme.glass_alpha('panels'):g}); }}\n")
     return (CSS.substitute({**v, "win_bg": win_bg, "font": theme.font()}) + extra).encode()
 
 

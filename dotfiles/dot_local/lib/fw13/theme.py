@@ -315,7 +315,6 @@ GLOSSY = {"glossy": "dark", "glossy_light": "light"}  # glossy look → its colo
 GLASS_PARTS = ("bar", "menus", "panels", "apps")  # bar · launcher/menus + notifications · fw13 panels + Settings · app windows
 GLASS_CLEAR = (10, 90, 55)  # See-through %: min, max, default
 SHEEN = "#ffffff"  # the glossy highlight on glass surfaces
-SHEEN_ALPHA = {"sheen": 0.06, "edge": 0.18}  # panels: Glossy is dark, white shows strongly on it, so keep it faint
 ALT = "theme_alt"  # fw13.store key: the wallpaper palette in the other mode, for parts that differ from the apps
 
 
@@ -361,15 +360,22 @@ def glass(part=None):
 
 
 def glass_alpha(part, ls=None):
-    """How solid a part is (0–1). A glossy bar looks like the terminal (its Opacity, times the app windows' when
-    they are glossy too); menus, panels and apps follow See-through, panels and apps least (text)."""
+    """How solid a part is (0–1); the terminal is the benchmark. App windows: 1 − See-through × 0.25 (Hyprland's
+    window opacity). Every other glossy part looks like a terminal: Terminal Opacity × the app windows' value
+    (when those are glossy). For fw13's own *windows* (Settings) Hyprland already applies the app opacity, so
+    ui_theme uses window_alpha() there instead."""
     ls = ls or look_state()
     if part_look(part, ls) not in GLOSSY:
         return 1.0
-    if part == "bar":
-        return round(terminal_look()["opacity"] * glass_alpha("apps", ls), 2)
-    keep = {"menus": 0.8, "panels": 0.6, "apps": 0.25}[part]
-    return round(1 - ls["clear"] / 100 * keep, 2)
+    apps = round(1 - ls["clear"] / 100 * 0.25, 2)
+    if part == "apps":
+        return apps
+    return round(window_alpha() * (apps if part_look("apps", ls) in GLOSSY else 1), 2)
+
+
+def window_alpha():
+    """The terminal's own opacity: what an fw13 window's CSS background uses, under Hyprland's window opacity."""
+    return terminal_look()["opacity"]
 
 
 def set_look(look=None, part=None, value=None, clear=None):
@@ -1822,6 +1828,11 @@ def _glass_selftest():
         store.set("theme", {"source": "tokyo-night", "mode": "light"})
         r = render(palette())
         assert f"@define-color bar_bg alpha({day}, 0.7);" in r["waybar.css"] and "glass_menus  = true" in r["hypr.lua"]  # 0.9 × 0.78 (See-through 90)
+        store.set(LOOK, {"look": "glossy", "clear": 60})  # the terminal is the benchmark for every glossy part
+        assert glass_alpha("apps") == 0.85 and window_alpha() == 0.9
+        assert glass_alpha("bar") == glass_alpha("menus") == glass_alpha("panels") == 0.77  # 0.9 × 0.85
+        store.set(LOOK, {"look": "custom", "parts": {"menus": "glossy", "apps": "dark"}})
+        assert glass_alpha("menus") == 0.9 and glass_alpha("apps") == 1.0  # solid apps: the terminal is just 0.9
     finally:
         store.PATH = real
     print("fw13.theme: look self-check OK")
