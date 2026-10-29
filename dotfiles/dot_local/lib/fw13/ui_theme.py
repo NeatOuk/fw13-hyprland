@@ -104,8 +104,8 @@ def css(p=None):
         r, g, b = (int(v["bg"][i:i + 2], 16) for i in (1, 3, 5))
         win_bg = f"rgba({r}, {g}, {b}, {alpha:g})"
         extra = (".page { background: transparent; }\n"
-                 f"window {{ background-image: linear-gradient(to bottom, alpha({theme.SHEEN}, 0.14), "
-                 f"alpha({theme.SHEEN}, 0) 180px); box-shadow: inset 0 1px alpha({theme.SHEEN}, 0.3); }}\n")
+                 f"window {{ background-image: linear-gradient(to bottom, alpha({theme.SHEEN}, {theme.SHEEN_ALPHA['sheen']}), "
+                 f"alpha({theme.SHEEN}, 0) 180px); box-shadow: inset 0 1px alpha({theme.SHEEN}, {theme.SHEEN_ALPHA['edge']}); }}\n")
     return (CSS.substitute({**v, "win_bg": win_bg, "font": theme.font()}) + extra).encode()
 
 

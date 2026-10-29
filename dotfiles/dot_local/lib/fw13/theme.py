@@ -313,7 +313,8 @@ LOOKS = ("dark", "light", "glossy", "custom")  # Custom = a look per part
 PART_LOOKS = ("dark", "light", "glossy")  # Glossy = dark colours, see-through and blurred
 GLASS_PARTS = ("bar", "menus", "panels", "apps")  # bar · launcher/menus + notifications · fw13 panels + Settings · app windows
 GLASS_CLEAR = (10, 90, 55)  # See-through %: min, max, default
-SHEEN = "#ffffff"  # the glossy highlight on glass surfaces (white on light and dark alike)
+SHEEN = "#ffffff"  # the glossy highlight on glass surfaces
+SHEEN_ALPHA = {"sheen": 0.06, "edge": 0.18}  # Glossy is dark: white shows strongly on it, so keep it faint
 ALT = "theme_alt"  # fw13.store key: the wallpaper palette in the other mode, for parts that differ from the apps
 
 
@@ -655,8 +656,8 @@ def render(p):
     waybar = (f"/* {HEAD} */\n"
               f"@define-color bg {pb['bg']};\n"
               f"@define-color bar_bg {_css_alpha(pb['bg'], glass_alpha('bar', ls))};\n"
-              f"@define-color bar_sheen alpha({SHEEN}, {0.22 if part_look('bar', ls) == 'glossy' else 0});\n"
-              f"@define-color bar_edge alpha({SHEEN}, {0.35 if part_look('bar', ls) == 'glossy' else 0});\n"
+              f"@define-color bar_sheen alpha({SHEEN}, {SHEEN_ALPHA['sheen'] if part_look('bar', ls) == 'glossy' else 0});\n"
+              f"@define-color bar_edge alpha({SHEEN}, {SHEEN_ALPHA['edge'] if part_look('bar', ls) == 'glossy' else 0});\n"
               f"@define-color fg {pb['fg']};\n"
               f"@define-color accent {pb['accent']};\n"
               f"@define-color muted {pb['muted']};\n"
@@ -1789,6 +1790,9 @@ def _glass_selftest():
         assert f"@define-color bar_bg {night};" in off["waybar.css"] and "glass_bar    = false" in off["hypr.lua"]
         assert f"background={_h(night)}f2" in off["fuzzel.ini"] and f"background-color=#{_h(night)}ff" in off["mako"]
         assert "app_opacity = 1," in off["hypr.lua"] and "bar_sheen alpha(#ffffff, 0);" in off["waybar.css"]
+        store.set(LOOK, {"look": "glossy"})
+        assert "bar_sheen alpha(#ffffff, 0.06);" in render(TOKYO_NIGHT)["waybar.css"]
+        store.set(LOOK, None)
         store.set(GLASS, True)  # the first Glass switch → Custom, glossy bar/menus/panels, apps in the palette's mode
         ls = look_state()
         assert ls["look"] == "custom" and ls["parts"] == {"bar": "glossy", "menus": "glossy", "panels": "glossy",
