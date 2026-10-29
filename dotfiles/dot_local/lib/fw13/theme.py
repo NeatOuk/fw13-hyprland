@@ -90,6 +90,16 @@ TOKYO_DAY = {
 ROLES = tuple(k for k in TOKYO_NIGHT if k != "ansi")
 
 
+def _tokyo(mode):
+    """Tokyo Night as shipped, or Tokyo Night Day raised to the light contrast minimums (adjust() is defined below)."""
+    if mode != "light":
+        return dict(TOKYO_NIGHT)
+    p = adjust(TOKYO_DAY, "light")
+    return {**p, "ansi": [p["ansi"][0], *(ensure(c, p["bg"], ANSI_MIN["light"][0]) for c in p["ansi"][1:7]),
+                          p["fg"], ensure(p["ansi"][8], p["bg"], ANSI_MIN["light"][1]),
+                          *(ensure(c, p["bg"], ANSI_MIN["light"][0]) for c in p["ansi"][9:15]), p["fg_bright"]]}
+
+
 # ---- colour maths -------------------------------------------------------------------------------------------
 
 def _rgb(c):
@@ -143,11 +153,19 @@ MIN_CONTRAST = {"fg": 4.5, "fg_bright": 4.5, "accent": 3, "accent2": 3, "ok": 4.
                 "border": 3, "muted": 2}
 
 
-def adjust(p):
-    """A copy of palette `p` meeting MIN_CONTRAST against p["bg"]. Only for matugen palettes: Tokyo Night is
-    shipped as is."""
+# Light palettes read weaker than dark ones at the same ratio (matugen's light text is a mid brown, and Glossy
+# light puts it over a blurred wallpaper), so they get roughly the dark palette's measured contrast.
+MIN_CONTRAST_LIGHT = {"fg": 10, "fg_bright": 14, "fg_dim": 6, "accent": 7, "accent2": 7, "ok": 7, "warn": 7,
+                      "bad": 7, "border": 4, "muted": 2.5}
+ANSI_MIN = {"dark": (4.5, 3), "light": (7, 6)}  # (colours, bright black) against bg
+DIM_LIGHT = 0.75  # terminals' dim-text opacity on light palettes (dark keeps kitty 0.4 / Ghostty 0.5)
+
+
+def adjust(p, mode="dark"):
+    """A copy of palette `p` meeting MIN_CONTRAST (MIN_CONTRAST_LIGHT for light) against p["bg"]. For matugen
+    palettes and Tokyo Night Day; Tokyo Night is shipped as is."""
     out = dict(p)
-    for role, ratio in MIN_CONTRAST.items():
+    for role, ratio in (MIN_CONTRAST_LIGHT if mode == "light" else MIN_CONTRAST).items():
         out[role] = ensure(out[role], out["bg"], ratio)
     return out
 
@@ -217,7 +235,7 @@ def _ansi_base16(b16, p, mode):
     hues = (("base08", 0, 30), ("base0b", 120, 45), ("base0a", 50, 30), ("base0d", 220, 40))
     if contrast(c["base00"], p["bg"]) > 1.25 or contrast(c["base05"], p["bg"]) < 4.5:
         return None
-    if any(contrast(c[k], p["bg"]) < 4.5 for k in ("base08", "base0a", "base0b", "base0c", "base0d", "base0e")):
+    if any(contrast(c[k], p["bg"]) < ANSI_MIN[mode][0] for k in ("base08", "base0a", "base0b", "base0c", "base0d", "base0e")):
         return None
     if not all(_hue_near(c[k], hue, tol) for k, hue, tol in hues):
         return None
@@ -225,14 +243,15 @@ def _ansi_base16(b16, p, mode):
     return [c["base00"], *six, c["base05"], c["base03"], *six, c["base07"]]
 
 
-def _ansi(p):
+def _ansi(p, mode="dark"):
     """Tokyo Night's hues, harmonised toward the accent and made readable on bg; black/white from the palette."""
+    colours, grey = ANSI_MIN[mode]
     tn = TOKYO_NIGHT["ansi"]
     black = p["bg_dim"] if _lum(p["bg"]) < 0.18 else p["surface3"]
     out = [black] + [None] * 6 + [p["fg"], p["fg_dim"]] + [None] * 6 + [p["fg_bright"]]
     for i in list(range(1, 7)) + list(range(9, 15)):
-        out[i] = ensure(_harmonize(tn[i], p["accent"]), p["bg"], 4.5)
-    out[8] = ensure(out[8], p["bg"], 3)
+        out[i] = ensure(_harmonize(tn[i], p["accent"]), p["bg"], colours)
+    out[8] = ensure(out[8], p["bg"], grey)
     return out
 
 
@@ -267,8 +286,8 @@ def from_wallpaper(path, mode="dark", scheme_type=DEFAULT_TYPE, pick="colourful"
     # Material has no success/warning roles: Tokyo Night's green/yellow, hue nudged toward the accent.
     p["ok"] = _harmonize(TOKYO_NIGHT["ok"], p["accent"])
     p["warn"] = _harmonize(TOKYO_NIGHT["warn"], p["accent"])
-    p = adjust(p)
-    p["ansi"] = _ansi_base16(data.get("base16") or {}, p, mode) or _ansi(p)
+    p = adjust(p, mode)
+    p["ansi"] = _ansi_base16(data.get("base16") or {}, p, mode) or _ansi(p, mode)
     return p
 
 
@@ -294,7 +313,7 @@ def palette():
     s = state()
     if s["source"] == "wallpaper" and _valid(s["palette"]):
         return s["palette"]
-    return dict(TOKYO_DAY if s["mode"] == "light" else TOKYO_NIGHT)
+    return _tokyo(s["mode"])
 
 
 # ---- rendering ----------------------------------------------------------------------------------------------
@@ -403,7 +422,7 @@ def palette_for(mode):
     if mode == s["mode"]:
         return palette()
     if s["source"] != "wallpaper":
-        return dict(TOKYO_DAY if mode == "light" else TOKYO_NIGHT)
+        return _tokyo(mode)
     key = [s["wallpaper"], s["type"], s["pick"], mode]
     alt = store.get(ALT)
     if isinstance(alt, dict) and alt.get("key") == key and _valid(alt.get("palette")):
@@ -703,6 +722,8 @@ def render(p):
              f"disable_ligatures {'never' if t['ligatures'] else 'always'}"]
     if not t["bold"]:  # bold drawn with the regular face
         kitty += [f"bold_font family='{f}' style=Regular", f"bold_italic_font family='{f}' style=Italic"]
+    if _lum(p["bg"]) > 0.5:  # dim text (SGR 2) at kitty's 0.4 / Ghostty's 0.5 washes out on a light background
+        kitty.append(f"dim_opacity {DIM_LIGHT:g}")
     kitty += [f"background {p['bg']}",
               f"foreground {p['fg']}",
               f"selection_background {p['surface2']}",
@@ -727,6 +748,8 @@ def render(p):
                f"selection-foreground = {p['fg_bright']}",
                f"cursor-color = {p['fg_bright']}"]
     ghostty += [f"palette = {i}={p['ansi'][i]}" for i in range(16)]
+    if _lum(p["bg"]) > 0.5:
+        ghostty.append(f"faint-opacity = {DIM_LIGHT:g}")
     hyprlock = (f"# {HEAD}\n"
                 f"$fw_font = {f}\n"
                 f"$fw_base = rgba({_a(p['bg'])})\n"
@@ -1765,7 +1788,7 @@ def set_source(source, mode=None, scheme_type=None, wallpaper=None, pick=None):
         s["wallpaper"] = path
         s["palette"] = p
     else:
-        p = dict(TOKYO_DAY if s["mode"] == "light" else TOKYO_NIGHT)
+        p = _tokyo(s["mode"])
     data = store.load()
     old = data.get("theme")
     data["theme"] = s
@@ -1816,6 +1839,10 @@ def _glass_selftest():
         assert set_look("light") == "light"  # apps light: the caller rebuilds the main palette in light
         store.set("theme", {"source": "tokyo-night", "mode": "light"})
         assert palette()["bg"] == day and look() == "light" and not glass()
+        lt = render(palette())
+        assert "dim_opacity 0.75" in lt["kitty.conf"] and "faint-opacity = 0.75" in lt["ghostty"]
+        assert "dim_opacity" not in off["kitty.conf"]
+        assert all(contrast(palette()[k], day) >= MIN_CONTRAST_LIGHT[k] - 0.05 for k in MIN_CONTRAST_LIGHT)
         assert set_look(part="bar", value="glossy") is None and look() == "custom"  # dark glass bar, light apps
         r = render(palette())
         assert f"@define-color bar_bg alpha({night}, 0.9);" in r["waybar.css"]  # apps light: the terminal's 0.9
