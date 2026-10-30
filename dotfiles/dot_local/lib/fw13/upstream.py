@@ -90,6 +90,8 @@ SOURCES = (
     ("ghostty-official", "Ghostty", "GHOSTTY_VERSION", lambda: gh_tag("ghostty-org/ghostty")),
     ("dbeaver-ce", "DBeaver", "DBEAVER_VERSION", lambda: gh_release("dbeaver/dbeaver")),
     ("deckcraft", "DeckCraft", "DECKCRAFT_VERSION", lambda: gh_release("storytold/deckcraft")),
+    ("wordcraft", "WordCraft", "WORDCRAFT_VERSION", lambda: gh_release("storytold/wordcraft")),
+    ("gridcraft", "GridCraft", "GRIDCRAFT_VERSION", lambda: gh_release("storytold/gridcraft")),
     ("obsidian-official", "Obsidian", "OBSIDIAN_VERSION", lambda: gh_release("obsidianmd/obsidian-releases")),
     ("/usr/local/bin/framework_tool", "framework_tool", "FWTOOL_VERSION",
      lambda: gh_release("FrameworkComputer/framework-system")),

@@ -42,11 +42,17 @@ SCRCPY_SHA256="${SCRCPY_SHA256:-9f969d30cc574816077edecda65719c1c70b0aee1df1ba5f
 # not in Fedora). Bundles its own Java, no dependencies. sha256 pinned (GitHub's asset digest); bump both together.
 DBEAVER_VERSION="${DBEAVER_VERSION:-26.2.2}"
 DBEAVER_SHA256="${DBEAVER_SHA256:-ac034c7a0ec44da1231a0a7de844b2b394bc3744ccb0251efb36bb00182c8c76}"
-# DeckCraft (presentations, opens/saves PowerPoint .pptx; user decision: the official RPM from
-# github.com/storytold/deckcraft releases; not in Fedora; alpha). Needs only alsa-lib, libxkbcommon, vulkan-loader,
-# already there. sha256 pinned (GitHub's asset digest = its SHA256SUMS.txt); bump both together.
+# ArtCraft office apps (user decision: replace LibreOffice; official RPMs from github.com/storytold/<app> releases, tag
+# v<version>; not in Fedora; alpha): DeckCraft = PowerPoint, WordCraft = Word, GridCraft = Excel. They need only
+# libxkbcommon + vulkan-loader (+ alsa-lib for DeckCraft), already there. sha256 pinned (GitHub's asset digest = each
+# release's SHA256SUMS.txt); bump both together.
+ARTCRAFT_APPS=(deckcraft wordcraft gridcraft)
 DECKCRAFT_VERSION="${DECKCRAFT_VERSION:-0.12.0}"
 DECKCRAFT_SHA256="${DECKCRAFT_SHA256:-3d784fc4b2b56b570ab5bb5c293a8a85357020236f29e1223ef177b4f65939ef}"
+WORDCRAFT_VERSION="${WORDCRAFT_VERSION:-0.12.0}"
+WORDCRAFT_SHA256="${WORDCRAFT_SHA256:-650747d70064431172fcde734b81aee0f40ec74d552deeacc6b59fa50f6bd1a5}"
+GRIDCRAFT_VERSION="${GRIDCRAFT_VERSION:-0.13.0}"
+GRIDCRAFT_SHA256="${GRIDCRAFT_SHA256:-1d33d39e2bd0906d5e38a07206d23cb7411f126cd031df2fed0d545506603274}"
 # Claude Desktop (user decision: Anthropic's official build, only published as a .deb for Ubuntu/Debian, repackaged as
 # the RPM claude-desktop-official; Cowork's QEMU/OVMF/virtiofsd from Fedora in 73-cowork.txt). Version + sha256 from the apt index
 # (downloads.claude.ai/claude-desktop/apt/stable/dists/stable/main/binary-amd64/Packages); bump both together.
@@ -64,7 +70,7 @@ STATE_DIR="$HOME/.local/state/fw13-hypr"
 # Optional groups: everything else is core (what the desktop itself needs). A group owns its packages/*.txt files and
 # the repo, build, download and service steps that test `on <group>` below. An unselected group is skipped, never
 # removed (rule 3a). Order = prompt order. GROUP_INFO[g] = "<packages/*.txt files>|<one-line description>".
-OPT_GROUPS=(games ai android remote warp firewall messaging ghostty database deckcraft claude-desktop obsidian localsend)
+OPT_GROUPS=(games ai android remote warp firewall messaging ghostty database artcraft claude-desktop obsidian localsend)
 declare -A GROUP_INFO=(
   [games]="40-gaming.txt|Steam, Lutris, gamescope, MangoHud, GameMode"
   [ai]="71-ai.txt|Ollama: local models for OpenCode and Jarvis (ollama.service)"
@@ -75,7 +81,7 @@ declare -A GROUP_INFO=(
   [messaging]="94-rpm-build.txt|Telegram Desktop, official telegram.org build as an RPM"
   [ghostty]="94-rpm-build.txt 98-ghostty.txt|Ghostty terminal, built from the official release (kitty stays)"
   [database]="|DBeaver CE database tool (official RPM, ~120 MB)"
-  [deckcraft]="|DeckCraft presentations, opens PowerPoint files (official RPM, alpha, ~100 MB)"
+  [artcraft]="|ArtCraft office apps: DeckCraft, WordCraft, GridCraft (PowerPoint/Word/Excel files; official RPMs, alpha, ~260 MB)"
   [claude-desktop]="94-rpm-build.txt 73-cowork.txt|Claude Desktop app (Anthropic's official .deb repackaged as an RPM) + QEMU for its Cowork tab, ~700 MB"
   [obsidian]="94-rpm-build.txt|Obsidian notes (official .deb repackaged as an RPM, ~350 MB)"
   [localsend]="|LocalSend file sharing (Flathub, send only)"
@@ -212,7 +218,8 @@ print_plan() {
   echo "  framework_tool $FWTOOL_VERSION download (if not current)"
   on android && ! skipped android-tools && echo "  scrcpy $SCRCPY_VERSION download into /opt/scrcpy (if not current)"
   on database && ! skipped dbeaver-ce && echo "  dbeaver-ce $DBEAVER_VERSION RPM download (if not current)"
-  on deckcraft && ! skipped deckcraft && echo "  deckcraft $DECKCRAFT_VERSION RPM download (if not current)"
+  if on artcraft; then for app in "${ARTCRAFT_APPS[@]}"; do
+    v="${app^^}_VERSION"; skipped "$app" || echo "  $app ${!v} RPM download (if not current)"; done; fi
   on claude-desktop && ! skipped claude-desktop-official && echo "  build claude-desktop-official $CLAUDE_DESKTOP_VERSION RPM (if not current)"
   on obsidian && ! skipped obsidian-official && echo "  build obsidian-official $OBSIDIAN_VERSION RPM (if not current)"
   on ai && ! skipped ollama && echo "  enable ollama.service"
@@ -485,16 +492,21 @@ system_phase() {
     $DNF install "$db"; rm -f "$db"
   fi
 
-  if ! on deckcraft; then :
-  elif skipped deckcraft; then echo "DeckCraft: skipped (removed by you)"
-  elif [[ $(rpm -q --qf '%{VERSION}' deckcraft 2>/dev/null) == "$DECKCRAFT_VERSION" ]]; then echo "deckcraft is current"
-  else
-    say "DeckCraft $DECKCRAFT_VERSION (presentations, official RPM)"
-    local dc="$STATE_DIR/deckcraft/deckcraft-$DECKCRAFT_VERSION.rpm"
-    mkdir -p "${dc%/*}"
-    curl -fsSL -o "$dc" "https://github.com/storytold/deckcraft/releases/download/v$DECKCRAFT_VERSION/deckcraft-$DECKCRAFT_VERSION-linux-x86_64.rpm" \
-      && echo "$DECKCRAFT_SHA256  $dc" | sha256sum -c --status || { rm -f "$dc"; die "DeckCraft download failed or checksum mismatch"; }
-    $DNF install "$dc"; rm -f "$dc"
+  if on artcraft; then
+    local app ver sha rpmf
+    for app in "${ARTCRAFT_APPS[@]}"; do
+      ver="${app^^}_VERSION"; ver="${!ver}"; sha="${app^^}_SHA256"; sha="${!sha}"
+      if skipped "$app"; then echo "$app: skipped (removed by you)"
+      elif [[ $(rpm -q --qf '%{VERSION}' "$app" 2>/dev/null) == "$ver" ]]; then echo "$app is current"
+      else
+        say "$app $ver (ArtCraft office app, official RPM)"
+        rpmf="$STATE_DIR/artcraft/$app-$ver.rpm"
+        mkdir -p "${rpmf%/*}"
+        curl -fsSL -o "$rpmf" "https://github.com/storytold/$app/releases/download/v$ver/$app-$ver-linux-x86_64.rpm" \
+          && echo "$sha  $rpmf" | sha256sum -c --status || { rm -f "$rpmf"; die "$app download failed or checksum mismatch"; }
+        $DNF install "$rpmf"; rm -f "$rpmf"
+      fi
+    done
   fi
 
   say "System files"

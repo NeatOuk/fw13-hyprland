@@ -16,7 +16,7 @@ HOME = os.path.expanduser("~")
 # install.sh's own checkout is the fallback (and the union covers either being older)
 PACKAGE_LISTS = (os.path.join(HOME, ".local/share/chezmoi/packages"), os.path.join(HOME, ".local/share/fw13-hypr/packages"))
 # install.sh builds or installs these itself, outside packages/*.txt
-BUILT = {"telegram-desktop-official", "ghostty-official", "citadel", "citadel-helper", "dbeaver-ce", "deckcraft",
+BUILT = {"telegram-desktop-official", "ghostty-official", "citadel", "citadel-helper", "dbeaver-ce", "deckcraft", "wordcraft", "gridcraft",
          "claude-desktop-official", "obsidian-official"}  # + downloaded RPMs
 OUR_FLATPAKS = {"org.localsend.localsend_app"}
 # Apps the installer chose that nothing else in the desktop needs: Uninstall… removes them (+ the extra packages that
@@ -36,6 +36,8 @@ OPTIONAL = {
     "org.localsend.localsend_app": ((), ""),
     "dbeaver-ce": ((), "saved connections stay in ~/.local/share/DBeaverData"),
     "deckcraft": ((), "your decks stay where you saved them"),
+    "wordcraft": ((), "your documents stay where you saved them"),
+    "gridcraft": ((), "your spreadsheets stay where you saved them"),
     "claude-desktop-official": ((), "your sign-in and settings stay in ~/.config/Claude"),
     "obsidian-official": ((), "your vaults stay where they are; its settings stay in ~/.config/obsidian"),
     "neovim": ((), "LazyVim's config stays in ~/.config/nvim"),
