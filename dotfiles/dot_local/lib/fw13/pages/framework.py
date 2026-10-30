@@ -15,6 +15,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from .. import hyprsettings as hs, store  # noqa: E402
 from ..hypr import hj  # noqa: E402
+from ..ui_theme import value_entry  # noqa: E402
 from .common import bg, label, launch  # noqa: E402
 
 TOOL = "framework_tool"
@@ -160,9 +161,13 @@ class Hardware:
             scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 5)
             scale.set_value(round(cur * 100 / mx))
             scale.set_size_request(220, -1)
+            scale.set_draw_value(False)
             scale.connect("value-changed", lambda s: subprocess.Popen(
                 ["brightnessctl", "-q", "-d", KBD_LED, "set", f"{int(s.get_value())}%"]))
-            page.row("Brightness", scale, hint="Fn+Space cycles it too")
+            box = Gtk.Box(spacing=12)
+            box.pack_start(scale, False, False, 0)
+            box.pack_start(value_entry(scale, "{:.0f}%", 5), False, False, 0)
+            page.row("Brightness", box, hint="Fn+Space cycles it too")
 
         if haptic_touchpad():
             page.heading("Touchpad")

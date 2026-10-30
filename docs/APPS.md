@@ -117,6 +117,8 @@ Volume, mic and brightness keys show a small bar at the bottom of the screen (al
 
 **SUPER+I** or "Settings" in the launcher opens the **Settings** app, in the same flat style, as a normal tiled window. The search box (**Ctrl+F**) finds any setting, not just page names ("hibernate", "night light", "warn at", "ssh", "wifi"): matches show as *Page › Section › Setting*, and clicking one (or Enter for the first) opens the page at that setting and highlights it.
 
+Every slider has its number beside it as a text box: type a value (units optional, e.g. `4500` or `85%`) and press Enter or click away; it is kept inside the slider's range.
+
 Appearance and Input are saved to `~/.config/hypr/settings.lua`, checked by Hyprland before it's used; your `local.lua` still wins over it. GNOME's own settings stay in the GNOME session.
 
 | Page | What's there |

@@ -6,6 +6,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
 from .. import sound, speakers, store  # noqa: E402
+from ..ui_theme import value_entry  # noqa: E402
 from .common import Page, bg, label  # noqa: E402
 
 
@@ -57,8 +58,8 @@ class SoundPage(Page):
         vol.set_draw_value(False)
         vol.set_size_request(140, -1)
         vol.set_value(round(min(d["volume"], 1.0) * 100))
-        pct = label(f"{int(vol.get_value())}%", width_chars=4, xalign=1)
-        vol.connect("value-changed", self.on_volume, d["id"], pct)
+        pct = value_entry(vol, "{:.0f}%", 5)
+        vol.connect("value-changed", self.on_volume, d["id"])
         controls = Gtk.Box(spacing=12)
         controls.pack_start(mute, False, False, 0)
         controls.pack_start(vol, False, False, 0)
@@ -78,8 +79,8 @@ class SoundPage(Page):
         vol.set_draw_value(False)
         vol.set_size_request(140, -1)
         vol.set_value(round(min(a["volume"], 1.0) * 100))
-        pct = label(f"{int(vol.get_value())}%", width_chars=4, xalign=1)
-        vol.connect("value-changed", self.on_volume, a["id"], pct)
+        pct = value_entry(vol, "{:.0f}%", 5)
+        vol.connect("value-changed", self.on_volume, a["id"])
         box = Gtk.Box(spacing=12)
         for w in (mute, vol, pct):
             box.pack_start(w, False, False, 0)
@@ -109,8 +110,8 @@ class SoundPage(Page):
             scale.set_size_request(180, -1)
             scale.set_value(vals[key])
             scale.add_mark(0, Gtk.PositionType.BOTTOM, None)
-            val = label(f"{vals[key]:+.1f} dB", width_chars=8, xalign=1)
-            scale.connect("value-changed", self.on_eq, key, val)
+            val = value_entry(scale, "{:+.1f} dB", 8)
+            scale.connect("value-changed", self.on_eq, key)
             box = Gtk.Box(spacing=8)
             box.pack_start(scale, False, False, 0)
             box.pack_start(val, False, False, 0)
@@ -124,8 +125,7 @@ class SoundPage(Page):
         bg(speakers.apply, lambda _r: False, name)
         GLib.idle_add(lambda: self.refresh() and False)  # not from inside the combo's own signal
 
-    def on_eq(self, scale, key, val):
-        val.set_text(f"{scale.get_value():+.1f} dB")
+    def on_eq(self, scale, key):
         vals = dict(speakers.eq(), **self.pending.get("eq_vals", {}))
         vals[key] = scale.get_value()
         self.pending["eq_vals"] = vals
@@ -158,8 +158,7 @@ class SoundPage(Page):
         self.noise_busy, self.noise_note = False, res[1]
         self.refresh()
 
-    def on_volume(self, scale, node_id, pct):
-        pct.set_text(f"{int(scale.get_value())}%")
+    def on_volume(self, scale, node_id):
         if self.pending.get(node_id):
             GLib.source_remove(self.pending[node_id])
 

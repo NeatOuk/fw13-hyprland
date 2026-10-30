@@ -7,6 +7,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 from .. import nightlight as nl  # noqa: E402
 from .. import store  # noqa: E402
 from ..ui_display import DisplayEditor  # noqa: E402
+from ..ui_theme import value_entry  # noqa: E402
 from .common import Page, bg, label  # noqa: E402
 
 
@@ -24,7 +25,7 @@ class DisplayPage(Page):
         self.temp.set_value(store.get("nightlight_temp"))
         self.temp.set_size_request(160, -1)
         self.temp.set_draw_value(False)
-        self.tlabel = Gtk.Label(label=f"{int(self.temp.get_value())} K", width_chars=7, xalign=1)
+        self.tlabel = value_entry(self.temp, "{:.0f} K", 7)
         self.pending = None
         self.temp.connect("value-changed", self.on_temp)
         box = Gtk.Box(spacing=8)
@@ -94,7 +95,6 @@ class DisplayPage(Page):
         return False
 
     def on_temp(self, scale):
-        self.tlabel.set_text(f"{int(scale.get_value())} K")
         if self.pending:
             GLib.source_remove(self.pending)
         self.pending = GLib.timeout_add(400, self.flush_temp)

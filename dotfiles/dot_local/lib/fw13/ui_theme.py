@@ -194,3 +194,31 @@ def button(text, cb=None, *classes):
     if cb:
         b.connect("clicked", lambda _b: cb())
     return b
+
+
+def value_entry(scale, fmt="{:.0f}", chars=6):
+    """The number beside a slider, typable: shows the slider's value in fmt ("{:.0f} %"); Enter or leaving the field
+    moves the slider there (clamped to its range), which runs the slider's own handler. "{:.0%}" takes 85 as 0.85."""
+    e = Gtk.Entry(width_chars=chars, max_width_chars=chars, xalign=1)
+    adj = scale.get_adjustment()
+
+    def show(*_):
+        e.set_text(fmt.format(scale.get_value()))
+
+    def typed(*_):
+        v = parse_number(e.get_text(), "%}" in fmt)
+        if v is not None:
+            scale.set_value(min(max(v, adj.get_lower()), adj.get_upper()))
+        show()
+        return False
+    scale.connect("value-changed", lambda *_: e.has_focus() or show())  # don't overwrite what's being typed
+    e.connect("activate", typed)
+    e.connect("focus-out-event", typed)
+    show()
+    return e
+
+
+def parse_number(text, percent=False):
+    """'4500 K' → 4500.0, '-1,5 dB' → -1.5, '85%' → 0.85 with percent; None without a number."""
+    m = re.search(r"[-+]?\d+(?:[.,]\d+)?", text)
+    return None if not m else float(m.group().replace(",", ".")) / (100 if percent else 1)

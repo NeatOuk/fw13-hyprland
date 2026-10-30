@@ -19,7 +19,7 @@ from .. import hyprsettings as hs  # noqa: E402
 from .. import store  # noqa: E402
 from .. import theme  # noqa: E402
 from .. import wallpaper as wp  # noqa: E402
-from ..ui_theme import button, current, rgb, sync, watch  # noqa: E402
+from ..ui_theme import button, current, rgb, sync, value_entry, watch  # noqa: E402
 from .common import Page, background, label, launch  # noqa: E402
 
 
@@ -85,13 +85,12 @@ class HyprPage(Page):
         scale.set_draw_value(False)
         scale.set_size_request(width, -1)
         scale.set_value(hs.get(key))
-        value = label(fmt.format(scale.get_value()), width_chars=5, xalign=1)
+        value = value_entry(scale, fmt)
         is_int = hs.KEYS[key] is int
 
         def moved(s):
             v = round(s.get_value() / step) * step
             v = int(round(v)) if is_int else round(v, 3)
-            value.set_text(fmt.format(v))
             self.change(key, v)
         scale.connect("value-changed", moved)
         box.pack_start(scale, False, False, 0)
@@ -299,11 +298,13 @@ class AppearancePage(HyprPage):
             lo, hi, _default = theme.GLASS_CLEAR
             scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, 5)
             scale.set_value(ls["clear"])
-            scale.set_value_pos(Gtk.PositionType.RIGHT)
+            scale.set_draw_value(False)
             scale.set_size_request(220, -1)
-            scale.connect("format-value", lambda _s, v: f"{v:.0f} %")
             scale.connect("value-changed", self.on_clear)
-            controls.append(self.row("See-through", scale, hint="How much of the wallpaper shows through Glossy parts"))
+            box = Gtk.Box(spacing=12)
+            box.pack_start(scale, False, False, 0)
+            box.pack_start(value_entry(scale, "{:.0f} %"), False, False, 0)
+            controls.append(self.row("See-through", box, hint="How much of the wallpaper shows through Glossy parts"))
         if follow:
             style = combo(STYLES, s["type"], lambda v: self.set_theme("wallpaper", scheme_type=v))
             controls.append(self.row("Style", style, hint="How matugen builds the palette from the image"))
@@ -359,11 +360,10 @@ class AppearancePage(HyprPage):
             scale.set_draw_value(False)
             scale.set_size_request(220, -1)
             scale.set_value(look[key])
-            value = label(fmt.format(look[key]), width_chars=7, xalign=1)
+            value = value_entry(scale, fmt, 7)
 
-            def moved(s, key=key, step=step, fmt=fmt, value=value):
+            def moved(s, key=key, step=step):
                 v = round(round(s.get_value() / step) * step, 3)
-                value.set_text(fmt.format(v))
                 self.queue_terminal(key, int(v) if key in ("padding", "line") else v)
             scale.connect("value-changed", moved)
             box = Gtk.Box(spacing=12)
@@ -502,13 +502,15 @@ class AppearancePage(HyprPage):
         self.heading("Workspaces")
         ws = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 9, 1)
         ws.set_value(int(store.get("workspaces_shown") or 5))  # default 5
-        ws.set_digits(0)
-        ws.set_value_pos(Gtk.PositionType.RIGHT)
+        ws.set_draw_value(False)
         ws.set_size_request(220, -1)
         for i in range(1, 10):
             ws.add_mark(i, Gtk.PositionType.BOTTOM, None)
         ws.connect("value-changed", self.on_workspaces)
-        self.row("Shown on the bar", ws, hint="Per screen, 1–9 (default 5); higher ones (up to SUPER+9) appear only "
+        box = Gtk.Box(spacing=12)
+        box.pack_start(ws, False, False, 0)
+        box.pack_start(value_entry(ws, chars=3), False, False, 0)
+        self.row("Shown on the bar", box, hint="Per screen, 1–9 (default 5); higher ones (up to SUPER+9) appear only "
                                               "while in use")
         if self.confirm:
             box = Gtk.Box(spacing=8)

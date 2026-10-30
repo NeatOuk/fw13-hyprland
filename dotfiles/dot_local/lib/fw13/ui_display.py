@@ -9,6 +9,7 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, GLib, Gtk, Pango  # noqa: E402
 
 from . import als, displays, theme  # noqa: E402
+from . import ui_theme  # noqa: E402
 from .ui_theme import rgb, watch  # noqa: E402
 
 KEEP_SECONDS = 15
@@ -31,7 +32,7 @@ class DisplayEditor(Gtk.Box):
             self.bright = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 100, 1)
             self.bright.set_draw_value(False)
             self.bright.set_value(displays.get_brightness())
-            self.pct = Gtk.Label(label=f"{int(self.bright.get_value())}%", width_chars=4, xalign=1)
+            self.pct = ui_theme.value_entry(self.bright, "{:.0f}%", 5)
             self.bright.connect("value-changed", self.on_brightness)
             self.syncing = False
             sync = GLib.timeout_add_seconds(1, self.sync_brightness)  # follow the keys while shown
@@ -145,7 +146,6 @@ class DisplayEditor(Gtk.Box):
         return True
 
     def on_brightness(self, scale):
-        self.pct.set_text(f"{int(scale.get_value())}%")
         if self.syncing:  # moved to match the keys: nothing to write
             return
         if self.pending:
