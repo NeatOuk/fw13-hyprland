@@ -43,16 +43,19 @@ SCRCPY_SHA256="${SCRCPY_SHA256:-9f969d30cc574816077edecda65719c1c70b0aee1df1ba5f
 DBEAVER_VERSION="${DBEAVER_VERSION:-26.2.2}"
 DBEAVER_SHA256="${DBEAVER_SHA256:-ac034c7a0ec44da1231a0a7de844b2b394bc3744ccb0251efb36bb00182c8c76}"
 # ArtCraft office apps (user decision: replace LibreOffice; official RPMs from github.com/storytold/<app> releases, tag
-# v<version>; not in Fedora; alpha): DeckCraft = PowerPoint, WordCraft = Word, GridCraft = Excel. They need only
+# v<version>; not in Fedora; alpha): DeckCraft = PowerPoint, WordCraft = Word, GridCraft = Excel, FigCraft = Figma-style
+# interface design. They need only
 # libxkbcommon + vulkan-loader (+ alsa-lib for DeckCraft), already there. sha256 pinned (GitHub's asset digest = each
 # release's SHA256SUMS.txt); bump both together.
-ARTCRAFT_APPS=(deckcraft wordcraft gridcraft)
+ARTCRAFT_APPS=(deckcraft wordcraft gridcraft figcraft)
 DECKCRAFT_VERSION="${DECKCRAFT_VERSION:-0.12.0}"
 DECKCRAFT_SHA256="${DECKCRAFT_SHA256:-3d784fc4b2b56b570ab5bb5c293a8a85357020236f29e1223ef177b4f65939ef}"
 WORDCRAFT_VERSION="${WORDCRAFT_VERSION:-0.12.0}"
 WORDCRAFT_SHA256="${WORDCRAFT_SHA256:-650747d70064431172fcde734b81aee0f40ec74d552deeacc6b59fa50f6bd1a5}"
 GRIDCRAFT_VERSION="${GRIDCRAFT_VERSION:-0.13.0}"
 GRIDCRAFT_SHA256="${GRIDCRAFT_SHA256:-1d33d39e2bd0906d5e38a07206d23cb7411f126cd031df2fed0d545506603274}"
+FIGCRAFT_VERSION="${FIGCRAFT_VERSION:-0.12.1}"
+FIGCRAFT_SHA256="${FIGCRAFT_SHA256:-2937059bef68c58409db6685f813195d6e00a8eb224761c7b89a5e3de31c81d9}"
 # Claude Desktop (user decision: Anthropic's official build, only published as a .deb for Ubuntu/Debian, repackaged as
 # the RPM claude-desktop-official; Cowork's QEMU/OVMF/virtiofsd from Fedora in 73-cowork.txt). Version + sha256 from the apt index
 # (downloads.claude.ai/claude-desktop/apt/stable/dists/stable/main/binary-amd64/Packages); bump both together.
@@ -81,7 +84,7 @@ declare -A GROUP_INFO=(
   [messaging]="94-rpm-build.txt|Telegram Desktop, official telegram.org build as an RPM"
   [ghostty]="94-rpm-build.txt 98-ghostty.txt|Ghostty terminal, built from the official release (kitty stays)"
   [database]="|DBeaver CE database tool (official RPM, ~120 MB)"
-  [artcraft]="|ArtCraft office apps: DeckCraft, WordCraft, GridCraft (PowerPoint/Word/Excel files; official RPMs, alpha, ~260 MB)"
+  [artcraft]="|ArtCraft apps: DeckCraft, WordCraft, GridCraft (PowerPoint/Word/Excel files) + FigCraft (design; official RPMs, alpha, ~350 MB)"
   [claude-desktop]="94-rpm-build.txt 73-cowork.txt|Claude Desktop app (Anthropic's official .deb repackaged as an RPM) + QEMU for its Cowork tab, ~700 MB"
   [obsidian]="94-rpm-build.txt|Obsidian notes (official .deb repackaged as an RPM, ~350 MB)"
   [localsend]="|LocalSend file sharing (Flathub, send only)"

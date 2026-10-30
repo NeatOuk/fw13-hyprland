@@ -16,7 +16,7 @@ Things this repository adds to a Fedora system, in particular:
 
 - **Root helpers** in `system/usr/local/bin/` (`fw-vpn-ctl`, `fw-vpn-config`, `fw-charge-limit`, `fw-power-profile`, `fw-disk-unlock`, `fw-hibernate-setup`, `fw-timeshift-*`, `fw-health-root`) and the **polkit rules and actions** that let wheel users run some of them without a password (`50-fw13-vpn.rules`, `50-fw13-power.rules`)
 - **Secret handling**: chezmoi prompts and the `private_` files they render (Chromium OAuth, restic, Ollama Cloud key), VPN passwords, the Jarvis Laya token in GNOME Keyring; anything that puts a secret on a command line, in a log or in a world-readable file
-- **Downloads in `install.sh`**: pinned versions and sha256 checks for repackaged or upstream binaries (Claude Desktop, Telegram, Ghostty, scrcpy, framework_tool, DBeaver, DeckCraft, WordCraft, GridCraft), and the vendor repos it adds
+- **Downloads in `install.sh`**: pinned versions and sha256 checks for repackaged or upstream binaries (Claude Desktop, Telegram, Ghostty, scrcpy, framework_tool, DBeaver, DeckCraft, WordCraft, GridCraft, FigCraft), and the vendor repos it adds
 - **Jarvis**: anything that lets a command run without the owner pressing **Run**, or lets it read key and password files
 
 ## Out of scope

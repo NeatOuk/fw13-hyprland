@@ -92,6 +92,7 @@ SOURCES = (
     ("deckcraft", "DeckCraft", "DECKCRAFT_VERSION", lambda: gh_release("storytold/deckcraft")),
     ("wordcraft", "WordCraft", "WORDCRAFT_VERSION", lambda: gh_release("storytold/wordcraft")),
     ("gridcraft", "GridCraft", "GRIDCRAFT_VERSION", lambda: gh_release("storytold/gridcraft")),
+    ("figcraft", "FigCraft", "FIGCRAFT_VERSION", lambda: gh_release("storytold/figcraft")),
     ("obsidian-official", "Obsidian", "OBSIDIAN_VERSION", lambda: gh_release("obsidianmd/obsidian-releases")),
     ("/usr/local/bin/framework_tool", "framework_tool", "FWTOOL_VERSION",
      lambda: gh_release("FrameworkComputer/framework-system")),
