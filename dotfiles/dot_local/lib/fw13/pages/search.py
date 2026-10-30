@@ -30,7 +30,7 @@ SYNONYMS = [
     ("power", "Screen & sleep › On battery", "Sleep report", None, "suspend drain battery overnight asleep"),
     ("apps", "Installed apps", "", None, "uninstall remove delete software programs applications"),
     ("apps", "Startup apps", "", None, "autostart login start automatically boot launch at startup restore session reopen last apps"),
-    ("apps", "Updates", "", None, "new version release upgrade claude desktop telegram ghostty dbeaver scrcpy framework_tool"),
+    ("apps", "Updates", "", None, "new version release upgrade claude desktop telegram ghostty dbeaver deckcraft scrcpy framework_tool"),
 ]
 
 
