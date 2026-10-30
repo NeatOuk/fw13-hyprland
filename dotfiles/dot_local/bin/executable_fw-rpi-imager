@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Raspberry Pi Imager as root (it writes to SD cards) on this Wayland session: pkexec clears the environment, so
+# Qt would fall back to X11 and abort; hand it the session's Wayland socket by its full path. The launcher entry
+# (~/.local/share/applications/com.raspberrypi.rpi-imager.desktop) runs this.
+set -euo pipefail
+exec pkexec --disable-internal-agent env WAYLAND_DISPLAY="$XDG_RUNTIME_DIR/${WAYLAND_DISPLAY:-wayland-1}" \
+  QT_QPA_PLATFORM=wayland /usr/bin/rpi-imager "$@"

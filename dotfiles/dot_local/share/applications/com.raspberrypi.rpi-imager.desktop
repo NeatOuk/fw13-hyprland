@@ -1,0 +1,15 @@
+# Replaces Raspberry Pi Imager's own entry (/usr/share/applications/com.raspberrypi.rpi-imager.desktop): it runs
+# as root through pkexec, which drops WAYLAND_DISPLAY, so Qt falls back to X11, can't connect and aborts. This
+# runs it through fw-rpi-imager, which passes the Wayland socket by its full path. TryExec hides it once
+# rpi-imager is uninstalled.
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=Raspberry Pi Imager
+Comment=Tool for writing images to SD cards for Raspberry Pi
+Icon=rpi-imager
+TryExec=/usr/bin/rpi-imager
+Exec=fw-rpi-imager %u
+Categories=Utility;
+StartupNotify=false
+MimeType=x-scheme-handler/rpi-imager;application/vnd.raspberrypi.imager-manifest+json;
