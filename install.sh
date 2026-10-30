@@ -73,11 +73,12 @@ STATE_DIR="$HOME/.local/state/fw13-hypr"
 # Optional groups: everything else is core (what the desktop itself needs). A group owns its packages/*.txt files and
 # the repo, build, download and service steps that test `on <group>` below. An unselected group is skipped, never
 # removed (rule 3a). Order = prompt order. GROUP_INFO[g] = "<packages/*.txt files>|<one-line description>".
-OPT_GROUPS=(games ai android remote warp firewall messaging ghostty database artcraft claude-desktop obsidian localsend)
+OPT_GROUPS=(games ai android raspberrypi remote warp firewall messaging ghostty database artcraft claude-desktop obsidian localsend)
 declare -A GROUP_INFO=(
   [games]="40-gaming.txt|Steam, Lutris, gamescope, MangoHud, GameMode"
   [ai]="71-ai.txt|Ollama: local models for OpenCode and Jarvis (ollama.service)"
   [android]="72-android.txt|adb/fastboot + scrcpy phone mirroring (official release)"
+  [raspberrypi]="74-raspberrypi.txt|Raspberry Pi Imager: write Pi OS to SD cards (Fedora)"
   [remote]="31-remote.txt|Remote Desktop Manager (Devolutions repo, ~1.2 GB)"
   [warp]="97-warp.txt|Cloudflare WARP + the bar's cloud icon (Cloudflare repo, warp-svc)"
   [firewall]="94-rpm-build.txt 95-citadel.txt|Citadel outbound firewall, built from source"

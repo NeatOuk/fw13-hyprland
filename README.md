@@ -32,6 +32,7 @@ The core desktop (Hyprland, bar, login, fonts, theme, Framework tools, backup, c
 | `games` | Steam, Lutris, gamescope, MangoHud, GameMode |
 | `ai` | Ollama (local models for OpenCode and Jarvis; remote servers work without it) |
 | `android` | adb/fastboot + scrcpy phone mirroring |
+| `raspberrypi` | Raspberry Pi Imager (write Pi OS to SD cards) |
 | `remote` | Remote Desktop Manager (Devolutions repo, ~1.2 GB) |
 | `warp` | Cloudflare WARP + the bar's cloud icon |
 | `firewall` | Citadel outbound firewall (built from source) |

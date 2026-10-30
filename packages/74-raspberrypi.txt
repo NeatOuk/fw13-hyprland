@@ -1,0 +1,3 @@
+# Optional group `raspberrypi` (install.sh GROUP_*). Fedora official (user decision): Raspberry Pi Imager writes
+# Raspberry Pi OS and other images to SD cards and USB drives
+rpi-imager

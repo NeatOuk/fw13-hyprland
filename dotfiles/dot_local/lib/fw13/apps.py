@@ -46,6 +46,7 @@ OPTIONAL = {
     # no launcher entry: listed by entryless() when installed
     "ollama": ((), "removing it stops and disables ollama.service; Jarvis' offline fallback and the laptop's OpenCode "
                     "server go with it; downloaded models stay in /var/lib/ollama (sudo rm -rf it to free the space)"),
+    "rpi-imager": ((), ""),
     "android-tools": ((), "scrcpy (installed by the installer) needs its adb and stops working"),
 }
 NAMES = {"ollama": "Ollama (local AI models)", "android-tools": "adb and fastboot (Android tools)"}  # entryless rows
