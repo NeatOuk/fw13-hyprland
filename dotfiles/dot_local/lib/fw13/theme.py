@@ -726,7 +726,8 @@ def render(p):
         kitty.append(f"dim_opacity {DIM_LIGHT:g}")
     kitty += [f"background {p['bg']}",
               f"foreground {p['fg']}",
-              f"selection_background {p['surface2']}",
+              f"selection_background {p['accent']}",  # surface2 nearly vanished on light backgrounds
+              f"selection_foreground {_on(p['accent'], p)}",
               f"cursor {p['fg_bright']}"]
     for i in range(8):
         kitty += [f"color{i:<2} {p['ansi'][i]}", f"color{i + 8:<2} {p['ansi'][i + 8]}"]
@@ -744,8 +745,8 @@ def render(p):
                f"font-feature = {'' if t['ligatures'] else '-calt, -liga, -dlig'}",
                f"background = {p['bg']}",
                f"foreground = {p['fg']}",
-               f"selection-background = {p['surface2']}",
-               f"selection-foreground = {p['fg_bright']}",
+               f"selection-background = {p['accent']}",
+               f"selection-foreground = {_on(p['accent'], p)}",
                f"cursor-color = {p['fg_bright']}"]
     ghostty += [f"palette = {i}={p['ansi'][i]}" for i in range(16)]
     if _lum(p["bg"]) > 0.5:
